@@ -2,12 +2,15 @@ import { isApiError, playlistQueryOptions, type PlaylistTrack } from '@replay-cr
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { ArrowLeft, ListMusic } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { AlbumArt } from '../../components/album-art.tsx'
 import { EmptyState } from '../../components/empty-state.tsx'
 import { ErrorPage } from '../../components/error-page.tsx'
+import { InlineError } from '../../components/inline-error.tsx'
+import { PlaylistTrackActions } from '../../components/playlist-track-actions.tsx'
 import { Segmented } from '../../components/ui/segmented.tsx'
 import { api } from '../../lib/api.ts'
+import { usePlaylistEdit } from '../../lib/use-playlist-edits.ts'
 
 export const Route = createFileRoute('/_app/playlists/$playlistId')({
   loader: async ({ context, params }) => {
@@ -40,6 +43,8 @@ function PlaylistPage() {
   const { data } = useSuspenseQuery(playlistQueryOptions(api, playlistId))
   const { playlist, items } = data
   const [sort, setSort] = useState<Sort>('order')
+  const edit = usePlaylistEdit()
+  const lastPosition = items.at(-1)?.position ?? 0
 
   const sorted = useMemo(() => {
     if (sort === 'order') return items
@@ -72,13 +77,29 @@ function PlaylistPage() {
         </EmptyState>
       ) : (
         <section aria-label="Tracks">
-          <div className="mb-3 overflow-x-auto">
+          <div className="mb-3 flex flex-wrap items-center gap-3 overflow-x-auto">
             <Segmented label="Sort tracks" value={sort} onChange={setSort} options={sortOptions} />
+            {edit.isPending && <p className="text-xs text-fg-muted">Saving to Spotify…</p>}
+            {edit.error && !edit.isPending && <InlineError error={edit.error} action="Updating the playlist" />}
           </div>
-          <ol className="flex flex-col divide-y divide-border">
+          <ol className="flex flex-col divide-y divide-border" aria-busy={edit.isPending}>
             {sorted.map((item) => (
               <li key={`${item.position}-${item.track.id}`}>
-                <TrackRow item={item} />
+                <TrackRow
+                  item={item}
+                  actions={
+                    <PlaylistTrackActions
+                      trackName={item.track.name}
+                      playlistName={playlist.name}
+                      position={item.position}
+                      lastPosition={lastPosition}
+                      canReorder={sort === 'order'}
+                      disabled={edit.isPending}
+                      onMove={(to) => edit.mutate({ kind: 'move', playlistId, from: item.position, to })}
+                      onRemove={() => edit.mutate({ kind: 'remove', playlistId, trackIds: [item.track.id] })}
+                    />
+                  }
+                />
               </li>
             ))}
           </ol>
@@ -90,7 +111,7 @@ function PlaylistPage() {
 
 const MAX_ALSO_ON = 2
 
-function TrackRow({ item }: { item: PlaylistTrack }) {
+function TrackRow({ item, actions }: { item: PlaylistTrack; actions: ReactNode }) {
   const { track, alsoOn } = item
   return (
     <div className="flex items-center gap-3 py-2">
@@ -131,6 +152,7 @@ function TrackRow({ item }: { item: PlaylistTrack }) {
           {item.playsHere > 0 && item.playsHere !== item.playCount && ` · ${item.playsHere} here`}
         </p>
       </div>
+      {actions}
     </div>
   )
 }

@@ -42,17 +42,28 @@ export type RequestOptions = {
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
 /**
- * GET a Web API path as JSON. On 429 it waits out short Retry-After windows
- * (up to twice) and otherwise throws SpotifyApiError with `retryAfter` set.
+ * Calls a Web API path and returns its JSON body. On 429 it waits out short
+ * Retry-After windows (up to twice) and otherwise throws SpotifyApiError with
+ * `retryAfter` set.
  */
-export async function spotifyGet<T>(path: string, accessToken: string, options: RequestOptions = {}): Promise<T> {
+export async function spotifyRequest<T>(
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+  path: string,
+  accessToken: string,
+  { body, ...options }: RequestOptions & { body?: unknown } = {},
+): Promise<T> {
   const { fetchFn = fetch, maxRetryWaitSeconds = 5, sleep = defaultSleep } = options
 
   for (let attempt = 0; ; attempt++) {
     const res = await fetchFn(`${SPOTIFY_API_URL}${path}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      method,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        ...(body !== undefined && { 'Content-Type': 'application/json' }),
+      },
+      ...(body !== undefined && { body: JSON.stringify(body) }),
     })
-    if (res.ok) return (await res.json()) as T
+    if (res.ok) return (res.status === 204 ? undefined : await res.json()) as T
 
     if (res.status === 429) {
       const retryAfter = Number(res.headers.get('Retry-After') ?? '1')
@@ -60,10 +71,14 @@ export async function spotifyGet<T>(path: string, accessToken: string, options: 
         await sleep(retryAfter * 1000)
         continue
       }
-      throw new SpotifyApiError(429, `GET ${path} was rate limited`, retryAfter)
+      throw new SpotifyApiError(429, `${method} ${path} was rate limited`, retryAfter)
     }
-    throw new SpotifyApiError(res.status, `GET ${path} failed with ${res.status}`)
+    throw new SpotifyApiError(res.status, `${method} ${path} failed with ${res.status}`)
   }
+}
+
+export function spotifyGet<T>(path: string, accessToken: string, options: RequestOptions = {}): Promise<T> {
+  return spotifyRequest('GET', path, accessToken, options)
 }
 
 export function getCurrentUser(accessToken: string, options?: RequestOptions): Promise<SpotifyUser> {
@@ -116,4 +131,61 @@ export function getPlaylistItems(
 ): Promise<Paging<SpotifyPlaylistItem>> {
   const query = new URLSearchParams({ limit: '50', offset: String(offset), fields: PLAYLIST_ITEM_FIELDS })
   return spotifyGet(`/playlists/${encodeURIComponent(playlistId)}/items?${query}`, accessToken, options)
+}
+
+/** Creates an (empty) playlist owned by the current user. */
+export function createPlaylist(
+  accessToken: string,
+  details: { name: string; description?: string; public?: boolean },
+  options?: RequestOptions,
+): Promise<SpotifyPlaylist> {
+  return spotifyRequest('POST', '/me/playlists', accessToken, { ...options, body: details })
+}
+
+/** Adds up to 100 track URIs, appended unless `position` is given. */
+export function addPlaylistItems(
+  accessToken: string,
+  playlistId: string,
+  uris: string[],
+  position?: number,
+  options?: RequestOptions,
+): Promise<{ snapshot_id: string }> {
+  return spotifyRequest('POST', `/playlists/${encodeURIComponent(playlistId)}/items`, accessToken, {
+    ...options,
+    body: { uris, ...(position !== undefined && { position }) },
+  })
+}
+
+/** Removes every occurrence of up to 100 track URIs. */
+export function removePlaylistItems(
+  accessToken: string,
+  playlistId: string,
+  uris: string[],
+  options?: RequestOptions,
+): Promise<{ snapshot_id: string }> {
+  return spotifyRequest('DELETE', `/playlists/${encodeURIComponent(playlistId)}/items`, accessToken, {
+    ...options,
+    body: { items: uris.map((uri) => ({ uri })) },
+  })
+}
+
+/**
+ * Moves `rangeLength` items starting at `rangeStart` so they sit before the item
+ * currently at `insertBefore` (Spotify's semantics; use the list length to move to the end).
+ */
+export function reorderPlaylistItems(
+  accessToken: string,
+  playlistId: string,
+  move: { rangeStart: number; insertBefore: number; rangeLength?: number; snapshotId?: string },
+  options?: RequestOptions,
+): Promise<{ snapshot_id: string }> {
+  return spotifyRequest('PUT', `/playlists/${encodeURIComponent(playlistId)}/items`, accessToken, {
+    ...options,
+    body: {
+      range_start: move.rangeStart,
+      insert_before: move.insertBefore,
+      range_length: move.rangeLength ?? 1,
+      ...(move.snapshotId && { snapshot_id: move.snapshotId }),
+    },
+  })
 }

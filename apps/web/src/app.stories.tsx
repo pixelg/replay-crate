@@ -3,9 +3,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { http, HttpResponse } from 'msw'
 import { useState } from 'react'
-import { expect, screen, within } from 'storybook/test'
+import { expect, fn, screen, waitFor, within } from 'storybook/test'
 import { createAppRouter } from './router.ts'
-import { pixelg, playlistDetail, playlistsList, playsPage, trackDetail } from './test/fixtures.ts'
+import { pixelg, playlistDetail, playlistsList, playsPage, rulePreview, trackDetail } from './test/fixtures.ts'
 
 /** The whole app (real route tree + shell) at a given URL. */
 function App({ path }: { path: string }) {
@@ -248,5 +248,114 @@ export const UnknownPage = meta.story({
   args: { path: '/definitely-not-a-page' },
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('heading', { name: 'Page not found' })).toBeVisible()
+  },
+})
+
+const requests = fn()
+
+export const PlaylistRemovesTrack = meta.story({
+  args: { path: '/playlists/p1' },
+  beforeEach({ msw }) {
+    requests.mockClear()
+    let removed = false
+    msw.use(
+      http.get('/api/playlists/:id', () =>
+        HttpResponse.json(
+          removed ? { ...playlistDetail, items: playlistDetail.items.filter((item) => item.track.id !== 't2') } : playlistDetail,
+        ),
+      ),
+      http.delete('/api/playlists/:id/items', async ({ request, params }) => {
+        requests(params.id, await request.json())
+        removed = true
+        return HttpResponse.json({ ok: true })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'Actions for Sunday Morning Static' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove from playlist…' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Remove from playlist?' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove' }))
+
+    await waitFor(() => expect(requests).toHaveBeenCalledWith('p1', { trackIds: ['t2'] }))
+    await waitFor(() => expect(canvas.queryByText('Sunday Morning Static')).toBeNull())
+  },
+})
+
+export const PlaylistMovesTrackToTop = meta.story({
+  args: { path: '/playlists/p1' },
+  beforeEach({ msw }) {
+    requests.mockClear()
+    msw.use(
+      http.put('/api/playlists/:id/items/move', async ({ request }) => {
+        requests(await request.json())
+        return HttpResponse.json({ ok: true })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'Actions for Searched And Played' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Move to top' }))
+    await waitFor(() => expect(requests).toHaveBeenCalledWith({ from: 3, to: 0 }))
+  },
+})
+
+export const TrackAddsToPlaylist = meta.story({
+  args: { path: '/tracks/t1' },
+  beforeEach({ msw }) {
+    requests.mockClear()
+    msw.use(
+      http.post('/api/playlists/:id/items', async ({ request, params }) => {
+        requests(params.id, await request.json())
+        return HttpResponse.json({ ok: true })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'Add to playlist' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add to playlist' })
+    // Already on it (from the track's playlists), so it can't be added twice.
+    await expect(await within(dialog).findByRole('button', { name: /Late Night Crate/ })).toBeDisabled()
+
+    await userEvent.click(within(dialog).getByRole('button', { name: /Road Trip/ }))
+    await waitFor(() => expect(requests).toHaveBeenCalledWith('p3', { trackIds: ['t1'] }))
+    await expect(await within(dialog).findByRole('button', { name: /Road Trip.*Added/ })).toBeDisabled()
+  },
+})
+
+export const NewPlaylistFromHistory = meta.story({
+  args: { path: '/playlists/new' },
+  beforeEach({ msw }) {
+    requests.mockClear()
+    msw.use(
+      http.post('/api/playlists/preview', () => HttpResponse.json(rulePreview)),
+      http.post('/api/playlists', async ({ request }) => {
+        requests(await request.json())
+        return HttpResponse.json({ id: 'p1' }, { status: 201 })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await expect(await canvas.findByText('Searched And Played')).toBeVisible()
+    await expect(canvas.getByRole('textbox', { name: 'Name' })).toHaveValue('Top 50 · last 30 days')
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Create with 3 tracks' }))
+    await waitFor(() =>
+      expect(requests).toHaveBeenCalledWith({
+        name: 'Top 50 · last 30 days',
+        isPublic: false,
+        trackIds: ['t4', 't1', 't2'],
+      }),
+    )
+    // Lands on the new playlist.
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Late Night Crate' })).toBeVisible()
+  },
+})
+
+export const NewPlaylistMobile = meta.story({
+  args: { path: '/playlists/new' },
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(http.post('/api/playlists/preview', () => HttpResponse.json(rulePreview)))
   },
 })

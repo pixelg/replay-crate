@@ -1,5 +1,7 @@
 export { exchangeCode, refreshAccessToken, SpotifyAuthError, type TokenResponse } from './accounts.ts'
 export {
+  addPlaylistItems,
+  createPlaylist,
   getAlbum,
   getArtist,
   getCurrentUser,
@@ -7,8 +9,11 @@ export {
   getPlaylistItems,
   getPlaylistMeta,
   getRecentlyPlayed,
+  removePlaylistItems,
+  reorderPlaylistItems,
   SpotifyApiError,
   spotifyGet,
+  spotifyRequest,
   type RequestOptions,
   type SpotifyUser,
 } from './api.ts'

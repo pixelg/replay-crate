@@ -117,7 +117,16 @@ export async function syncPlaylists(
   return { total: mine.length - dropped, synced, remaining }
 }
 
-async function syncPlaylistItems(deps: AppDeps, accessToken: string, playlistId: string, snapshotId: string) {
+/**
+ * Re-reads a playlist's items from Spotify and stores them at `snapshotId`.
+ * Returns how many entries Spotify has (including skipped local files).
+ */
+export async function syncPlaylistItems(
+  deps: AppDeps,
+  accessToken: string,
+  playlistId: string,
+  snapshotId: string,
+): Promise<number> {
   const { db, spotify } = deps
   const entries = await fetchAll((offset) => spotify.getPlaylistItems(accessToken, playlistId, offset))
 
@@ -150,7 +159,11 @@ async function syncPlaylistItems(deps: AppDeps, accessToken: string, playlistId:
       })),
     )
   }
-  await db.update(playlists).set({ itemsSnapshotId: snapshotId }).where(eq(playlists.id, playlistId))
+  await db
+    .update(playlists)
+    .set({ snapshotId, itemsSnapshotId: snapshotId, itemCount: entries.length })
+    .where(eq(playlists.id, playlistId))
+  return entries.length
 }
 
 function toPlaylistRow(playlist: SpotifyPlaylist) {

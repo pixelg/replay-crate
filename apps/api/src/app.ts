@@ -5,6 +5,7 @@ import { requestId } from 'hono/request-id'
 import { authRoutes } from './auth/routes.ts'
 import type { AppDeps } from './deps.ts'
 import { historyRoutes } from './history/routes.ts'
+import { playlistManageRoutes } from './playlists/manage-routes.ts'
 import { playlistRoutes } from './playlists/routes.ts'
 import { cronRoutes } from './sync/cron-routes.ts'
 
@@ -25,6 +26,8 @@ export function createApp(deps: AppDeps) {
     .get('/health', (c) => c.json({ ok: true }))
     .route('/', authRoutes(deps))
     .route('/', historyRoutes(deps))
+    // Before playlistRoutes so /playlists/preview isn't taken for a playlist id.
+    .route('/', playlistManageRoutes(deps))
     .route('/', playlistRoutes(deps))
     .route('/', cronRoutes(deps))
 
@@ -44,3 +47,4 @@ export function createApp(deps: AppDeps) {
 
 export type AppType = ReturnType<typeof createApp>
 export type { Me } from './auth/me.ts'
+export type { PlaylistRule } from './playlists/rules.ts'

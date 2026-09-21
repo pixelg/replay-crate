@@ -4,6 +4,7 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { AddToPlaylist } from '../../../components/add-to-playlist.tsx'
 import { AlbumArt } from '../../../components/album-art.tsx'
 import { ContextChip } from '../../../components/context-chip.tsx'
 import { ErrorPage } from '../../../components/error-page.tsx'
@@ -48,6 +49,13 @@ function TrackPage() {
             {track.album.name}
             {year && ` · ${year}`} · {formatDuration(track.durationMs)}
           </p>
+          <div className="mt-3">
+            <AddToPlaylist
+              trackId={track.id}
+              trackName={track.name}
+              onPlaylists={playlists.map((playlist) => playlist.id)}
+            />
+          </div>
         </div>
       </header>
 
