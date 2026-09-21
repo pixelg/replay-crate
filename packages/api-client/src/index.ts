@@ -166,3 +166,46 @@ export async function moveInPlaylist(api: ApiClient, playlistId: string, from: n
   )
   await expectOk(res, endpoint)
 }
+
+export type StatsRange = '7d' | '30d' | '90d' | '1y' | 'all'
+export type StatsOverview = InferResponseType<ApiClient['api']['stats']['overview']['$get'], 200>
+export type StatsTop = InferResponseType<ApiClient['api']['stats']['top']['$get'], 200>
+export type StatsTopItem = StatsTop['items'][number]
+export type SpotifyTop = InferResponseType<ApiClient['api']['stats']['spotify-top']['$get'], 200>
+export type SpotifyTopItem = SpotifyTop['items'][number]
+
+/** Totals + the "listening over time" series, bucketed in the viewer's time zone. */
+export const statsOverviewQueryOptions = (api: ApiClient, range: StatsRange, tz: string) =>
+  queryOptions({
+    queryKey: ['stats', 'overview', range, tz],
+    queryFn: async (): Promise<StatsOverview> => {
+      const endpoint = 'GET /api/stats/overview'
+      return expectOk(await send(endpoint, () => api.api.stats.overview.$get({ query: { range, tz } })), endpoint)
+    },
+  })
+
+export const statsTopQueryOptions = (
+  api: ApiClient,
+  query: { type: 'tracks' | 'artists' | 'albums'; range: StatsRange; metric: 'plays' | 'minutes' },
+) =>
+  queryOptions({
+    queryKey: ['stats', 'top', query],
+    queryFn: async (): Promise<StatsTop> => {
+      const endpoint = 'GET /api/stats/top'
+      return expectOk(await send(endpoint, () => api.api.stats.top.$get({ query })), endpoint)
+    },
+  })
+
+export const spotifyTopQueryOptions = (
+  api: ApiClient,
+  query: { type: 'tracks' | 'artists'; timeRange: 'short_term' | 'medium_term' | 'long_term' },
+) =>
+  queryOptions({
+    queryKey: ['stats', 'spotify-top', query],
+    queryFn: async (): Promise<SpotifyTop> => {
+      const endpoint = 'GET /api/stats/spotify-top'
+      return expectOk(await send(endpoint, () => api.api.stats['spotify-top'].$get({ query })), endpoint)
+    },
+    // Spotify recomputes these about daily; no need to ask again on every visit.
+    staleTime: 30 * 60_000,
+  })

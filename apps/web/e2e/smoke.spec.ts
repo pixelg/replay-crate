@@ -67,3 +67,13 @@ test('unknown pages and signing out', async ({ page }) => {
   await page.goto('/history')
   await expect(page).toHaveURL(/\/connect$/)
 })
+
+test("shows stats with the interactive chart and Spotify's view", async ({ page }) => {
+  await signIn(page)
+  await mainNav(page).getByRole('link', { name: 'Stats' }).click()
+  await expect(page.getByText('Listening over time')).toBeVisible()
+  await expect(page.locator('.recharts-area')).toHaveCount(2)
+  await expect(page.getByRole('list', { name: 'Totals' }).getByText('Plays')).toBeVisible()
+  await expect(page.getByText("Spotify's view")).toBeVisible()
+  await expect(page.getByText('Brass Monkey Business').first()).toBeVisible()
+})

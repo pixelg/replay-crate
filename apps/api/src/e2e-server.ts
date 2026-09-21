@@ -35,7 +35,7 @@ const { db } = await createTestDb()
 const deps = {
   db,
   cipher: await createTokenCipher(Buffer.alloc(32, 9).toString('base64')),
-  spotify: createFakeSpotify(library, { recentlyPlayed }),
+  spotify: createFakeSpotify(library, { recentlyPlayed, topTracks: () => [brass, sunday] }),
   redirectUri: `http://127.0.0.1:${port}/callback`,
 }
 
