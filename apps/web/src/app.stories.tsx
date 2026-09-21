@@ -122,7 +122,7 @@ export const LoginCancelled = meta.story({
   args: { path: '/callback?error=access_denied' },
   play: async ({ canvas }) => {
     await expect(await canvas.findByText('You cancelled the Spotify login.')).toBeVisible()
-    await expect(canvas.getByRole('button', { name: 'Try again' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Reconnect Spotify' })).toBeVisible()
   },
 })
 
@@ -198,7 +198,53 @@ export const ApiDown = meta.story({
     msw.use(http.get('/api/me', () => new HttpResponse(null, { status: 502 })))
   },
   play: async ({ canvas }) => {
-    await expect(await canvas.findByRole('heading', { name: 'Something went wrong' })).toBeVisible()
-    await expect(canvas.getByRole('button', { name: 'Try again' })).toBeVisible()
+    // The signed-in layout can't load, so the error fills the screen (no shell).
+    await expect(await canvas.findByRole('heading', { name: "Can't reach Replay Crate" })).toBeVisible()
+    await expect(canvas.queryByRole('navigation', { name: 'Main' })).toBeNull()
+  },
+})
+
+export const ServerErrorKeepsShell = meta.story({
+  beforeEach({ msw }) {
+    msw.use(
+      http.get('/api/plays', () =>
+        HttpResponse.json({ error: 'internal_error', requestId: 'req-123' }, { status: 500, headers: { 'X-Request-Id': 'req-123' } }),
+      ),
+    )
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { name: 'Something went wrong on the server' })).toBeVisible()
+    await expect(canvas.getByText('req-123')).toBeVisible()
+    // Only the page failed; navigation still works.
+    await expect(canvas.getByRole('navigation', { name: 'Main' })).toBeVisible()
+  },
+})
+
+export const SessionExpired = meta.story({
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/plays', () => HttpResponse.json({ error: 'unauthorized' }, { status: 401 })))
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('button', { name: 'Sign in again' })).toBeVisible()
+  },
+})
+
+export const SyncFailsInline = meta.story({
+  beforeEach({ msw }) {
+    msw.use(http.post('/api/sync', () => new HttpResponse(null, { status: 502 })))
+  },
+  play: async ({ canvas, userEvent }) => {
+    // The automatic sync runs once per page load, so press the button explicitly.
+    await userEvent.click(await canvas.findByRole('button', { name: 'Sync now' }))
+    await expect(await canvas.findByText("Sync failed: Can't reach Replay Crate")).toBeVisible()
+    // The history itself still shows.
+    await expect(canvas.getByRole('heading', { name: 'Today' })).toBeVisible()
+  },
+})
+
+export const UnknownPage = meta.story({
+  args: { path: '/definitely-not-a-page' },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { name: 'Page not found' })).toBeVisible()
   },
 })

@@ -1,12 +1,11 @@
-import { completeLogin, LoginFailedError, meQueryOptions } from '@replay-crate/api-client'
-import { createFileRoute, redirect, type ErrorComponentProps } from '@tanstack/react-router'
+import { completeLogin, isApiError, meQueryOptions } from '@replay-crate/api-client'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
 import { ENV } from 'varlock/env'
-import { Button } from '../components/ui/button.tsx'
+import { FullScreenRouteErrorPage } from '../components/route-error-page.tsx'
 import { api } from '../lib/api.ts'
-import { startSpotifyLogin, takePendingLogin } from '../lib/spotify-login.ts'
-
-/** A problem the user can fix by starting the login again. */
-class LoginProblem extends Error {}
+import { LoginProblem } from '../lib/login-problem.ts'
+import { takePendingLogin } from '../lib/spotify-login.ts'
 
 const optionalString = (value: unknown) => (typeof value === 'string' ? value : undefined)
 
@@ -41,30 +40,19 @@ export const Route = createFileRoute('/callback')({
       })
       context.queryClient.setQueryData(meQueryOptions(api).queryKey, me)
     } catch (error) {
-      if (error instanceof LoginFailedError) throw new LoginProblem('Spotify rejected the login.')
+      // The API rejected the exchange (bad/expired code); network and server errors bubble up as they are.
+      if (isApiError(error) && error.status >= 400 && error.status < 500) {
+        throw new LoginProblem('Spotify rejected the login.')
+      }
       throw error
     }
     throw redirect({ to: '/history', replace: true })
   },
   pendingComponent: () => <CallbackMessage>Finishing sign-in…</CallbackMessage>,
-  errorComponent: CallbackError,
+  errorComponent: FullScreenRouteErrorPage,
 })
 
-function CallbackError({ error }: ErrorComponentProps) {
-  return (
-    <CallbackMessage>
-      <h1 className="text-lg font-semibold">Couldn't connect Spotify</h1>
-      <p className="mt-1 text-sm text-fg-muted">
-        {error instanceof LoginProblem ? error.message : 'Something went wrong on our side.'}
-      </p>
-      <Button className="mt-6" onClick={() => void startSpotifyLogin()}>
-        Try again
-      </Button>
-    </CallbackMessage>
-  )
-}
-
-function CallbackMessage({ children }: { children: React.ReactNode }) {
+function CallbackMessage({ children }: { children: ReactNode }) {
   return (
     <main className="flex min-h-dvh items-center justify-center px-4 text-center">
       <div>{children}</div>

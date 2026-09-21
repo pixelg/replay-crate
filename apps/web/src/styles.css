@@ -15,6 +15,7 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-on-accent: var(--on-accent);
+  --color-danger: var(--danger);
 }
 
 @theme {
@@ -33,6 +34,7 @@
   --accent: oklch(0.55 0.16 45);
   --accent-hover: oklch(0.5 0.16 45);
   --on-accent: oklch(1 0 0);
+  --danger: oklch(0.53 0.2 27);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -46,6 +48,7 @@
     --accent: oklch(0.74 0.15 55);
     --accent-hover: oklch(0.79 0.14 55);
     --on-accent: oklch(0.2 0.02 50);
+    --danger: oklch(0.72 0.17 25);
   }
 }
 

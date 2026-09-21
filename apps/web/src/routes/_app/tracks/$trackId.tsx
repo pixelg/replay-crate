@@ -1,5 +1,5 @@
 import { formatDuration, formatRelative } from '@replay-crate/core'
-import { NotFoundError, trackQueryOptions } from '@replay-crate/api-client'
+import { isApiError, trackQueryOptions } from '@replay-crate/api-client'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { ArrowLeft, CircleHelp } from 'lucide-react'
@@ -14,7 +14,7 @@ export const Route = createFileRoute('/_app/tracks/$trackId')({
     try {
       await context.queryClient.ensureQueryData(trackQueryOptions(api, params.trackId))
     } catch (error) {
-      if (error instanceof NotFoundError) throw notFound()
+      if (isApiError(error, 404)) throw notFound()
       throw error
     }
   },

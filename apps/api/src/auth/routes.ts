@@ -1,9 +1,9 @@
-import { zValidator } from '@hono/zod-validator'
 import { schema } from '@replay-crate/db'
 import { SpotifyAuthError, type SpotifyUser } from '@replay-crate/spotify'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import type { AppDeps } from '../deps.ts'
+import { validate } from '../lib/validate.ts'
 import { toMe } from './me.ts'
 import { authenticate } from './middleware.ts'
 import { clearSessionCookie, createSession, deleteSession, readSessionToken, setSessionCookie } from './session.ts'
@@ -22,7 +22,7 @@ export function authRoutes(deps: AppDeps) {
   return (
     new Hono()
       /** Finishes the PKCE login: exchange the code, store encrypted tokens, start a session. */
-      .post('/auth/callback', zValidator('json', callbackBody), async (c) => {
+      .post('/auth/callback', validate('json', callbackBody), async (c) => {
         const { code, codeVerifier, redirectUri } = c.req.valid('json')
         if (redirectUri !== deps.redirectUri) {
           return c.json({ error: 'redirect_uri_mismatch' as const }, 400)

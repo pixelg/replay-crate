@@ -3,6 +3,7 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
 import { AppShell } from '../components/app-shell.tsx'
 import { ReauthBanner } from '../components/reauth-banner.tsx'
+import { FullScreenRouteErrorPage } from '../components/route-error-page.tsx'
 import { api } from '../lib/api.ts'
 import { startSpotifyLogin } from '../lib/spotify-login.ts'
 import { useLogout } from '../lib/use-logout.ts'
@@ -15,6 +16,8 @@ export const Route = createFileRoute('/_app')({
     if (!me) throw redirect({ to: '/connect' })
   },
   component: AppLayout,
+  // If the layout itself can't load (e.g. /api/me fails) there's no shell to show.
+  errorComponent: FullScreenRouteErrorPage,
 })
 
 function AppLayout() {

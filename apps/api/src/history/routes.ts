@@ -1,4 +1,3 @@
-import { zValidator } from '@hono/zod-validator'
 import { schema } from '@replay-crate/db'
 import { SpotifyApiError } from '@replay-crate/spotify'
 import { and, asc, count, desc, eq, lt, max, min } from 'drizzle-orm'
@@ -6,6 +5,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
+import { validate } from '../lib/validate.ts'
 import { ReauthRequiredError } from '../spotify/access-token.ts'
 import { syncRecentlyPlayed } from '../sync/recently-played.ts'
 import { loadTrackArtists, toContext } from './queries.ts'
@@ -49,7 +49,7 @@ export function historyRoutes(deps: AppDeps) {
       })
 
       /** Newest-first play history, paginated with the `before` cursor. */
-      .get('/plays', auth, zValidator('query', playsQuery), async (c) => {
+      .get('/plays', auth, validate('query', playsQuery), async (c) => {
         const user = c.get('user')
         const { before, limit } = c.req.valid('query')
 

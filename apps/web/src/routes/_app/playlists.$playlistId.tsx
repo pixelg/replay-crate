@@ -1,4 +1,4 @@
-import { NotFoundError, playlistQueryOptions, type PlaylistTrack } from '@replay-crate/api-client'
+import { isApiError, playlistQueryOptions, type PlaylistTrack } from '@replay-crate/api-client'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { ArrowLeft, CircleHelp, ListMusic } from 'lucide-react'
@@ -13,7 +13,7 @@ export const Route = createFileRoute('/_app/playlists/$playlistId')({
     try {
       await context.queryClient.ensureQueryData(playlistQueryOptions(api, params.playlistId))
     } catch (error) {
-      if (error instanceof NotFoundError) throw notFound()
+      if (isApiError(error, 404)) throw notFound()
       throw error
     }
   },

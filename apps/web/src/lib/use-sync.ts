@@ -1,4 +1,4 @@
-import { ReauthRequiredError, syncNow } from '@replay-crate/api-client'
+import { isApiError, syncNow } from '@replay-crate/api-client'
 import { useIsMutating, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { api } from './api.ts'
@@ -14,7 +14,7 @@ export function useSync() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plays'] }),
     onError: (error) => {
       // The session knows about the expiry now; refetch /me so the reconnect banner shows.
-      if (error instanceof ReauthRequiredError) void queryClient.invalidateQueries({ queryKey: ['me'] })
+      if (isApiError(error) && error.code === 'reauth_required') void queryClient.invalidateQueries({ queryKey: ['me'] })
     },
   })
   // True while any sync runs, including the automatic one started on open.

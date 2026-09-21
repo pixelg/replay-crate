@@ -6,6 +6,7 @@ import { ListMusic, RefreshCw, Users } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { AlbumArt } from '../../components/album-art.tsx'
 import { EmptyState } from '../../components/empty-state.tsx'
+import { InlineError } from '../../components/inline-error.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { api } from '../../lib/api.ts'
@@ -22,7 +23,7 @@ const STALE_AFTER_MS = 60 * 60 * 1000
 
 function PlaylistsPage() {
   const { data } = useSuspenseQuery(playlistsQueryOptions(api))
-  const { sync, isSyncing, progress } = usePlaylistSync()
+  const { sync, isSyncing, progress, error: syncError } = usePlaylistSync()
 
   const autoSynced = useRef(false)
   useEffect(() => {
@@ -37,7 +38,8 @@ function PlaylistsPage() {
     <>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader title="Playlists" description="Your playlists with play counts, and where else each track lives." />
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {syncError && !isSyncing && <InlineError error={syncError} action="Playlist sync" />}
           <p className="text-xs text-fg-muted" aria-live="polite">
             {isSyncing
               ? progress
