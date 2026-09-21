@@ -14,9 +14,13 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
+    "@hono/zod-validator": "^0.9.1",
     "@replay-crate/db": "workspace:*",
+    "@replay-crate/spotify": "workspace:*",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.13.8",
-    "varlock": "^1.20.0"
+    "varlock": "^1.20.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

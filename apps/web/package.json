@@ -18,6 +18,7 @@
   "dependencies": {
     "@base-ui/react": "^1.8.0",
     "@replay-crate/api-client": "workspace:*",
+    "@replay-crate/spotify": "workspace:*",
     "@tanstack/react-query": "^5.103.1",
     "@tanstack/react-router": "^1.170.38",
     "lucide-react": "^1.47.0",

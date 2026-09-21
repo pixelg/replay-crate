@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { ChartColumn } from 'lucide-react'
-import { EmptyState } from '../components/empty-state.tsx'
-import { PageHeader } from '../components/page-header.tsx'
+import { EmptyState } from '../../components/empty-state.tsx'
+import { PageHeader } from '../../components/page-header.tsx'
 
-export const Route = createFileRoute('/stats')({
+export const Route = createFileRoute('/_app/stats')({
   component: StatsPage,
 })
 
