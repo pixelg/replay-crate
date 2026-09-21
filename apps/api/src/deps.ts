@@ -7,8 +7,10 @@ import type {
   SpotifyPlaylistItem,
   SpotifyPlaylistMeta,
   SpotifySimplifiedAlbum,
+  SpotifyTrack,
   SpotifyUser,
   TokenResponse,
+  TopTimeRange,
 } from '@replay-crate/spotify'
 import type { TokenCipher } from './lib/crypto.ts'
 
@@ -31,6 +33,8 @@ export type SpotifyGateway = {
     playlistId: string,
     move: { rangeStart: number; insertBefore: number; snapshotId?: string },
   ): Promise<{ snapshot_id: string }>
+  getTopTracks(accessToken: string, timeRange: TopTimeRange): Promise<Paging<SpotifyTrack>>
+  getTopArtists(accessToken: string, timeRange: TopTimeRange): Promise<Paging<SpotifyArtist>>
 }
 
 export type AppDeps = {

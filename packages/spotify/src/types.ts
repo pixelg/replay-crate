@@ -86,3 +86,5 @@ export type SpotifyPlaylistItem = {
   is_local: boolean
   item: (SpotifyTrack & { type?: 'track' }) | { type: 'episode'; id: string } | null
 }
+
+export type TopTimeRange = 'short_term' | 'medium_term' | 'long_term'

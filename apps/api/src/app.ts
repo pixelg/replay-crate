@@ -7,6 +7,7 @@ import type { AppDeps } from './deps.ts'
 import { historyRoutes } from './history/routes.ts'
 import { playlistManageRoutes } from './playlists/manage-routes.ts'
 import { playlistRoutes } from './playlists/routes.ts'
+import { statsRoutes } from './stats/routes.ts'
 import { cronRoutes } from './sync/cron-routes.ts'
 
 /**
@@ -29,6 +30,7 @@ export function createApp(deps: AppDeps) {
     // Before playlistRoutes so /playlists/preview isn't taken for a playlist id.
     .route('/', playlistManageRoutes(deps))
     .route('/', playlistRoutes(deps))
+    .route('/', statsRoutes(deps))
     .route('/', cronRoutes(deps))
 
   // Every error response is JSON: `{ error: <code>, ...details }`.

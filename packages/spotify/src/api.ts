@@ -1,6 +1,8 @@
 import { SPOTIFY_API_URL } from './constants.ts'
 import type {
   Paging,
+  SpotifyTrack,
+  TopTimeRange,
   RecentlyPlayedPage,
   SpotifyArtist,
   SpotifyImage,
@@ -196,4 +198,24 @@ export function reorderPlaylistItems(
       ...(move.snapshotId && { snapshot_id: move.snapshotId }),
     },
   })
+}
+
+/**
+ * The user's top tracks by Spotify's own reckoning: roughly 4 weeks (short), 6 months
+ * (medium) or about a year (long). Spotify doesn't say how it ranks them.
+ */
+export function getTopTracks(
+  accessToken: string,
+  timeRange: TopTimeRange,
+  options?: RequestOptions,
+): Promise<Paging<SpotifyTrack>> {
+  return spotifyGet(`/me/top/tracks?time_range=${timeRange}&limit=20`, accessToken, options)
+}
+
+export function getTopArtists(
+  accessToken: string,
+  timeRange: TopTimeRange,
+  options?: RequestOptions,
+): Promise<Paging<SpotifyArtist>> {
+  return spotifyGet(`/me/top/artists?time_range=${timeRange}&limit=20`, accessToken, options)
 }
