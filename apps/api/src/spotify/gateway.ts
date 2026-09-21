@@ -11,6 +11,7 @@ import {
   getRecentlyPlayed,
   getTopArtists,
   getTopTracks,
+  getTrack,
   refreshAccessToken,
   removePlaylistItems,
   reorderPlaylistItems,
@@ -34,5 +35,6 @@ export function createSpotifyGateway(clientId: string): SpotifyGateway {
     reorderPlaylistItems: (accessToken, playlistId, move) => reorderPlaylistItems(accessToken, playlistId, move),
     getTopTracks: (accessToken, timeRange) => getTopTracks(accessToken, timeRange),
     getTopArtists: (accessToken, timeRange) => getTopArtists(accessToken, timeRange),
+    getTrack: (accessToken, id) => getTrack(accessToken, id),
   }
 }

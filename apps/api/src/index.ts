@@ -4,6 +4,7 @@ import { ENV } from 'varlock/env'
 import { createTokenCipher } from './lib/crypto.ts'
 import { createServer } from './server.ts'
 import { createSpotifyGateway } from './spotify/gateway.ts'
+import { startJobRunner } from './jobs/runner.ts'
 import { startSyncScheduler } from './sync/scheduler.ts'
 
 const deps = {
@@ -25,3 +26,6 @@ if (ENV.SYNC_INTERVAL_MINUTES > 0) {
   startSyncScheduler(deps, { intervalMs: ENV.SYNC_INTERVAL_MINUTES * 60_000 })
   console.log(`Syncing recently played every ${ENV.SYNC_INTERVAL_MINUTES} minutes`)
 }
+
+// Background Spotify lookups (e.g. tracks named in an import), one at a time.
+startJobRunner(deps)
