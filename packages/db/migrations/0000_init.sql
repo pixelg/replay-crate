@@ -1,0 +1,1 @@
+-- Baseline migration: intentionally empty. Tables arrive with M1 (users, sessions) and M2 (catalog, plays).

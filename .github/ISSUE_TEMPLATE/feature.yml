@@ -1,0 +1,22 @@
+name: Feature
+description: Something new the app should do
+labels: ['type:feat']
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: What should exist when this is done?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] ...
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Spotify API constraints, design links, open questions.
