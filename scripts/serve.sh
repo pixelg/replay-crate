@@ -6,6 +6,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# The local database (compose.yaml). Already running is fine.
+docker compose up --detach --wait
+
 export API_PORT=4173
 export SPOTIFY_REDIRECT_URI=http://127.0.0.1:4173/callback
 

@@ -1,0 +1,26 @@
+# Local Postgres for development: `pnpm db:up` starts it, `pnpm db:down` stops it.
+# The data lives in the `pgdata` volume, so it survives restarts and `docker compose down`.
+# Neon takes over when the app is deployed; see DATABASE_URL in .env.schema.
+name: replay-crate
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: replay
+      POSTGRES_PASSWORD: replay
+      POSTGRES_DB: replay_crate
+    ports:
+      # Loopback only, on a port that stays clear of other local Postgres servers.
+      - 127.0.0.1:54320:5432
+    volumes:
+      # Postgres 18 images keep data in a versioned directory under /var/lib/postgresql.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U replay -d replay_crate]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+volumes:
+  pgdata:

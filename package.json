@@ -7,7 +7,11 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "pnpm --parallel --filter @replay-crate/web --filter @replay-crate/api dev",
+    "dev": "pnpm db:up && pnpm --parallel --filter @replay-crate/web --filter @replay-crate/api dev",
+    "db:up": "docker compose up --detach --wait",
+    "db:down": "docker compose stop",
+    "db:migrate": "pnpm --filter @replay-crate/db db:migrate",
+    "db:psql": "docker compose exec postgres psql -U replay replay_crate",
     "build": "pnpm -r build",
     "lint": "oxlint",
     "typecheck": "pnpm -r typecheck",

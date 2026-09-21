@@ -12,13 +12,15 @@ pnpm workspace. Packages export TypeScript source directly (no build step betwee
 | `apps/api` | Hono API on Node 24. `createApp()` in `src/app.ts` takes its dependencies as arguments; `src/index.ts` is the server entry |
 | `packages/core` | Pure-TS domain logic shared by web, api, and a future React Native app |
 | `packages/spotify` | Spotify Web API client and constants |
-| `packages/db` | Drizzle schema + migrations (Neon Postgres). `@replay-crate/db/testing` gives an in-process PGlite DB |
+| `packages/db` | Drizzle schema + migrations. `createDb()` uses node-postgres for the local Docker Postgres and Neon's HTTP driver for `*.neon.tech`. `@replay-crate/db/testing` gives an in-process PGlite DB |
 | `packages/api-client` | Typed Hono RPC client (`hc<AppType>`) + TanStack Query `queryOptions` factories |
 
 ## Commands
 
 ```bash
-pnpm dev                # web on http://127.0.0.1:5173 + api on :8787 (Vite proxies /api)
+pnpm dev                # starts the DB, then web on http://127.0.0.1:5173 + api on :8787 (Vite proxies /api)
+pnpm db:up / db:down    # local Postgres 18 in Docker (compose.yaml) on 127.0.0.1:54320
+pnpm db:psql            # SQL prompt on the local database
 pnpm lint               # oxlint
 pnpm typecheck          # tsc in every package
 pnpm test               # vitest everywhere; web runs every story as a browser test
@@ -27,7 +29,7 @@ pnpm serve              # built app + API + scheduled sync on :4173 (the everyda
 pnpm storybook          # component workshop on :6006
 pnpm test:e2e           # Playwright smoke tests: built app + API, in-memory DB, fake Spotify
 pnpm --filter @replay-crate/db db:generate   # new migration from schema changes
-pnpm --filter @replay-crate/db db:migrate    # apply migrations to DATABASE_URL
+pnpm db:migrate         # apply migrations to DATABASE_URL
 ```
 
 ## Conventions
