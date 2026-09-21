@@ -16,7 +16,7 @@ export function HistoryList({ plays, now = new Date() }: { plays: PlayItem[]; no
         <section key={group.day} aria-labelledby={`day-${group.day}`}>
           <h2
             id={`day-${group.day}`}
-            className="sticky top-14 z-[1] -mx-4 bg-surface/95 px-4 py-2 text-sm font-semibold backdrop-blur md:-mx-8 md:px-8"
+            className="sticky top-14 z-[1] -mx-4 bg-background/95 px-4 py-2 text-sm font-semibold backdrop-blur md:-mx-8 md:px-8"
           >
             {formatDayLabel(group.date, now)}
           </h2>
@@ -46,10 +46,10 @@ function PlayRow({ play }: { play: PlayItem }) {
         >
           {track.name}
         </Link>
-        <p className="truncate text-sm text-fg-muted">{track.artists.map((artist) => artist.name).join(', ')}</p>
+        <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
         {play.context && <ContextChip context={play.context} className="mt-1" />}
       </div>
-      <time dateTime={play.playedAt} className="shrink-0 self-start pt-0.5 text-xs text-fg-muted tabular-nums">
+      <time dateTime={play.playedAt} className="shrink-0 self-start pt-0.5 text-xs text-muted-foreground tabular-nums">
         {timeFormat.format(new Date(play.playedAt))}
       </time>
     </div>

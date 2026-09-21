@@ -11,7 +11,7 @@ import { PageHeader } from '../../components/page-header.tsx'
 import { buttonClasses } from '../../components/ui/button-classes.ts'
 import { Button } from '../../components/ui/button.tsx'
 import { api } from '../../lib/api.ts'
-import { cx } from '../../lib/cx.ts'
+import { cn } from 'cn'
 import { usePlaylistSync } from '../../lib/use-playlist-sync.ts'
 
 export const Route = createFileRoute('/_app/playlists/')({
@@ -41,7 +41,7 @@ function PlaylistsPage() {
         <PageHeader title="Playlists" description="Your playlists with play counts, and where else each track lives." />
         <div className="flex flex-wrap items-center justify-end gap-3">
           {syncError && !isSyncing && <InlineError error={syncError} action="Playlist sync" />}
-          <p className="text-xs text-fg-muted" aria-live="polite">
+          <p className="text-xs text-muted-foreground" aria-live="polite">
             {isSyncing
               ? progress
                 ? `Syncing… ${progress.total - progress.remaining} of ${progress.total}`
@@ -49,7 +49,7 @@ function PlaylistsPage() {
               : data.syncedAt && `Synced ${formatRelative(new Date(data.syncedAt))}`}
           </p>
           <Button variant="secondary" size="sm" onClick={() => sync()} disabled={isSyncing}>
-            <RefreshCw aria-hidden className={cx('size-4', isSyncing && 'animate-spin')} />
+            <RefreshCw aria-hidden className={cn('size-4', isSyncing && 'animate-spin')} />
             Sync playlists
           </Button>
           <Link to="/playlists/new" className={buttonClasses({ size: 'sm' })}>
@@ -80,12 +80,12 @@ function PlaylistRow({ playlist }: { playlist: PlaylistSummary }) {
     <Link
       to="/playlists/$playlistId"
       params={{ playlistId: playlist.id }}
-      className="group flex items-center gap-3 rounded-control py-2"
+      className="group flex items-center gap-3 rounded-lg py-2"
     >
       <AlbumArt src={playlist.thumbUrl} className="size-14" />
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium group-hover:underline">{playlist.name}</p>
-        <p className="flex items-center gap-1 truncate text-sm text-fg-muted">
+        <p className="flex items-center gap-1 truncate text-sm text-muted-foreground">
           {playlist.itemCount} {playlist.itemCount === 1 ? 'track' : 'tracks'}
           {playlist.collaborative && (
             <>
@@ -98,7 +98,7 @@ function PlaylistRow({ playlist }: { playlist: PlaylistSummary }) {
       </div>
       <div className="shrink-0 text-right">
         <p className="font-semibold tabular-nums">{playlist.playsFrom}</p>
-        <p className="text-xs text-fg-muted">{playlist.playsFrom === 1 ? 'play' : 'plays'}</p>
+        <p className="text-xs text-muted-foreground">{playlist.playsFrom === 1 ? 'play' : 'plays'}</p>
       </div>
     </Link>
   )

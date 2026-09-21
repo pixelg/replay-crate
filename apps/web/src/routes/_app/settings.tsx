@@ -25,13 +25,13 @@ function SettingsPage() {
       <PageHeader title="Settings" />
       <div className="flex flex-col gap-4">
         {me && (
-          <section className="rounded-control border border-border bg-surface-raised p-4">
+          <section className="rounded-lg border border-border bg-card p-4">
             <h2 className="font-medium">Account</h2>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <UserAvatar user={me} className="size-10" />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{me.displayName ?? me.id}</p>
-                <p className="text-sm text-fg-muted">Connected to Spotify</p>
+                <p className="text-sm text-muted-foreground">Connected to Spotify</p>
               </div>
               <Button variant="secondary" onClick={() => void logout()}>
                 Log out
@@ -39,7 +39,7 @@ function SettingsPage() {
             </div>
           </section>
         )}
-        <section className="rounded-control border border-border bg-surface-raised p-4">
+        <section className="rounded-lg border border-border bg-card p-4">
           <h2 className="font-medium">Status</h2>
           <div className="mt-2">
             <ApiStatus />

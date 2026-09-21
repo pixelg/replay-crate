@@ -38,22 +38,22 @@ export function PlaylistTrackActions({
           {canReorder && (
             <>
               <MenuItem disabled={isFirst} onClick={() => onMove(0)}>
-                <ArrowUpToLine aria-hidden className="size-4 text-fg-muted" /> Move to top
+                <ArrowUpToLine aria-hidden className="size-4 text-muted-foreground" /> Move to top
               </MenuItem>
               <MenuItem disabled={isFirst} onClick={() => onMove(position - 1)}>
-                <ArrowUp aria-hidden className="size-4 text-fg-muted" /> Move up
+                <ArrowUp aria-hidden className="size-4 text-muted-foreground" /> Move up
               </MenuItem>
               <MenuItem disabled={isLast} onClick={() => onMove(position + 1)}>
-                <ArrowDown aria-hidden className="size-4 text-fg-muted" /> Move down
+                <ArrowDown aria-hidden className="size-4 text-muted-foreground" /> Move down
               </MenuItem>
               <MenuItem disabled={isLast} onClick={() => onMove(lastPosition)}>
-                <ArrowDownToLine aria-hidden className="size-4 text-fg-muted" /> Move to bottom
+                <ArrowDownToLine aria-hidden className="size-4 text-muted-foreground" /> Move to bottom
               </MenuItem>
               <MenuSeparator />
             </>
           )}
           <MenuItem onClick={() => setConfirming(true)}>
-            <Trash2 aria-hidden className="size-4 text-fg-muted" /> Remove from playlist…
+            <Trash2 aria-hidden className="size-4 text-muted-foreground" /> Remove from playlist…
           </MenuItem>
         </MenuContent>
       </MenuRoot>

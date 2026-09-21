@@ -23,14 +23,14 @@ function ConnectPage() {
   return (
     <main className="flex min-h-dvh items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
-        <Disc3 aria-hidden className="size-12 text-accent" />
+        <Disc3 aria-hidden className="size-12 text-primary" />
         <h1 className="mt-6 text-3xl font-semibold tracking-tight">Replay Crate</h1>
-        <p className="mt-2 text-fg-muted">Your Spotify listening history, remembered.</p>
+        <p className="mt-2 text-muted-foreground">Your Spotify listening history, remembered.</p>
 
         <ul className="mt-8 flex flex-col gap-4">
           {features.map(({ icon: Icon, text }) => (
             <li key={text} className="flex gap-3 text-sm">
-              <Icon aria-hidden className="size-5 shrink-0 text-fg-muted" />
+              <Icon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
               {text}
             </li>
           ))}
@@ -39,7 +39,7 @@ function ConnectPage() {
         <Button className="mt-10 w-full" onClick={() => void startSpotifyLogin()}>
           Connect Spotify
         </Button>
-        <p className="mt-3 text-center text-xs text-fg-muted">
+        <p className="mt-3 text-center text-xs text-muted-foreground">
           You'll sign in on Spotify's site. Replay Crate never sees your password.
         </p>
       </div>

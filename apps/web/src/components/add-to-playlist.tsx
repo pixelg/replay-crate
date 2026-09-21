@@ -34,7 +34,7 @@ export function AddToPlaylist({ trackId, trackName, onPlaylists }: { trackId: st
           <TextField label="Find a playlist" value={filter} onChange={(event) => setFilter(event.target.value)} />
           {edit.error && <InlineError error={edit.error} action="Adding" />}
           {isPending ? (
-            <p className="text-sm text-fg-muted">Loading playlists…</p>
+            <p className="text-sm text-muted-foreground">Loading playlists…</p>
           ) : (
             <ul className="flex flex-col">
               {playlists.map((playlist) => {
@@ -51,22 +51,22 @@ export function AddToPlaylist({ trackId, trackName, onPlaylists }: { trackId: st
                           { onSuccess: () => setAdded((ids) => [...ids, playlist.id]) },
                         )
                       }
-                      className="flex w-full items-center gap-3 rounded-control px-2 py-2 text-left hover:bg-surface-sunken disabled:cursor-default disabled:hover:bg-transparent"
+                      className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-muted disabled:cursor-default disabled:hover:bg-transparent"
                     >
                       <AlbumArt src={playlist.thumbUrl} className="size-10" />
                       <span className="min-w-0 flex-1 truncate text-sm">{playlist.name}</span>
                       {isOn ? (
-                        <span className="flex items-center gap-1 text-xs text-fg-muted">
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
                           <Check aria-hidden className="size-4" /> Added
                         </span>
                       ) : (
-                        isAdding && <span className="text-xs text-fg-muted">Adding…</span>
+                        isAdding && <span className="text-xs text-muted-foreground">Adding…</span>
                       )}
                     </button>
                   </li>
                 )
               })}
-              {!playlists.length && <li className="py-2 text-sm text-fg-muted">No playlists match.</li>}
+              {!playlists.length && <li className="py-2 text-sm text-muted-foreground">No playlists match.</li>}
             </ul>
           )}
         </div>
