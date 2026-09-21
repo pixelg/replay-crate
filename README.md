@@ -19,11 +19,15 @@ React 19 · Vite · TypeScript · Tailwind CSS 4 · TanStack Router + Query · B
 Requirements: Node 24, pnpm (the version is pinned in `package.json`), and a Spotify developer app. Spotify's development mode requires the app owner to have Premium.
 
 1. In the [Spotify dashboard](https://developer.spotify.com/dashboard), add the redirect URI `http://127.0.0.1:5173/callback`. Spotify doesn't accept `localhost`.
-2. Create `.env.local` in the repo root. The schema, with descriptions of every variable, is in `.env.schema`, `apps/api/.env.schema` and `apps/web/.env.schema`.
+2. Create `.env.local` in the repo root. It's the only env file you edit, and every key is documented in `.env.schema`:
 
    ```bash
    SPOTIFY_CLIENT_ID=your-client-id
-   DATABASE_URL=postgres://...   # a Neon dev branch
+   DATABASE_URL=postgres://...          # a Neon dev branch
+   LASTFM_API_KEY=...                   # needed from M4
+   TOKEN_ENCRYPTION_KEY=...             # openssl rand -base64 32
+   SESSION_SECRET=...                   # openssl rand -base64 32
+   CRON_SECRET=...                      # openssl rand -hex 32
    ```
 
    You don't need a client secret: login uses PKCE.
