@@ -2,11 +2,11 @@ import { formatDuration, formatRelative } from '@replay-crate/core'
 import { isApiError, trackQueryOptions } from '@replay-crate/api-client'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
-import { ArrowLeft, CircleHelp } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { AlbumArt } from '../../../components/album-art.tsx'
 import { ContextChip } from '../../../components/context-chip.tsx'
-import { EmptyState } from '../../../components/empty-state.tsx'
+import { ErrorPage } from '../../../components/error-page.tsx'
 import { api } from '../../../lib/api.ts'
 
 export const Route = createFileRoute('/_app/tracks/$trackId')({
@@ -20,9 +20,7 @@ export const Route = createFileRoute('/_app/tracks/$trackId')({
   },
   component: TrackPage,
   notFoundComponent: () => (
-    <EmptyState icon={CircleHelp} title="Track not found">
-      We haven't recorded any plays of this track.
-    </EmptyState>
+    <ErrorPage error={notFound()} title="Track not found" message="We haven't recorded any plays of this track." />
   ),
 })
 

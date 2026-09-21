@@ -44,13 +44,18 @@ export function ErrorPage({
   error,
   onRetry,
   fullScreen = false,
+  title,
+  message,
 }: {
   error: unknown
   /** What "Try again" does, e.g. re-run the route's loaders. Defaults to a reload. */
   onRetry?: () => void
   fullScreen?: boolean
+  /** Override the wording for a specific page, e.g. "Playlist not found". */
+  title?: string
+  message?: string
 }) {
-  const description = describeError(error)
+  const description = { ...describeError(error), ...(title && { title }), ...(message && { message }) }
   const Icon = icons[description.kind]
 
   function act() {
@@ -79,7 +84,8 @@ export function ErrorPage({
         fullScreen ? 'min-h-dvh' : 'min-h-[50dvh]',
       )}
     >
-      <Icon aria-hidden className={cx('size-10', description.source === 'app' ? 'text-danger' : 'text-accent')} />
+      {/* Red is reserved for genuine bugs; everything else is something the user can act on. */}
+      <Icon aria-hidden className={cx('size-10', description.kind === 'app' ? 'text-danger' : 'text-accent')} />
       <h1 className="mt-4 text-lg font-semibold">{description.title}</h1>
       <p className="mt-1 max-w-sm text-sm text-balance text-fg-muted">{description.message}</p>
       <Button className="mt-6" onClick={act}>

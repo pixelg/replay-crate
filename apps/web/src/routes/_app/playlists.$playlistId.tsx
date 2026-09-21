@@ -1,10 +1,11 @@
 import { isApiError, playlistQueryOptions, type PlaylistTrack } from '@replay-crate/api-client'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
-import { ArrowLeft, CircleHelp, ListMusic } from 'lucide-react'
+import { ArrowLeft, ListMusic } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { AlbumArt } from '../../components/album-art.tsx'
 import { EmptyState } from '../../components/empty-state.tsx'
+import { ErrorPage } from '../../components/error-page.tsx'
 import { Segmented } from '../../components/ui/segmented.tsx'
 import { api } from '../../lib/api.ts'
 
@@ -19,9 +20,11 @@ export const Route = createFileRoute('/_app/playlists/$playlistId')({
   },
   component: PlaylistPage,
   notFoundComponent: () => (
-    <EmptyState icon={CircleHelp} title="Playlist not found">
-      Only playlists you own or collaborate on are synced.
-    </EmptyState>
+    <ErrorPage
+      error={notFound()}
+      title="Playlist not found"
+      message="Only playlists you own or collaborate on are synced."
+    />
   ),
 })
 

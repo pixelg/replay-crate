@@ -76,7 +76,9 @@ export const TrackNotFound = meta.story({
     msw.use(http.get('/api/tracks/:id', () => HttpResponse.json({ error: 'not_found' }, { status: 404 })))
   },
   play: async ({ canvas }) => {
-    await expect(await canvas.findByText('Track not found')).toBeVisible()
+    await expect(await canvas.findByRole('heading', { name: 'Track not found' })).toBeVisible()
+    await expect(canvas.getByRole('alert')).toHaveAttribute('data-error-kind', 'not_found')
+    await expect(canvas.getByRole('navigation', { name: 'Main' })).toBeVisible()
   },
 })
 
