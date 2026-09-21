@@ -127,7 +127,8 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-control border border-border bg-surface-raised p-3">
       <dt className="text-xs text-fg-muted">{label}</dt>
-      <dd className="mt-1 truncate text-lg font-semibold tabular-nums">{value}</dd>
+      {/* Wraps rather than truncating: three tiles are narrow on a phone. */}
+      <dd className="mt-1 text-base leading-tight font-semibold tabular-nums sm:text-lg">{value}</dd>
     </div>
   )
 }
