@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { ListMusic } from 'lucide-react'
-import { EmptyState } from '../components/empty-state.tsx'
-import { PageHeader } from '../components/page-header.tsx'
+import { EmptyState } from '../../components/empty-state.tsx'
+import { PageHeader } from '../../components/page-header.tsx'
 
-export const Route = createFileRoute('/playlists')({
+export const Route = createFileRoute('/_app/playlists')({
   component: PlaylistsPage,
 })
 

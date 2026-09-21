@@ -26,7 +26,6 @@ Requirements: Node 24, pnpm (the version is pinned in `package.json`), and a Spo
    DATABASE_URL=postgres://...          # a Neon dev branch
    LASTFM_API_KEY=...                   # needed from M4
    TOKEN_ENCRYPTION_KEY=...             # openssl rand -base64 32
-   SESSION_SECRET=...                   # openssl rand -base64 32
    CRON_SECRET=...                      # openssl rand -hex 32
    ```
 

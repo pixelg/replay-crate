@@ -18,6 +18,8 @@ jobs:
     timeout-minutes: 15
     env:
       STORYBOOK_DISABLE_TELEMETRY: 1
+      # Required by the web app's env schema. Public by design (PKCE), and CI never talks to Spotify.
+      SPOTIFY_CLIENT_ID: ci-placeholder
     steps:
       - uses: actions/checkout@v7
       # Uses the pnpm version pinned in package.json#packageManager.

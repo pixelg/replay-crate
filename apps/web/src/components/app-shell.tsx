@@ -1,9 +1,11 @@
+import type { Me } from '@replay-crate/api-client'
 import { Link } from '@tanstack/react-router'
-import { CircleUser, Disc3, ExternalLink } from 'lucide-react'
+import { Disc3, ExternalLink, LogOut } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cx } from '../lib/cx.ts'
 import { navItems } from './nav-items.ts'
-import { MenuContent, MenuLinkItem, MenuRoot, MenuSeparator, MenuTrigger } from './ui/menu.tsx'
+import { MenuContent, MenuItem, MenuLinkItem, MenuRoot, MenuSeparator, MenuTrigger } from './ui/menu.tsx'
+import { UserAvatar } from './user-avatar.tsx'
 
 // Nav links style their active state from the `data-status="active"` attribute that
 // TanStack Router's <Link> sets (it also sets aria-current="page").
@@ -11,7 +13,18 @@ import { MenuContent, MenuLinkItem, MenuRoot, MenuSeparator, MenuTrigger } from 
 /**
  * Mobile-first layout: top bar + bottom tab bar below `md`, persistent sidebar from `md` up.
  */
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  user,
+  onLogout,
+  banner,
+  children,
+}: {
+  user: Me
+  onLogout: () => void
+  /** Full-width notice under the top bar, e.g. the re-auth prompt. */
+  banner?: ReactNode
+  children: ReactNode
+}) {
   return (
     <div className="min-h-dvh md:grid md:grid-cols-[15rem_1fr]">
       <aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-r border-border bg-surface-sunken p-4 md:flex">
@@ -23,9 +36,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-surface/90 px-4 backdrop-blur md:px-8">
           <Brand className="md:hidden" />
           <div className="ml-auto">
-            <AccountMenu />
+            <AccountMenu user={user} onLogout={onLogout} />
           </div>
         </header>
+        {banner}
         <main className="flex-1 px-4 pt-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:px-8 md:pb-10">
           {children}
         </main>
@@ -88,18 +102,26 @@ function BottomTabs() {
   )
 }
 
-function AccountMenu() {
+function AccountMenu({ user, onLogout }: { user: Me; onLogout: () => void }) {
   return (
     <MenuRoot>
       <MenuTrigger aria-label="Account">
-        <CircleUser aria-hidden className="size-6" />
+        <UserAvatar user={user} className="size-8" />
       </MenuTrigger>
       <MenuContent>
-        <MenuLinkItem render={<Link to="/settings" />}>Settings</MenuLinkItem>
+        <div className="px-3 py-2">
+          <p className="truncate text-sm font-medium">{user.displayName ?? user.id}</p>
+          <p className="text-xs text-fg-muted">Spotify account</p>
+        </div>
         <MenuSeparator />
+        <MenuLinkItem render={<Link to="/settings" />}>Settings</MenuLinkItem>
         <MenuLinkItem href="https://github.com/pixelg/replay-crate" target="_blank" rel="noreferrer">
           Source on GitHub <ExternalLink aria-hidden className="ml-auto size-4 text-fg-muted" />
         </MenuLinkItem>
+        <MenuSeparator />
+        <MenuItem onClick={onLogout}>
+          <LogOut aria-hidden className="size-4 text-fg-muted" /> Log out
+        </MenuItem>
       </MenuContent>
     </MenuRoot>
   )
