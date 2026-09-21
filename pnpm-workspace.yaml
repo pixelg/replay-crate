@@ -4,3 +4,5 @@ packages:
 allowBuilds:
   esbuild: true
   msw: true
+minimumReleaseAgeExclude:
+  - cn@0.3.2

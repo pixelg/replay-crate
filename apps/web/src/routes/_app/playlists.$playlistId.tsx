@@ -54,7 +54,7 @@ function PlaylistPage() {
 
   return (
     <article className="flex flex-col gap-6">
-      <Link to="/playlists" className="inline-flex w-fit items-center gap-1 text-sm text-fg-muted hover:text-fg">
+      <Link to="/playlists" className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft aria-hidden className="size-4" /> Playlists
       </Link>
 
@@ -62,8 +62,8 @@ function PlaylistPage() {
         <AlbumArt src={playlist.imageUrl} className="size-40 shadow-md sm:size-48" />
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">{playlist.name}</h1>
-          {playlist.description && <p className="mt-1 text-sm text-fg-muted">{playlist.description}</p>}
-          <p className="mt-1 text-sm text-fg-muted">
+          {playlist.description && <p className="mt-1 text-sm text-muted-foreground">{playlist.description}</p>}
+          <p className="mt-1 text-sm text-muted-foreground">
             {playlist.owned ? 'Yours' : `By ${playlist.ownerName ?? 'someone else'}`}
             {playlist.collaborative && ' · Collaborative'} · {playlist.itemCount} tracks · {playlist.playsFrom}{' '}
             {playlist.playsFrom === 1 ? 'play' : 'plays'} from here
@@ -79,7 +79,7 @@ function PlaylistPage() {
         <section aria-label="Tracks">
           <div className="mb-3 flex flex-wrap items-center gap-3 overflow-x-auto">
             <Segmented label="Sort tracks" value={sort} onChange={setSort} options={sortOptions} />
-            {edit.isPending && <p className="text-xs text-fg-muted">Saving to Spotify…</p>}
+            {edit.isPending && <p className="text-xs text-muted-foreground">Saving to Spotify…</p>}
             {edit.error && !edit.isPending && <InlineError error={edit.error} action="Updating the playlist" />}
           </div>
           <ol className="flex flex-col divide-y divide-border" aria-busy={edit.isPending}>
@@ -115,7 +115,7 @@ function TrackRow({ item, actions }: { item: PlaylistTrack; actions: ReactNode }
   const { track, alsoOn } = item
   return (
     <div className="flex items-center gap-3 py-2">
-      <span className="hidden w-6 shrink-0 text-right text-sm text-fg-muted tabular-nums sm:block">
+      <span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums sm:block">
         {item.position + 1}
       </span>
       <AlbumArt src={track.album.thumbUrl} className="size-11" />
@@ -127,16 +127,16 @@ function TrackRow({ item, actions }: { item: PlaylistTrack; actions: ReactNode }
         >
           {track.name}
         </Link>
-        <p className="truncate text-sm text-fg-muted">{track.artists.map((artist) => artist.name).join(', ')}</p>
+        <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
         {alsoOn.length > 0 && (
-          <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-fg-muted">
+          <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
             <span>Also on</span>
             {alsoOn.slice(0, MAX_ALSO_ON).map((other) => (
               <Link
                 key={other.id}
                 to="/playlists/$playlistId"
                 params={{ playlistId: other.id }}
-                className="max-w-40 truncate rounded-full bg-surface-sunken px-2 py-0.5 hover:text-fg"
+                className="max-w-40 truncate rounded-full bg-muted px-2 py-0.5 hover:text-foreground"
               >
                 {other.name}
               </Link>
@@ -147,7 +147,7 @@ function TrackRow({ item, actions }: { item: PlaylistTrack; actions: ReactNode }
       </div>
       <div className="shrink-0 text-right">
         <p className="font-semibold tabular-nums">{item.playCount}</p>
-        <p className="text-xs text-fg-muted">
+        <p className="text-xs text-muted-foreground">
           {item.playCount === 1 ? 'play' : 'plays'}
           {item.playsHere > 0 && item.playsHere !== item.playCount && ` · ${item.playsHere} here`}
         </p>

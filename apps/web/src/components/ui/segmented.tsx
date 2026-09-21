@@ -19,13 +19,13 @@ export function Segmented<T extends string>({
       value={[value]}
       // Pressing the active option would clear the group; keep the current value instead.
       onValueChange={(next) => next[0] && onChange(next[0] as T)}
-      className="inline-flex gap-1 rounded-full bg-surface-sunken p-1"
+      className="inline-flex gap-1 rounded-full bg-muted p-1"
     >
       {options.map((option) => (
         <Toggle
           key={option.value}
           value={option.value}
-          className="rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap text-fg-muted select-none hover:text-fg focus-visible:outline-2 focus-visible:outline-accent data-pressed:bg-surface-raised data-pressed:text-fg data-pressed:shadow-sm"
+          className="rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap text-muted-foreground select-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring data-pressed:bg-card data-pressed:text-foreground data-pressed:shadow-sm"
         >
           {option.label}
         </Toggle>

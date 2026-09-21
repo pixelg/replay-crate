@@ -96,7 +96,7 @@ function NewPlaylistPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link to="/playlists" className="inline-flex w-fit items-center gap-1 text-sm text-fg-muted hover:text-fg">
+      <Link to="/playlists" className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft aria-hidden className="size-4" /> Playlists
       </Link>
       <PageHeader title="New playlist" description="Build one from your listening history, then save it to Spotify." />
@@ -105,7 +105,7 @@ function NewPlaylistPage() {
         <div className="overflow-x-auto">
           <Segmented label="Playlist type" value={kind} onChange={setKind} options={kinds} />
         </div>
-        <p className="text-sm text-fg-muted">{hints[kind]}</p>
+        <p className="text-sm text-muted-foreground">{hints[kind]}</p>
         {(kind === 'top' || kind === 'recent') && (
           <div className="overflow-x-auto">
             <Segmented label="Time range" value={range} onChange={setRange} options={ranges} />
@@ -113,9 +113,9 @@ function NewPlaylistPage() {
         )}
         {kind !== 'empty' && (
           <div className="flex items-center gap-3 text-sm">
-            <span className="text-fg-muted">Up to</span>
+            <span className="text-muted-foreground">Up to</span>
             <Segmented label="Number of tracks" value={size} onChange={setSize} options={sizes} />
-            <span className="text-fg-muted">tracks</span>
+            <span className="text-muted-foreground">tracks</span>
           </div>
         )}
       </section>
@@ -127,7 +127,7 @@ function NewPlaylistPage() {
           onChange={(event) => setName(event.target.value)}
           maxLength={100}
         />
-        <p className="text-xs text-fg-muted">
+        <p className="text-xs text-muted-foreground">
           Spotify makes playlists created by apps public. You can make it private in the Spotify app afterwards.
         </p>
         <div className="flex flex-wrap items-center gap-3">
@@ -145,7 +145,7 @@ function NewPlaylistPage() {
 
 function Preview({ tracks, isLoading, error }: { tracks: RulePreview['tracks']; isLoading: boolean; error: unknown }) {
   if (error) return <InlineError error={error} action="Loading the preview" />
-  if (isLoading) return <p className="text-sm text-fg-muted">Finding tracks…</p>
+  if (isLoading) return <p className="text-sm text-muted-foreground">Finding tracks…</p>
   if (!tracks.length) {
     return (
       <EmptyState icon={ListMusic} title="Nothing matches yet">
@@ -159,11 +159,11 @@ function Preview({ tracks, isLoading, error }: { tracks: RulePreview['tracks']; 
       <ol className="flex flex-col divide-y divide-border">
         {tracks.map((track, index) => (
           <li key={track.id} className="flex items-center gap-3 py-2">
-            <span className="w-6 shrink-0 text-right text-sm text-fg-muted tabular-nums">{index + 1}</span>
+            <span className="w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums">{index + 1}</span>
             <AlbumArt src={track.album.thumbUrl} className="size-10" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{track.name}</p>
-              <p className="truncate text-xs text-fg-muted">{track.artists.map((artist) => artist.name).join(', ')}</p>
+              <p className="truncate text-xs text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
             </div>
             <span className="shrink-0 text-sm tabular-nums">
               {track.playCount} {track.playCount === 1 ? 'play' : 'plays'}

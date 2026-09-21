@@ -1,6 +1,6 @@
 import type { PlayContext } from '@replay-crate/api-client'
 import { Disc3, Heart, ListMusic, MicVocal, Radio, type LucideIcon } from 'lucide-react'
-import { cx } from '../lib/cx.ts'
+import { cn } from 'cn'
 
 const kinds: Record<string, { icon: LucideIcon; fallback: string }> = {
   playlist: { icon: ListMusic, fallback: 'Spotify playlist' },
@@ -15,8 +15,8 @@ export function ContextChip({ context, className }: { context: PlayContext; clas
   const Icon = kind.icon
   return (
     <span
-      className={cx(
-        'inline-flex max-w-full items-center gap-1 rounded-full bg-surface-sunken px-2 py-0.5 text-xs text-fg-muted',
+      className={cn(
+        'inline-flex max-w-full items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground',
         className,
       )}
     >

@@ -9,7 +9,7 @@ import { InlineError } from '../../components/inline-error.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { api } from '../../lib/api.ts'
-import { cx } from '../../lib/cx.ts'
+import { cn } from 'cn'
 import { useSync } from '../../lib/use-sync.ts'
 
 export const Route = createFileRoute('/_app/history')({
@@ -32,10 +32,10 @@ function HistoryPage() {
         <div className="flex flex-wrap items-center justify-end gap-3">
           {syncError && !isSyncing && <InlineError error={syncError} action="Sync" />}
           {lastSyncedAt && (
-            <p className="text-xs text-fg-muted">Synced {formatRelative(new Date(lastSyncedAt))}</p>
+            <p className="text-xs text-muted-foreground">Synced {formatRelative(new Date(lastSyncedAt))}</p>
           )}
           <Button variant="secondary" size="sm" onClick={() => sync()} disabled={isSyncing}>
-            <RefreshCw aria-hidden className={cx('size-4', isSyncing && 'animate-spin')} />
+            <RefreshCw aria-hidden className={cn('size-4', isSyncing && 'animate-spin')} />
             {isSyncing ? 'Syncing…' : 'Sync now'}
           </Button>
         </div>

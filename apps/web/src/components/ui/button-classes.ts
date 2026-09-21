@@ -1,10 +1,10 @@
-import { cx } from '../../lib/cx.ts'
+import { cn } from 'cn'
 
 const variants = {
-  primary: 'bg-accent text-on-accent hover:not-data-disabled:bg-accent-hover',
+  primary: 'bg-primary text-primary-foreground hover:not-data-disabled:bg-primary/90',
   secondary:
-    'border border-border bg-surface-raised text-fg hover:not-data-disabled:bg-surface-sunken',
-  ghost: 'text-fg hover:not-data-disabled:bg-surface-sunken',
+    'border border-border bg-card text-foreground hover:not-data-disabled:bg-muted',
+  ghost: 'text-foreground hover:not-data-disabled:bg-muted',
 } as const
 
 const sizes = {
@@ -19,9 +19,9 @@ export type ButtonLook = { variant?: keyof typeof variants; size?: keyof typeof 
  * enforces button semantics, so links must stay `<a>` elements styled with this instead.
  */
 export function buttonClasses({ variant = 'primary', size = 'md' }: ButtonLook = {}, className?: string): string {
-  return cx(
-    'inline-flex items-center justify-center gap-2 rounded-control font-medium whitespace-nowrap select-none',
-    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+  return cn(
+    'inline-flex items-center justify-center gap-2 rounded-lg font-medium whitespace-nowrap select-none',
+    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
     'data-disabled:cursor-not-allowed data-disabled:opacity-50',
     variants[variant],
     sizes[size],

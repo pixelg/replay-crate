@@ -11,10 +11,10 @@ export function TextField({
     <Field.Root className="flex flex-col gap-1">
       <Field.Label className="text-sm font-medium">{label}</Field.Label>
       <Field.Control
-        className="h-10 rounded-control border border-border bg-surface px-3 text-base text-fg placeholder:text-fg-muted focus:outline-2 focus:-outline-offset-1 focus:outline-accent sm:text-sm"
+        className="h-10 rounded-lg border border-border bg-background px-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-2 focus:-outline-offset-1 focus:outline-ring sm:text-sm"
         {...props}
       />
-      {description && <Field.Description className="text-xs text-fg-muted">{description}</Field.Description>}
+      {description && <Field.Description className="text-xs text-muted-foreground">{description}</Field.Description>}
     </Field.Root>
   )
 }

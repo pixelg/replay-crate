@@ -36,7 +36,7 @@ function TrackPage() {
 
   return (
     <article className="flex flex-col gap-8">
-      <Link to="/history" className="inline-flex w-fit items-center gap-1 text-sm text-fg-muted hover:text-fg">
+      <Link to="/history" className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft aria-hidden className="size-4" /> History
       </Link>
 
@@ -44,8 +44,8 @@ function TrackPage() {
         <AlbumArt src={track.album.imageUrl} className="size-40 shadow-md sm:size-48" />
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">{track.name}</h1>
-          <p className="mt-1 text-fg-muted">{track.artists.map((artist) => artist.name).join(', ')}</p>
-          <p className="mt-1 text-sm text-fg-muted">
+          <p className="mt-1 text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
             {track.album.name}
             {year && ` · ${year}`} · {formatDuration(track.durationMs)}
           </p>
@@ -74,7 +74,7 @@ function TrackPage() {
                   {row.context ? (
                     <ContextChip context={row.context} />
                   ) : (
-                    <span className="text-sm text-fg-muted">Search, queue, or not recorded</span>
+                    <span className="text-sm text-muted-foreground">Search, queue, or not recorded</span>
                   )}
                 </div>
                 <span className="text-sm tabular-nums">
@@ -125,8 +125,8 @@ function TrackPage() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-control border border-border bg-surface-raised p-3">
-      <dt className="text-xs text-fg-muted">{label}</dt>
+    <div className="rounded-lg border border-border bg-card p-3">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
       {/* Wraps rather than truncating: three tiles are narrow on a phone. */}
       <dd className="mt-1 text-base leading-tight font-semibold tabular-nums sm:text-lg">{value}</dd>
     </div>

@@ -10,7 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { describeError, type ErrorAction, type ErrorKind } from '../lib/describe-error.ts'
-import { cx } from '../lib/cx.ts'
+import { cn } from 'cn'
 import { startSpotifyLogin } from '../lib/spotify-login.ts'
 import { Button } from './ui/button.tsx'
 
@@ -79,25 +79,25 @@ export function ErrorPage({
       role="alert"
       data-error-kind={description.kind}
       data-error-source={description.source}
-      className={cx(
+      className={cn(
         'flex flex-col items-center justify-center px-4 py-12 text-center',
         fullScreen ? 'min-h-dvh' : 'min-h-[50dvh]',
       )}
     >
       {/* Red is reserved for genuine bugs; everything else is something the user can act on. */}
-      <Icon aria-hidden className={cx('size-10', description.kind === 'app' ? 'text-danger' : 'text-accent')} />
+      <Icon aria-hidden className={cn('size-10', description.kind === 'app' ? 'text-destructive' : 'text-primary')} />
       <h1 className="mt-4 text-lg font-semibold">{description.title}</h1>
-      <p className="mt-1 max-w-sm text-sm text-balance text-fg-muted">{description.message}</p>
+      <p className="mt-1 max-w-sm text-sm text-balance text-muted-foreground">{description.message}</p>
       <Button className="mt-6" onClick={act}>
         {labels[description.action]}
       </Button>
       {description.reference && (
-        <p className="mt-4 text-xs text-fg-muted">
+        <p className="mt-4 text-xs text-muted-foreground">
           Reference <code className="font-mono select-all">{description.reference}</code>
         </p>
       )}
       {import.meta.env.DEV && description.details && (
-        <pre className="mt-4 max-w-full overflow-x-auto rounded-control bg-surface-sunken px-3 py-2 text-left text-xs text-fg-muted">
+        <pre className="mt-4 max-w-full overflow-x-auto rounded-lg bg-muted px-3 py-2 text-left text-xs text-muted-foreground">
           {description.details}
         </pre>
       )}
