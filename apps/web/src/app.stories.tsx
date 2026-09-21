@@ -116,7 +116,8 @@ export const NavigatesBetweenPages = meta.story({
   play: async ({ canvas, userEvent }) => {
     const nav = await canvas.findByRole('navigation', { name: 'Main' })
     await userEvent.click(await within(nav).findByRole('link', { name: 'Stats' }))
-    await expect(await canvas.findByRole('heading', { level: 1, name: 'Stats' })).toBeVisible()
+    // The Stats route is code-split and pulls in Recharts, which a cold CI runner can take over a second to load.
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Stats' }, { timeout: 5_000 })).toBeVisible()
   },
 })
 
