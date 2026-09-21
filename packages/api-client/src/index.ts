@@ -1,9 +1,15 @@
 import type { AppType, Me } from '@replay-crate/api'
-import { queryOptions } from '@tanstack/react-query'
-import { hc } from 'hono/client'
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
+import { hc, type InferResponseType } from 'hono/client'
 
 export type { Me }
 export type ApiClient = ReturnType<typeof hc<AppType>>
+
+export type PlaysPage = InferResponseType<ApiClient['api']['plays']['$get'], 200>
+export type PlayItem = PlaysPage['items'][number]
+export type PlayContext = NonNullable<PlayItem['context']>
+export type TrackDetail = InferResponseType<ApiClient['api']['tracks'][':id']['$get'], 200>
+export type SyncResult = InferResponseType<ApiClient['api']['sync']['$post'], 200>
 
 /**
  * Typed client for the Hono API. The web app passes its own origin; a React
@@ -60,4 +66,51 @@ export async function completeLogin(
 
 export async function logout(api: ApiClient): Promise<void> {
   await api.api.auth.logout.$post()
+}
+
+/** Newest-first play history; each page's `nextCursor` fetches older plays. */
+export const playsInfiniteQueryOptions = (api: ApiClient) =>
+  infiniteQueryOptions({
+    queryKey: ['plays'],
+    queryFn: async ({ pageParam }): Promise<PlaysPage> => {
+      const res = await api.api.plays.$get({ query: pageParam ? { before: pageParam } : {} })
+      if (!res.ok) throw new Error('GET /api/plays failed')
+      return res.json()
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+  })
+
+export class NotFoundError extends Error {
+  constructor(what: string) {
+    super(`${what} not found`)
+    this.name = 'NotFoundError'
+  }
+}
+
+export const trackQueryOptions = (api: ApiClient, trackId: string) =>
+  queryOptions({
+    queryKey: ['tracks', trackId],
+    queryFn: async (): Promise<TrackDetail> => {
+      const res = await api.api.tracks[':id'].$get({ param: { id: trackId } })
+      if (res.status === 404) throw new NotFoundError(`Track ${trackId}`)
+      if (!res.ok) throw new Error(`GET /api/tracks/${trackId} failed`)
+      return res.json()
+    },
+  })
+
+/** Spotify access expired; the user must reconnect. */
+export class ReauthRequiredError extends Error {
+  constructor() {
+    super('Spotify access has expired')
+    this.name = 'ReauthRequiredError'
+  }
+}
+
+/** Pulls the latest plays from Spotify into the user's history. */
+export async function syncNow(api: ApiClient): Promise<SyncResult> {
+  const res = await api.api.sync.$post()
+  if (res.status === 200) return res.json()
+  if (res.status === 409) throw new ReauthRequiredError()
+  throw new Error(`POST /api/sync failed: ${res.status}`)
 }

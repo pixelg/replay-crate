@@ -1,5 +1,5 @@
 import { createTestDb } from '@replay-crate/db/testing'
-import type { TokenResponse } from '@replay-crate/spotify'
+import type { PlayHistoryItem, SpotifyContext, SpotifyTrack, TokenResponse } from '@replay-crate/spotify'
 import { vi } from 'vitest'
 import { createApp } from './app.ts'
 import type { AppDeps, SpotifyGateway } from './deps.ts'
@@ -7,6 +7,7 @@ import { createTokenCipher } from './lib/crypto.ts'
 
 export const REDIRECT_URI = 'http://127.0.0.1:5173/callback'
 export const TEST_KEY = Buffer.alloc(32, 7).toString('base64')
+export const CRON_SECRET = 'cron-secret-for-tests'
 
 export const tokens = (overrides: Partial<TokenResponse> = {}): TokenResponse => ({
   accessToken: 'access-1',
@@ -15,6 +16,48 @@ export const tokens = (overrides: Partial<TokenResponse> = {}): TokenResponse =>
   scope: 'user-read-recently-played user-top-read',
   ...overrides,
 })
+
+/** A Spotify track object. Artists are `[id, name]` pairs; the album defaults to one per track. */
+export function track(
+  id: string,
+  options: { name?: string; album?: [id: string, name: string]; artists?: Array<[id: string, name: string]> } = {},
+): SpotifyTrack {
+  const [albumId, albumName] = options.album ?? [`album-${id}`, `Album ${id}`]
+  const artists = (options.artists ?? [['artist-1', 'Artist One']]).map(([artistId, name]) => ({
+    id: artistId,
+    name,
+    uri: `spotify:artist:${artistId}`,
+  }))
+  return {
+    id,
+    name: options.name ?? `Track ${id}`,
+    uri: `spotify:track:${id}`,
+    duration_ms: 200_000,
+    explicit: false,
+    is_local: false,
+    external_ids: { isrc: `ISRC${id}` },
+    album: {
+      id: albumId,
+      name: albumName,
+      uri: `spotify:album:${albumId}`,
+      album_type: 'album',
+      release_date: '2024-05-01',
+      release_date_precision: 'day',
+      images: [
+        { url: `https://i.scdn.co/${albumId}-300`, width: 300, height: 300 },
+        { url: `https://i.scdn.co/${albumId}-64`, width: 64, height: 64 },
+      ],
+      artists: artists.slice(0, 1),
+    },
+    artists,
+  }
+}
+
+export const playlistContext = (id: string): SpotifyContext => ({ type: 'playlist', uri: `spotify:playlist:${id}` })
+
+export function play(t: SpotifyTrack, playedAt: string, context: SpotifyContext | null = null): PlayHistoryItem {
+  return { track: t, played_at: playedAt, context }
+}
 
 /** App wired to PGlite, a fake Spotify, and a controllable clock. */
 export async function createTestContext() {
@@ -34,6 +77,20 @@ export async function createTestContext() {
         { url: 'https://i.scdn.co/image/large', width: 300, height: 300 },
       ],
     })),
+    getRecentlyPlayed: vi.fn<SpotifyGateway['getRecentlyPlayed']>(async () => ({ items: [], cursors: null })),
+    getPlaylistMeta: vi.fn<SpotifyGateway['getPlaylistMeta']>(async (_token, id) => ({
+      id,
+      name: `Playlist ${id}`,
+      images: [{ url: `https://i.scdn.co/${id}`, width: 300, height: 300 }],
+      owner: { id: 'pixelg', display_name: 'Pixel G' },
+    })),
+    getAlbum: vi.fn<SpotifyGateway['getAlbum']>(),
+    getArtist: vi.fn<SpotifyGateway['getArtist']>(async (_token, id) => ({
+      id,
+      name: `Artist ${id}`,
+      uri: `spotify:artist:${id}`,
+      images: [{ url: `https://i.scdn.co/${id}`, width: 300, height: 300 }],
+    })),
   }
 
   const deps: AppDeps = {
@@ -41,6 +98,7 @@ export async function createTestContext() {
     cipher: await createTokenCipher(TEST_KEY),
     spotify,
     redirectUri: REDIRECT_URI,
+    cronSecret: CRON_SECRET,
     now: () => current,
   }
 

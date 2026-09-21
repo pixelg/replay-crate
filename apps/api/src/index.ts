@@ -10,6 +10,7 @@ const app = createApp({
   cipher: await createTokenCipher(ENV.TOKEN_ENCRYPTION_KEY),
   spotify: createSpotifyGateway(ENV.SPOTIFY_CLIENT_ID),
   redirectUri: ENV.SPOTIFY_REDIRECT_URI,
+  cronSecret: ENV.CRON_SECRET,
 })
 
 serve({ fetch: app.fetch, hostname: '127.0.0.1', port: ENV.API_PORT }, (info) => {
