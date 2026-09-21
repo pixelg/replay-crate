@@ -3,6 +3,7 @@ import type {
   Paging,
   PlayHistoryItem,
   SpotifyContext,
+  SpotifyImage,
   SpotifyPlaylist,
   SpotifyPlaylistItem,
   SpotifyTrack,
@@ -191,7 +192,10 @@ export function createFakeLibrary() {
 /** A Spotify gateway backed by `library`, with a fixed user and optional recent plays. */
 export function createFakeSpotify(
   library: ReturnType<typeof createFakeLibrary>,
-  { recentlyPlayed = () => [] }: { recentlyPlayed?: () => PlayHistoryItem[] } = {},
+  {
+    recentlyPlayed = () => [],
+    topTracks = () => [],
+  }: { recentlyPlayed?: () => PlayHistoryItem[]; topTracks?: () => SpotifyTrack[] } = {},
 ): SpotifyGateway {
   return {
     exchangeCode: async () => tokens(),
@@ -229,6 +233,19 @@ export function createFakeSpotify(
       uri: `spotify:artist:${id}`,
       images: [{ url: `https://i.scdn.co/${id}`, width: 300, height: 300 }],
     }),
+    getTopTracks: async () => paged(topTracks())(0),
+    // Top artists are the credited artists of the top tracks, in order, with images.
+    getTopArtists: async () => {
+      const seen = new Map<string, { id: string; name: string; uri: string; images: SpotifyImage[] }>()
+      for (const t of topTracks()) {
+        for (const artist of t.artists) {
+          if (!seen.has(artist.id)) {
+            seen.set(artist.id, { ...artist, images: [{ url: `https://i.scdn.co/${artist.id}`, width: 300, height: 300 }] })
+          }
+        }
+      }
+      return paged([...seen.values()])(0)
+    },
     ...library.gateway,
   }
 }

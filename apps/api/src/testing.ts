@@ -41,6 +41,8 @@ export async function createTestContext() {
     addPlaylistItems: vi.fn<SpotifyGateway['addPlaylistItems']>(fake.addPlaylistItems),
     removePlaylistItems: vi.fn<SpotifyGateway['removePlaylistItems']>(fake.removePlaylistItems),
     reorderPlaylistItems: vi.fn<SpotifyGateway['reorderPlaylistItems']>(fake.reorderPlaylistItems),
+    getTopTracks: vi.fn<SpotifyGateway['getTopTracks']>(fake.getTopTracks),
+    getTopArtists: vi.fn<SpotifyGateway['getTopArtists']>(fake.getTopArtists),
   }
   const deps: AppDeps = {
     db,

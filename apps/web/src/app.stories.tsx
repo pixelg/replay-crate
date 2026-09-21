@@ -5,7 +5,17 @@ import { http, HttpResponse } from 'msw'
 import { useState } from 'react'
 import { expect, fn, screen, waitFor, within } from 'storybook/test'
 import { createAppRouter } from './router.ts'
-import { pixelg, playlistDetail, playlistsList, playsPage, rulePreview, trackDetail } from './test/fixtures.ts'
+import {
+  pixelg,
+  playlistDetail,
+  playlistsList,
+  playsPage,
+  rulePreview,
+  spotifyTop,
+  statsOverview,
+  statsTop,
+  trackDetail,
+} from './test/fixtures.ts'
 
 /** The whole app (real route tree + shell) at a given URL. */
 function App({ path }: { path: string }) {
@@ -33,6 +43,12 @@ const meta = preview.meta({
       http.get('/api/playlists', () => HttpResponse.json(playlistsList)),
       http.get('/api/playlists/:id', () => HttpResponse.json(playlistDetail)),
       http.post('/api/playlists/sync', () => HttpResponse.json({ total: 3, synced: 0, remaining: 0 })),
+      http.get('/api/stats/overview', () => HttpResponse.json(statsOverview())),
+      http.get('/api/stats/top', ({ request }) => {
+        const params = new URL(request.url).searchParams
+        return HttpResponse.json({ ...statsTop, type: params.get('type') ?? 'tracks', metric: params.get('metric') ?? 'plays' })
+      }),
+      http.get('/api/stats/spotify-top', () => HttpResponse.json(spotifyTop)),
     )
   },
 })
@@ -356,5 +372,48 @@ export const NewPlaylistMobile = meta.story({
   globals: { viewport: { value: 'mobile2', isRotated: false } },
   beforeEach({ msw }) {
     msw.use(http.post('/api/playlists/preview', () => HttpResponse.json(rulePreview)))
+  },
+})
+
+export const Stats = meta.story({
+  args: { path: '/stats' },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('Listening over time')).toBeVisible()
+    await expect(canvas.getByRole('list', { name: 'Totals' })).toBeVisible()
+    await expect(canvas.getByText('Top tracks')).toBeVisible()
+    // Spotify's view isn't prefetched by the route, so it arrives a moment later.
+    await expect(await canvas.findByText("Spotify's view")).toBeVisible()
+    await expect(await canvas.findByText('Not recorded yet')).toBeVisible()
+  },
+})
+
+export const StatsSwitchesToTopArtists = meta.story({
+  args: { path: '/stats?range=90d' },
+  play: async ({ canvas, userEvent }) => {
+    const topCard = (await canvas.findByText('Top tracks')).closest('[data-slot=card]') as HTMLElement
+    await userEvent.click(within(topCard).getByRole('button', { name: 'Artists' }))
+    await expect(await canvas.findByText('Top artists')).toBeVisible()
+    await expect(within(topCard).getByText(/last 3 months/i)).toBeVisible()
+  },
+})
+
+export const StatsMobile = meta.story({
+  args: { path: '/stats' },
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+})
+
+export const StatsEmpty = meta.story({
+  args: { path: '/stats' },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get('/api/stats/overview', () =>
+        HttpResponse.json({ ...statsOverview(), totals: { plays: 0, minutes: 0, tracks: 0, artists: 0, newTracks: 0 } }),
+      ),
+      http.get('/api/stats/top', () => HttpResponse.json({ ...statsTop, items: [] })),
+    )
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('No plays in this range yet.')).toBeVisible()
+    await expect(canvas.getByText('Nothing played in this range yet.')).toBeVisible()
   },
 })

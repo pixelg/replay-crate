@@ -1,4 +1,15 @@
-import type { Me, PlaylistDetail, PlaylistsList, PlayItem, PlaysPage, RulePreview, TrackDetail } from '@replay-crate/api-client'
+import type {
+  Me,
+  PlaylistDetail,
+  PlaylistsList,
+  PlayItem,
+  PlaysPage,
+  RulePreview,
+  SpotifyTop,
+  StatsOverview,
+  StatsTop,
+  TrackDetail,
+} from '@replay-crate/api-client'
 
 // Fictional data for stories. Images are null so tests never hit the network.
 
@@ -188,4 +199,52 @@ export const rulePreview: RulePreview = {
     playCount,
     lastPlayedAt,
   })),
+}
+
+/** 30 days of made-up listening ending today, as the overview endpoint returns it. */
+export function statsOverview(days = 30): StatsOverview {
+  const today = new Date()
+  const series = Array.from({ length: days }, (_, i) => {
+    const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1 - i))
+    const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    const replays = 6 + ((i * 7) % 11)
+    const newTracks = 2 + ((i * 5) % 7)
+    return { date: iso, newTracks, replays, minutes: (replays + newTracks) * 3 }
+  })
+  const plays = series.reduce((sum, p) => sum + p.newTracks + p.replays, 0)
+  return {
+    range: '30d',
+    tz: 'UTC',
+    bucket: 'day',
+    totals: {
+      plays,
+      minutes: series.reduce((sum, p) => sum + p.minutes, 0),
+      tracks: 212,
+      artists: 97,
+      newTracks: series.reduce((sum, p) => sum + p.newTracks, 0),
+    },
+    series,
+  }
+}
+
+export const statsTop: StatsTop = {
+  type: 'tracks',
+  range: '30d',
+  metric: 'plays',
+  limit: 10,
+  items: [
+    { rank: 1, id: 't1', name: 'Brass Monkey Business', subtitle: 'The Loop Collective', imageUrl: null, plays: 27, minutes: 96 },
+    { rank: 2, id: 't4', name: 'Searched And Played', subtitle: 'Direct Hit', imageUrl: null, plays: 18, minutes: 64 },
+    { rank: 3, id: 't2', name: 'Sunday Morning Static', subtitle: 'Paper Kites Club', imageUrl: null, plays: 9, minutes: 31 },
+    { rank: 4, id: 't3', name: 'A Very Long Track Title That Needs To Truncate Gracefully', subtitle: 'Somebody', imageUrl: null, plays: 1, minutes: 4 },
+  ],
+}
+
+export const spotifyTop: SpotifyTop = {
+  type: 'tracks',
+  timeRange: 'short_term',
+  items: [
+    { rank: 1, id: 't1', name: 'Brass Monkey Business', subtitle: 'The Loop Collective', imageUrl: null, plays: 27 },
+    { rank: 2, id: 't9', name: 'Heard Elsewhere', subtitle: 'Other Device', imageUrl: null, plays: 0 },
+  ],
 }
