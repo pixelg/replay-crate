@@ -209,3 +209,15 @@ export const spotifyTopQueryOptions = (
     // Spotify recomputes these about daily; no need to ask again on every visit.
     staleTime: 30 * 60_000,
   })
+
+export type HistoryGap = InferResponseType<ApiClient['api']['gaps']['$get'], 200>['gaps'][number]
+
+/** Stretches of history where plays may be missing (open gaps only). */
+export const gapsQueryOptions = (api: ApiClient) =>
+  queryOptions({
+    queryKey: ['gaps'],
+    queryFn: async (): Promise<HistoryGap[]> => {
+      const endpoint = 'GET /api/gaps'
+      return (await expectOk(await send(endpoint, () => api.api.gaps.$get()), endpoint)).gaps
+    },
+  })

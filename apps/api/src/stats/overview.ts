@@ -1,8 +1,8 @@
 import { schema, type Db } from '@replay-crate/db'
-import { and, count, countDistinct, eq, gte, min, sql, sum } from 'drizzle-orm'
+import { and, count, countDistinct, eq, gte, isNull, min, sql, sum } from 'drizzle-orm'
 import { addDays, localDay, RANGE_DAYS, weekStart, type Range } from './ranges.ts'
 
-const { plays, trackArtists, tracks } = schema
+const { plays, syncGaps, trackArtists, tracks } = schema
 
 export type Bucket = 'day' | 'week'
 export type OverviewPoint = { date: string; newTracks: number; replays: number; minutes: number }
@@ -23,7 +23,14 @@ export async function overview(db: Db, userId: string, { range, tz, now }: { ran
     startDay = first?.at ? localDay(new Date(first.at), tz) : null
   }
   if (startDay === null) {
-    return { range, tz, bucket, totals: { plays: 0, minutes: 0, tracks: 0, artists: 0, newTracks: 0 }, series: [] }
+    return {
+      range,
+      tz,
+      bucket,
+      totals: { plays: 0, minutes: 0, tracks: 0, artists: 0, newTracks: 0 },
+      series: [],
+      openGaps: 0,
+    }
   }
 
   const inRange = and(
@@ -65,6 +72,18 @@ export async function overview(db: Db, userId: string, { range, tz, now }: { ran
     .innerJoin(trackArtists, eq(trackArtists.trackId, plays.trackId))
     .where(inRange)
 
+  // Unfilled gaps reaching into the range: its numbers are a floor, not the full story.
+  const [gaps] = await db
+    .select({ open: count() })
+    .from(syncGaps)
+    .where(
+      and(
+        eq(syncGaps.userId, userId),
+        isNull(syncGaps.filledAt),
+        gte(syncGaps.before, sql`(${startDay}::timestamp at time zone ${tz})`),
+      ),
+    )
+
   const byBucket = new Map(rows.map((row) => [row.bucket, row]))
   const step = bucket === 'week' ? 7 : 1
   const last = bucket === 'week' ? weekStart(today) : today
@@ -91,5 +110,6 @@ export async function overview(db: Db, userId: string, { range, tz, now }: { ran
       newTracks: series.reduce((total, point) => total + point.newTracks, 0),
     },
     series,
+    openGaps: gaps?.open ?? 0,
   }
 }

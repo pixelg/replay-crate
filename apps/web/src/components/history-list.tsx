@@ -1,14 +1,39 @@
+import type { HistoryGap, PlayItem } from '@replay-crate/api-client'
 import { formatDayLabel, groupByDay } from '@replay-crate/core'
-import type { PlayItem } from '@replay-crate/api-client'
 import { Link } from '@tanstack/react-router'
+import { CircleDashed } from 'lucide-react'
 import { AlbumArt } from './album-art.tsx'
 import { ContextChip } from './context-chip.tsx'
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
+const gapFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 
-/** Plays grouped under sticky day headings. */
-export function HistoryList({ plays, now = new Date() }: { plays: PlayItem[]; now?: Date }) {
-  const days = groupByDay(plays, (play) => new Date(play.playedAt))
+type Entry = { kind: 'play'; play: PlayItem; at: string } | { kind: 'gap'; gap: HistoryGap; at: string }
+
+/**
+ * Newest-first plays, with a marker wherever plays may be missing: a gap sits between the
+ * oldest play of the sync that found it (`before`) and the last play we had (`after`).
+ */
+function withGaps(plays: PlayItem[], gaps: HistoryGap[]): Entry[] {
+  const entries: Entry[] = []
+  plays.forEach((play, index) => {
+    entries.push({ kind: 'play', play, at: play.playedAt })
+    const older = plays[index + 1]
+    if (!older) return
+    const newerAt = new Date(play.playedAt).getTime()
+    const olderAt = new Date(older.playedAt).getTime()
+    for (const gap of gaps) {
+      if (new Date(gap.before).getTime() <= newerAt && new Date(gap.after).getTime() >= olderAt) {
+        entries.push({ kind: 'gap', gap, at: play.playedAt })
+      }
+    }
+  })
+  return entries
+}
+
+/** Plays grouped under sticky day headings, with gap markers where plays may be missing. */
+export function HistoryList({ plays, gaps = [], now = new Date() }: { plays: PlayItem[]; gaps?: HistoryGap[]; now?: Date }) {
+  const days = groupByDay(withGaps(plays, gaps), (entry) => new Date(entry.at))
 
   return (
     <div className="flex flex-col gap-6">
@@ -21,15 +46,33 @@ export function HistoryList({ plays, now = new Date() }: { plays: PlayItem[]; no
             {formatDayLabel(group.date, now)}
           </h2>
           <ol className="flex flex-col">
-            {group.items.map((play) => (
-              <li key={play.playedAt}>
-                <PlayRow play={play} />
-              </li>
-            ))}
+            {group.items.map((entry) =>
+              entry.kind === 'play' ? (
+                <li key={entry.play.playedAt}>
+                  <PlayRow play={entry.play} />
+                </li>
+              ) : (
+                <li key={`gap-${entry.gap.id}`}>
+                  <GapMarker gap={entry.gap} />
+                </li>
+              ),
+            )}
           </ol>
         </section>
       ))}
     </div>
+  )
+}
+
+function GapMarker({ gap }: { gap: HistoryGap }) {
+  return (
+    <p className="my-2 flex items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+      <CircleDashed aria-hidden className="size-4 shrink-0" />
+      <span>
+        Plays between {gapFormat.format(new Date(gap.after))} and {gapFormat.format(new Date(gap.before))} may be
+        missing. Importing your Spotify data fills them in.
+      </span>
+    </p>
   )
 }
 

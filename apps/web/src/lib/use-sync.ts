@@ -11,7 +11,11 @@ export function useSync() {
   const mutation = useMutation({
     mutationKey: SYNC_KEY,
     mutationFn: () => syncNow(api),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plays'] }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['plays'] }),
+        queryClient.invalidateQueries({ queryKey: ['gaps'] }),
+      ]),
     onError: (error) => {
       // The session knows about the expiry now; refetch /me so the reconnect banner shows.
       if (isApiError(error) && error.code === 'reauth_required') void queryClient.invalidateQueries({ queryKey: ['me'] })

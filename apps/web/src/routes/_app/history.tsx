@@ -1,8 +1,8 @@
+import { gapsQueryOptions, playsInfiniteQueryOptions } from '@replay-crate/api-client'
 import { formatRelative } from '@replay-crate/core'
-import { playsInfiniteQueryOptions } from '@replay-crate/api-client'
-import { useSuspenseInfiniteQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseInfiniteQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { History, RefreshCw } from 'lucide-react'
+import { CircleDashed, History, RefreshCw } from 'lucide-react'
 import { EmptyState } from '../../components/empty-state.tsx'
 import { HistoryList } from '../../components/history-list.tsx'
 import { InlineError } from '../../components/inline-error.tsx'
@@ -22,6 +22,7 @@ function HistoryPage() {
     playsInfiniteQueryOptions(api),
   )
   const { sync, isSyncing, error: syncError } = useSync()
+  const { data: gaps = [] } = useQuery(gapsQueryOptions(api))
   const plays = data.pages.flatMap((page) => page.items)
   const lastSyncedAt = data.pages[0]?.lastSyncedAt
 
@@ -41,9 +42,19 @@ function HistoryPage() {
         </div>
       </div>
 
+      {gaps.length > 0 && (
+        <p role="status" className="mb-4 flex items-start gap-2 rounded-lg bg-muted px-3 py-2 text-sm">
+          <CircleDashed aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
+          <span>
+            {gaps.length === 1 ? 'One stretch' : `${gaps.length} stretches`} of your history may be missing plays: Spotify
+            only keeps your last 50, and Replay Crate wasn't running. Importing your Spotify data fills them in.
+          </span>
+        </p>
+      )}
+
       {plays.length ? (
         <>
-          <HistoryList plays={plays} />
+          <HistoryList plays={plays} gaps={gaps} />
           {hasNextPage && (
             <div className="mt-6 flex justify-center">
               <Button variant="ghost" onClick={() => void fetchNextPage()} disabled={isFetchingNextPage}>

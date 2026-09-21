@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { expect, fn, screen, waitFor, within } from 'storybook/test'
 import { createAppRouter } from './router.ts'
 import {
+  gaps,
   pixelg,
   playlistDetail,
   playlistsList,
@@ -49,6 +50,7 @@ const meta = preview.meta({
         return HttpResponse.json({ ...statsTop, type: params.get('type') ?? 'tracks', metric: params.get('metric') ?? 'plays' })
       }),
       http.get('/api/stats/spotify-top', () => HttpResponse.json(spotifyTop)),
+      http.get('/api/gaps', () => HttpResponse.json({ gaps: [] })),
     )
   },
 })
@@ -415,5 +417,25 @@ export const StatsEmpty = meta.story({
   play: async ({ canvas }) => {
     await expect(await canvas.findByText('No plays in this range yet.')).toBeVisible()
     await expect(canvas.getByText('Nothing played in this range yet.')).toBeVisible()
+  },
+})
+
+export const HistoryWithGap = meta.story({
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/gaps', () => HttpResponse.json({ gaps })))
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText(/One stretch of your history may be missing plays/)).toBeVisible()
+    await expect(canvas.getByText(/may be missing\. Importing your Spotify data fills them in\./)).toBeVisible()
+  },
+})
+
+export const StatsWithGap = meta.story({
+  args: { path: '/stats' },
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/stats/overview', () => HttpResponse.json({ ...statsOverview(), openGaps: 2 })))
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText(/these are minimums/)).toBeVisible()
   },
 })

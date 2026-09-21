@@ -39,7 +39,12 @@ describe('history', () => {
 
       const first = await sync()
       expect(first.status).toBe(200)
-      expect(await first.json()).toEqual({ status: 'synced', inserted: 3, lastSyncedAt: '2026-09-21T12:00:00.000Z' })
+      expect(await first.json()).toEqual({
+        status: 'synced',
+        inserted: 3,
+        lastSyncedAt: '2026-09-21T12:00:00.000Z',
+        missedPlays: false,
+      })
 
       expect(await ctx.db.select().from(schema.tracks)).toHaveLength(2)
       expect(await ctx.db.select().from(schema.albums)).toMatchObject([

@@ -45,3 +45,26 @@ export const contexts = pgTable('contexts', {
 
 export type Play = typeof plays.$inferSelect
 export type PlayContext = typeof contexts.$inferSelect
+
+/**
+ * A stretch where plays may be missing: a sync got a full page of 50 recent plays and
+ * none of them overlapped what was already stored, so anything played between `after`
+ * (the last play we had) and `before` (the oldest play in that page) was never seen.
+ * An import of Spotify's streaming history that covers the window fills it.
+ */
+export const syncGaps = pgTable(
+  'sync_gaps',
+  {
+    id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    after: timestamp('after', { withTimezone: true }).notNull(),
+    before: timestamp('before', { withTimezone: true }).notNull(),
+    detectedAt: timestamp('detected_at', { withTimezone: true }).notNull().defaultNow(),
+    filledAt: timestamp('filled_at', { withTimezone: true }),
+  },
+  (t) => [unique('sync_gaps_user_after_key').on(t.userId, t.after)],
+)
+
+export type SyncGap = typeof syncGaps.$inferSelect
