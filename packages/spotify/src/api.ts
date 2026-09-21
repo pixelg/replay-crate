@@ -1,8 +1,11 @@
 import { SPOTIFY_API_URL } from './constants.ts'
 import type {
+  Paging,
   RecentlyPlayedPage,
   SpotifyArtist,
   SpotifyImage,
+  SpotifyPlaylist,
+  SpotifyPlaylistItem,
   SpotifyPlaylistMeta,
   SpotifySimplifiedAlbum,
 } from './types.ts'
@@ -84,4 +87,33 @@ export function getAlbum(accessToken: string, id: string, options?: RequestOptio
 
 export function getArtist(accessToken: string, id: string, options?: RequestOptions): Promise<SpotifyArtist> {
   return spotifyGet(`/artists/${encodeURIComponent(id)}`, accessToken, options)
+}
+
+/** One page (up to 50) of the playlists in the user's library, owned or followed. */
+export function getMyPlaylists(
+  accessToken: string,
+  offset = 0,
+  options?: RequestOptions,
+): Promise<Paging<SpotifyPlaylist>> {
+  return spotifyGet(`/me/playlists?limit=50&offset=${offset}`, accessToken, options)
+}
+
+const PLAYLIST_ITEM_FIELDS = [
+  'items(added_at,added_by(id),is_local,item(type,id,name,uri,duration_ms,explicit,is_local,external_ids(isrc),',
+  'album(id,name,uri,album_type,release_date,release_date_precision,images,artists(id,name,uri)),',
+  'artists(id,name,uri))),next,total,offset,limit',
+].join('')
+
+/**
+ * One page (up to 50) of a playlist's items. Only works for playlists the user owns
+ * or collaborates on; Spotify answers 403 for anything else.
+ */
+export function getPlaylistItems(
+  accessToken: string,
+  playlistId: string,
+  offset = 0,
+  options?: RequestOptions,
+): Promise<Paging<SpotifyPlaylistItem>> {
+  const query = new URLSearchParams({ limit: '50', offset: String(offset), fields: PLAYLIST_ITEM_FIELDS })
+  return spotifyGet(`/playlists/${encodeURIComponent(playlistId)}/items?${query}`, accessToken, options)
 }

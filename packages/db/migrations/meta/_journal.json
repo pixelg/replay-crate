@@ -22,6 +22,13 @@
       "when": 1789985768705,
       "tag": "0002_history",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789986613025,
+      "tag": "0003_playlists",
+      "breakpoints": true
     }
   ]
 }

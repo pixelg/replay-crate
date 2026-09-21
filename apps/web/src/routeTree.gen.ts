@@ -14,9 +14,10 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as CallbackRouteImport } from './routes/callback'
 import { Route as ConnectRouteImport } from './routes/connect'
 import { Route as AppHistoryRouteImport } from './routes/_app/history'
-import { Route as AppPlaylistsRouteImport } from './routes/_app/playlists'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppStatsRouteImport } from './routes/_app/stats'
+import { Route as AppPlaylistsIndexRouteImport } from './routes/_app/playlists.index'
+import { Route as AppPlaylistsPlaylistIdRouteImport } from './routes/_app/playlists.$playlistId'
 import { Route as AppTracksTrackIdRouteImport } from './routes/_app/tracks/$trackId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -43,11 +44,6 @@ const AppHistoryRoute = AppHistoryRouteImport.update({
   path: '/history',
   getParentRoute: () => AppRoute,
 } as any)
-const AppPlaylistsRoute = AppPlaylistsRouteImport.update({
-  id: '/playlists',
-  path: '/playlists',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -56,6 +52,16 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
 const AppStatsRoute = AppStatsRouteImport.update({
   id: '/stats',
   path: '/stats',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPlaylistsIndexRoute = AppPlaylistsIndexRouteImport.update({
+  id: '/playlists/',
+  path: '/playlists/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPlaylistsPlaylistIdRoute = AppPlaylistsPlaylistIdRouteImport.update({
+  id: '/playlists/$playlistId',
+  path: '/playlists/$playlistId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTracksTrackIdRoute = AppTracksTrackIdRouteImport.update({
@@ -69,20 +75,22 @@ export interface FileRoutesByFullPath {
   '/callback': typeof CallbackRoute
   '/connect': typeof ConnectRoute
   '/history': typeof AppHistoryRoute
-  '/playlists': typeof AppPlaylistsRoute
   '/settings': typeof AppSettingsRoute
   '/stats': typeof AppStatsRoute
+  '/playlists/$playlistId': typeof AppPlaylistsPlaylistIdRoute
   '/tracks/$trackId': typeof AppTracksTrackIdRoute
+  '/playlists/': typeof AppPlaylistsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/callback': typeof CallbackRoute
   '/connect': typeof ConnectRoute
   '/history': typeof AppHistoryRoute
-  '/playlists': typeof AppPlaylistsRoute
   '/settings': typeof AppSettingsRoute
   '/stats': typeof AppStatsRoute
+  '/playlists/$playlistId': typeof AppPlaylistsPlaylistIdRoute
   '/tracks/$trackId': typeof AppTracksTrackIdRoute
+  '/playlists': typeof AppPlaylistsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -91,10 +99,11 @@ export interface FileRoutesById {
   '/callback': typeof CallbackRoute
   '/connect': typeof ConnectRoute
   '/_app/history': typeof AppHistoryRoute
-  '/_app/playlists': typeof AppPlaylistsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/stats': typeof AppStatsRoute
+  '/_app/playlists/$playlistId': typeof AppPlaylistsPlaylistIdRoute
   '/_app/tracks/$trackId': typeof AppTracksTrackIdRoute
+  '/_app/playlists/': typeof AppPlaylistsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -103,20 +112,22 @@ export interface FileRouteTypes {
     | '/callback'
     | '/connect'
     | '/history'
-    | '/playlists'
     | '/settings'
     | '/stats'
+    | '/playlists/$playlistId'
     | '/tracks/$trackId'
+    | '/playlists/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/callback'
     | '/connect'
     | '/history'
-    | '/playlists'
     | '/settings'
     | '/stats'
+    | '/playlists/$playlistId'
     | '/tracks/$trackId'
+    | '/playlists'
   id:
     | '__root__'
     | '/'
@@ -124,10 +135,11 @@ export interface FileRouteTypes {
     | '/callback'
     | '/connect'
     | '/_app/history'
-    | '/_app/playlists'
     | '/_app/settings'
     | '/_app/stats'
+    | '/_app/playlists/$playlistId'
     | '/_app/tracks/$trackId'
+    | '/_app/playlists/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -174,13 +186,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppHistoryRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/playlists': {
-      id: '/_app/playlists'
-      path: '/playlists'
-      fullPath: '/playlists'
-      preLoaderRoute: typeof AppPlaylistsRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/settings': {
       id: '/_app/settings'
       path: '/settings'
@@ -195,6 +200,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStatsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/playlists/': {
+      id: '/_app/playlists/'
+      path: '/playlists'
+      fullPath: '/playlists/'
+      preLoaderRoute: typeof AppPlaylistsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/playlists/$playlistId': {
+      id: '/_app/playlists/$playlistId'
+      path: '/playlists/$playlistId'
+      fullPath: '/playlists/$playlistId'
+      preLoaderRoute: typeof AppPlaylistsPlaylistIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/tracks/$trackId': {
       id: '/_app/tracks/$trackId'
       path: '/tracks/$trackId'
@@ -207,18 +226,20 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppHistoryRoute: typeof AppHistoryRoute
-  AppPlaylistsRoute: typeof AppPlaylistsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppStatsRoute: typeof AppStatsRoute
+  AppPlaylistsPlaylistIdRoute: typeof AppPlaylistsPlaylistIdRoute
   AppTracksTrackIdRoute: typeof AppTracksTrackIdRoute
+  AppPlaylistsIndexRoute: typeof AppPlaylistsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppHistoryRoute: AppHistoryRoute,
-  AppPlaylistsRoute: AppPlaylistsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppStatsRoute: AppStatsRoute,
+  AppPlaylistsPlaylistIdRoute: AppPlaylistsPlaylistIdRoute,
   AppTracksTrackIdRoute: AppTracksTrackIdRoute,
+  AppPlaylistsIndexRoute: AppPlaylistsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

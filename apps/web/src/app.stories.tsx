@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw'
 import { useState } from 'react'
 import { expect, screen, within } from 'storybook/test'
 import { createAppRouter } from './router.ts'
-import { pixelg, playsPage, trackDetail } from './test/fixtures.ts'
+import { pixelg, playlistDetail, playlistsList, playsPage, trackDetail } from './test/fixtures.ts'
 
 /** The whole app (real route tree + shell) at a given URL. */
 function App({ path }: { path: string }) {
@@ -30,6 +30,9 @@ const meta = preview.meta({
         HttpResponse.json({ status: 'skipped', inserted: 0, lastSyncedAt: playsPage.lastSyncedAt }),
       ),
       http.get('/api/tracks/:id', () => HttpResponse.json(trackDetail)),
+      http.get('/api/playlists', () => HttpResponse.json(playlistsList)),
+      http.get('/api/playlists/:id', () => HttpResponse.json(playlistDetail)),
+      http.post('/api/playlists/sync', () => HttpResponse.json({ total: 3, synced: 0, remaining: 0 })),
     )
   },
 })
@@ -140,5 +143,62 @@ export const LogsOut = meta.story({
     await userEvent.click(await canvas.findByRole('button', { name: 'Account' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Log out' }))
     await expect(await canvas.findByRole('button', { name: 'Connect Spotify' })).toBeVisible()
+  },
+})
+
+export const Playlists = meta.story({
+  args: { path: '/playlists' },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Playlists' })).toBeVisible()
+    await expect(canvas.getByText('Late Night Crate')).toBeVisible()
+    await expect(canvas.getByText('318')).toBeVisible()
+  },
+})
+
+export const PlaylistsFirstSync = meta.story({
+  args: { path: '/playlists' },
+  beforeEach({ msw }) {
+    let synced = false
+    msw.use(
+      http.get('/api/playlists', () =>
+        HttpResponse.json(synced ? playlistsList : { playlists: [], syncedAt: null }),
+      ),
+      http.post('/api/playlists/sync', () => {
+        synced = true
+        return HttpResponse.json({ total: 3, synced: 3, remaining: 0 })
+      }),
+    )
+  },
+  play: async ({ canvas }) => {
+    // Never synced, so opening the page starts a sync, then the list fills in.
+    await expect(await canvas.findByText('Late Night Crate')).toBeVisible()
+  },
+})
+
+export const PlaylistSortedByPlays = meta.story({
+  args: { path: '/playlists/p1' },
+  play: async ({ canvas, userEvent }) => {
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Late Night Crate' })).toBeVisible()
+    await expect(canvas.getByText('+1 more')).toBeVisible()
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Most played' }))
+    const tracks = canvas.getByRole('region', { name: 'Tracks' })
+    const firstTrack = within(tracks).getAllByRole('listitem')[0]!
+    await expect(within(firstTrack).getByText('Searched And Played')).toBeVisible()
+  },
+})
+
+export const PlaylistMobile = meta.story({
+  args: { path: '/playlists/p1' },
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+})
+
+export const ApiDown = meta.story({
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/me', () => new HttpResponse(null, { status: 502 })))
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { name: 'Something went wrong' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Try again' })).toBeVisible()
   },
 })

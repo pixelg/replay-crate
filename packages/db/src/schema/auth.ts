@@ -23,6 +23,7 @@ export const users = pgTable('users', {
   /** Set when a refresh fails with invalid_grant; cleared on the next login. */
   needsReauth: boolean('needs_reauth').notNull().default(false),
   lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
+  playlistsSyncedAt: timestamp('playlists_synced_at', { withTimezone: true }),
   ...timestamps,
 })
 

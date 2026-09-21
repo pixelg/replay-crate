@@ -1,7 +1,7 @@
 import { zValidator } from '@hono/zod-validator'
 import { schema } from '@replay-crate/db'
 import { SpotifyApiError } from '@replay-crate/spotify'
-import { and, count, desc, eq, lt, max, min } from 'drizzle-orm'
+import { and, asc, count, desc, eq, lt, max, min } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireUser } from '../auth/middleware.ts'
@@ -10,7 +10,7 @@ import { ReauthRequiredError } from '../spotify/access-token.ts'
 import { syncRecentlyPlayed } from '../sync/recently-played.ts'
 import { loadTrackArtists, toContext } from './queries.ts'
 
-const { albums, contexts, plays, tracks } = schema
+const { albums, contexts, playlistItems, playlists, plays, tracks, userPlaylists } = schema
 
 /** Manual syncs closer together than this reuse the last result instead of calling Spotify. */
 const MIN_SYNC_INTERVAL_MS = 30_000
@@ -166,6 +166,22 @@ export function historyRoutes(deps: AppDeps) {
 
         const artists = (await loadTrackArtists(db, [trackId])).get(trackId) ?? []
 
+        const onPlaylists = await db
+          .selectDistinct({
+            id: playlists.id,
+            name: playlists.name,
+            thumbUrl: playlists.thumbUrl,
+            position: userPlaylists.position,
+          })
+          .from(playlistItems)
+          .innerJoin(
+            userPlaylists,
+            and(eq(userPlaylists.playlistId, playlistItems.playlistId), eq(userPlaylists.userId, user.id)),
+          )
+          .innerJoin(playlists, eq(playlists.id, playlistItems.playlistId))
+          .where(eq(playlistItems.trackId, trackId))
+          .orderBy(asc(userPlaylists.position))
+
         return c.json(
           {
             track: {
@@ -192,6 +208,7 @@ export function historyRoutes(deps: AppDeps) {
               lastPlayedAt: toIso(row.lastPlayedAt),
             })),
             recentPlays: recent.map((row) => ({ playedAt: row.playedAt.toISOString(), context: toContext(row) })),
+            playlists: onPlaylists.map(({ id, name, thumbUrl }) => ({ id, name, thumbUrl })),
           },
           200,
         )

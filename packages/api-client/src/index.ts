@@ -114,3 +114,49 @@ export async function syncNow(api: ApiClient): Promise<SyncResult> {
   if (res.status === 409) throw new ReauthRequiredError()
   throw new Error(`POST /api/sync failed: ${res.status}`)
 }
+
+export type PlaylistsList = InferResponseType<ApiClient['api']['playlists']['$get'], 200>
+export type PlaylistSummary = PlaylistsList['playlists'][number]
+export type PlaylistDetail = InferResponseType<ApiClient['api']['playlists'][':id']['$get'], 200>
+export type PlaylistTrack = PlaylistDetail['items'][number]
+export type PlaylistSyncResult = InferResponseType<ApiClient['api']['playlists']['sync']['$post'], 200>
+
+export const playlistsQueryOptions = (api: ApiClient) =>
+  queryOptions({
+    queryKey: ['playlists'],
+    queryFn: async (): Promise<PlaylistsList> => {
+      const res = await api.api.playlists.$get()
+      if (!res.ok) throw new Error('GET /api/playlists failed')
+      return res.json()
+    },
+  })
+
+export const playlistQueryOptions = (api: ApiClient, playlistId: string) =>
+  queryOptions({
+    queryKey: ['playlists', playlistId],
+    queryFn: async (): Promise<PlaylistDetail> => {
+      const res = await api.api.playlists[':id'].$get({ param: { id: playlistId } })
+      if (res.status === 404) throw new NotFoundError(`Playlist ${playlistId}`)
+      if (!res.ok) throw new Error(`GET /api/playlists/${playlistId} failed`)
+      return res.json()
+    },
+  })
+
+/**
+ * Syncs playlists, calling the API again while it reports playlists remaining
+ * (each call has a time budget). `onProgress` gets each intermediate result.
+ */
+export async function syncPlaylists(
+  api: ApiClient,
+  onProgress?: (result: PlaylistSyncResult) => void,
+): Promise<PlaylistSyncResult> {
+  for (let round = 0; ; round++) {
+    const res = await api.api.playlists.sync.$post()
+    if (res.status === 409) throw new ReauthRequiredError()
+    if (res.status !== 200) throw new Error(`POST /api/playlists/sync failed: ${res.status}`)
+    const result = await res.json()
+    onProgress?.(result)
+    // Guard against a playlist that never finishes: stop after a generous number of rounds.
+    if (result.remaining === 0 || result.synced === 0 || round >= 20) return result
+  }
+}

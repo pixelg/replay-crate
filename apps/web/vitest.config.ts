@@ -20,6 +20,8 @@ export default mergeConfig(
           // Pre-bundle deps the runner would otherwise discover mid-run and reload for,
           // which fails the first (cold-cache) run, i.e. every CI run.
           optimizeDeps: {
+            // Scan every story and source file up front so no dependency is discovered mid-run.
+            entries: ['src/**/*.{ts,tsx}', '.storybook/preview.tsx'],
             include: ['@storybook/addon-a11y', '@storybook/react-vite', 'msw-storybook-addon'],
           },
           test: {

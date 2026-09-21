@@ -1,4 +1,4 @@
-import type { Me, PlayItem, PlaysPage, TrackDetail } from '@replay-crate/api-client'
+import type { Me, PlaylistDetail, PlaylistsList, PlayItem, PlaysPage, TrackDetail } from '@replay-crate/api-client'
 
 // Fictional data for stories. Images are null so tests never hit the network.
 
@@ -82,5 +82,93 @@ export const trackDetail: TrackDetail = {
       context: { type: 'playlist', uri: 'spotify:playlist:p1', name: 'Late Night Crate', imageUrl: null },
     },
     { playedAt: hoursAgo(27), context: null },
+  ],
+  playlists: [
+    { id: 'p1', name: 'Late Night Crate', thumbUrl: null },
+    { id: 'p2', name: 'Boom Bap Essentials', thumbUrl: null },
+  ],
+}
+
+export const playlistsList: PlaylistsList = {
+  syncedAt: hoursAgo(0.5),
+  playlists: [
+    {
+      id: 'p1',
+      name: 'Late Night Crate',
+      thumbUrl: null,
+      ownerName: 'Pixel G',
+      owned: true,
+      collaborative: false,
+      isPublic: true,
+      itemCount: 42,
+      playsFrom: 318,
+      lastPlayedFrom: hoursAgo(0.2),
+    },
+    {
+      id: 'p2',
+      name: 'Boom Bap Essentials',
+      thumbUrl: null,
+      ownerName: 'Pixel G',
+      owned: true,
+      collaborative: false,
+      isPublic: false,
+      itemCount: 120,
+      playsFrom: 57,
+      lastPlayedFrom: hoursAgo(30),
+    },
+    {
+      id: 'p3',
+      name: 'Road Trip (with Sam)',
+      thumbUrl: null,
+      ownerName: 'Sam',
+      owned: false,
+      collaborative: true,
+      isPublic: false,
+      itemCount: 18,
+      playsFrom: 0,
+      lastPlayedFrom: null,
+    },
+  ],
+}
+
+const playlistTrack = (
+  position: number,
+  t: PlayItem['track'],
+  playCount: number,
+  playsHere: number,
+  alsoOn: Array<{ id: string; name: string }> = [],
+): PlaylistDetail['items'][number] => ({
+  position,
+  addedAt: hoursAgo(24 * 90),
+  track: t,
+  playCount,
+  playsHere,
+  lastPlayedAt: playCount ? hoursAgo(position + 1) : null,
+  alsoOn,
+})
+
+export const playlistDetail: PlaylistDetail = {
+  playlist: {
+    id: 'p1',
+    name: 'Late Night Crate',
+    description: 'Dusty loops for after midnight.',
+    imageUrl: null,
+    ownerName: 'Pixel G',
+    owned: true,
+    collaborative: false,
+    isPublic: true,
+    itemCount: 4,
+    playsFrom: 318,
+    itemsSynced: true,
+  },
+  items: [
+    playlistTrack(0, plays[0]!.track, 12, 9, [
+      { id: 'p2', name: 'Boom Bap Essentials' },
+      { id: 'p3', name: 'Road Trip (with Sam)' },
+      { id: 'p4', name: 'Gym' },
+    ]),
+    playlistTrack(1, plays[1]!.track, 3, 3),
+    playlistTrack(2, plays[2]!.track, 0, 0, [{ id: 'p2', name: 'Boom Bap Essentials' }]),
+    playlistTrack(3, plays[4]!.track, 27, 20),
   ],
 }
