@@ -10,7 +10,8 @@
     "dev": "varlock run -- node --watch src/index.ts",
     "start": "varlock run -- node src/index.ts",
     "typecheck": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e:server": "node src/e2e-server.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

@@ -66,6 +66,7 @@ For everyday use, run the built app and the API as one server on http://127.0.0.
 |---|---|
 | `pnpm dev` | Web app + API with hot reload |
 | `pnpm test` | Unit tests and Storybook story tests (headless Chromium) |
+| `pnpm test:e2e` | Playwright smoke tests against the built app + API (fake Spotify, in-memory DB) |
 | `pnpm lint` / `pnpm typecheck` | oxlint / TypeScript |
 | `pnpm build` | Production build of the web app |
 | `pnpm serve` | Built app + API + scheduled sync on http://127.0.0.1:4173 |
