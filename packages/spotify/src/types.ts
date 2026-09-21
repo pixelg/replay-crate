@@ -54,3 +54,34 @@ export type SpotifyPlaylistMeta = {
 }
 
 export type SpotifyArtist = SpotifySimplifiedArtist & { images: SpotifyImage[] }
+
+export type Paging<T> = {
+  items: T[]
+  next: string | null
+  total: number
+  offset: number
+  limit: number
+}
+
+/** An entry in `GET /me/playlists`. */
+export type SpotifyPlaylist = {
+  id: string
+  name: string
+  description: string | null
+  images: SpotifyImage[] | null
+  owner: { id: string; display_name: string | null }
+  collaborative: boolean
+  public: boolean | null
+  snapshot_id: string
+  /** Renamed from `tracks` in Feb 2026; older responses may still carry `tracks`. */
+  items?: { total: number }
+  tracks?: { total: number }
+}
+
+/** An entry in `GET /playlists/{id}/items`. `item` is null for content Spotify removed. */
+export type SpotifyPlaylistItem = {
+  added_at: string | null
+  added_by: { id: string } | null
+  is_local: boolean
+  item: (SpotifyTrack & { type?: 'track' }) | { type: 'episode'; id: string } | null
+}

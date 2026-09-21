@@ -1,7 +1,10 @@
 import type { Db } from '@replay-crate/db'
 import type {
+  Paging,
   RecentlyPlayedPage,
   SpotifyArtist,
+  SpotifyPlaylist,
+  SpotifyPlaylistItem,
   SpotifyPlaylistMeta,
   SpotifySimplifiedAlbum,
   SpotifyUser,
@@ -18,6 +21,8 @@ export type SpotifyGateway = {
   getPlaylistMeta(accessToken: string, id: string): Promise<SpotifyPlaylistMeta>
   getAlbum(accessToken: string, id: string): Promise<SpotifySimplifiedAlbum>
   getArtist(accessToken: string, id: string): Promise<SpotifyArtist>
+  getMyPlaylists(accessToken: string, offset: number): Promise<Paging<SpotifyPlaylist>>
+  getPlaylistItems(accessToken: string, playlistId: string, offset: number): Promise<Paging<SpotifyPlaylistItem>>
 }
 
 export type AppDeps = {

@@ -20,7 +20,11 @@ describe('createTokenCipher', () => {
   it('rejects tampered ciphertext and the wrong key', async () => {
     const cipher = await createTokenCipher(key)
     const [format, iv, ciphertext] = (await cipher.encrypt('secret')).split('.')
-    const tampered = [format, iv, `${ciphertext!.slice(0, -2)}AA`].join('.')
+    // Flip one real byte. Editing base64 characters is flaky: the last character can be
+    // pure padding bits, so changing it may leave the decoded bytes untouched.
+    const bytes = Buffer.from(ciphertext!, 'base64url')
+    bytes[0]! ^= 0xff
+    const tampered = [format, iv, bytes.toString('base64url')].join('.')
     await expect(cipher.decrypt(tampered)).rejects.toBeInstanceOf(Error)
 
     const other = await createTokenCipher(Buffer.alloc(32, 2).toString('base64'))

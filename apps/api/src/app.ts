@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception'
 import { authRoutes } from './auth/routes.ts'
 import type { AppDeps } from './deps.ts'
 import { historyRoutes } from './history/routes.ts'
+import { playlistRoutes } from './playlists/routes.ts'
 import { cronRoutes } from './sync/cron-routes.ts'
 
 /**
@@ -21,6 +22,7 @@ export function createApp(deps: AppDeps) {
     .get('/health', (c) => c.json({ ok: true }))
     .route('/', authRoutes(deps))
     .route('/', historyRoutes(deps))
+    .route('/', playlistRoutes(deps))
     .route('/', cronRoutes(deps))
 
   app.onError((error, c) => {

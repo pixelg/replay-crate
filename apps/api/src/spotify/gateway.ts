@@ -3,6 +3,8 @@ import {
   getAlbum,
   getArtist,
   getCurrentUser,
+  getMyPlaylists,
+  getPlaylistItems,
   getPlaylistMeta,
   getRecentlyPlayed,
   refreshAccessToken,
@@ -18,5 +20,7 @@ export function createSpotifyGateway(clientId: string): SpotifyGateway {
     getPlaylistMeta: (accessToken, id) => getPlaylistMeta(accessToken, id),
     getAlbum: (accessToken, id) => getAlbum(accessToken, id),
     getArtist: (accessToken, id) => getArtist(accessToken, id),
+    getMyPlaylists: (accessToken, offset) => getMyPlaylists(accessToken, offset),
+    getPlaylistItems: (accessToken, playlistId, offset) => getPlaylistItems(accessToken, playlistId, offset),
   }
 }

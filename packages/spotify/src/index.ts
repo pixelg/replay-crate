@@ -3,6 +3,8 @@ export {
   getAlbum,
   getArtist,
   getCurrentUser,
+  getMyPlaylists,
+  getPlaylistItems,
   getPlaylistMeta,
   getRecentlyPlayed,
   SpotifyApiError,

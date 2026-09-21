@@ -1,5 +1,13 @@
 import { createTestDb } from '@replay-crate/db/testing'
-import type { PlayHistoryItem, SpotifyContext, SpotifyTrack, TokenResponse } from '@replay-crate/spotify'
+import type {
+  Paging,
+  PlayHistoryItem,
+  SpotifyContext,
+  SpotifyPlaylist,
+  SpotifyPlaylistItem,
+  SpotifyTrack,
+  TokenResponse,
+} from '@replay-crate/spotify'
 import { vi } from 'vitest'
 import { createApp } from './app.ts'
 import type { AppDeps, SpotifyGateway } from './deps.ts'
@@ -59,6 +67,42 @@ export function play(t: SpotifyTrack, playedAt: string, context: SpotifyContext 
   return { track: t, played_at: playedAt, context }
 }
 
+/** A `GET /me/playlists` entry owned by `ownerId` (default: the test user). */
+export function playlist(
+  id: string,
+  options: { name?: string; ownerId?: string; snapshot?: string; total?: number; collaborative?: boolean } = {},
+): SpotifyPlaylist {
+  return {
+    id,
+    name: options.name ?? `Playlist ${id}`,
+    description: null,
+    images: [{ url: `https://i.scdn.co/${id}-300`, width: 300, height: 300 }],
+    owner: { id: options.ownerId ?? 'pixelg', display_name: 'Pixel G' },
+    collaborative: options.collaborative ?? false,
+    public: true,
+    snapshot_id: options.snapshot ?? `${id}-v1`,
+    items: { total: options.total ?? 0 },
+  }
+}
+
+export const playlistEntry = (t: SpotifyTrack, addedAt = '2026-01-01T00:00:00Z'): SpotifyPlaylistItem => ({
+  added_at: addedAt,
+  added_by: { id: 'pixelg' },
+  is_local: false,
+  item: t,
+})
+
+/** Serves `items` as Spotify-style pages of `pageSize`. */
+export function paged<T>(items: T[], pageSize = 50) {
+  return async (offset: number): Promise<Paging<T>> => ({
+    items: items.slice(offset, offset + pageSize),
+    next: offset + pageSize < items.length ? `next?offset=${offset + pageSize}` : null,
+    total: items.length,
+    offset,
+    limit: pageSize,
+  })
+}
+
 /** App wired to PGlite, a fake Spotify, and a controllable clock. */
 export async function createTestContext() {
   const { db, close } = await createTestDb()
@@ -91,6 +135,10 @@ export async function createTestContext() {
       uri: `spotify:artist:${id}`,
       images: [{ url: `https://i.scdn.co/${id}`, width: 300, height: 300 }],
     })),
+    getMyPlaylists: vi.fn<SpotifyGateway['getMyPlaylists']>(async (_token, offset) => paged<SpotifyPlaylist>([])(offset)),
+    getPlaylistItems: vi.fn<SpotifyGateway['getPlaylistItems']>(async (_token, _id, offset) =>
+      paged<SpotifyPlaylistItem>([])(offset),
+    ),
   }
 
   const deps: AppDeps = {

@@ -32,7 +32,7 @@ const dateTimeFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium',
 function TrackPage() {
   const { trackId } = Route.useParams()
   const { data } = useSuspenseQuery(trackQueryOptions(api, trackId))
-  const { track, stats, playedFrom, recentPlays } = data
+  const { track, stats, playedFrom, recentPlays, playlists } = data
   const year = track.album.releaseDate?.slice(0, 4)
 
   return (
@@ -74,6 +74,25 @@ function TrackPage() {
                 <span className="text-sm tabular-nums">
                   {row.playCount} {row.playCount === 1 ? 'play' : 'plays'}
                 </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {playlists.length > 0 && (
+        <Section title="On your playlists">
+          <ul className="flex flex-col divide-y divide-border">
+            {playlists.map((playlist) => (
+              <li key={playlist.id}>
+                <Link
+                  to="/playlists/$playlistId"
+                  params={{ playlistId: playlist.id }}
+                  className="flex items-center gap-3 py-2 hover:underline"
+                >
+                  <AlbumArt src={playlist.thumbUrl} className="size-10" />
+                  <span className="truncate">{playlist.name}</span>
+                </Link>
               </li>
             ))}
           </ul>
