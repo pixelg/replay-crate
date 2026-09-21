@@ -103,3 +103,11 @@ test('imports Spotify streaming history', async ({ page }) => {
   await page.getByRole('link', { name: 'See history' }).click()
   await expect(page.getByRole('link', { name: 'Imported Oldie' })).toHaveCount(2)
 })
+
+test('moves the app to the host Spotify returns to, so sign-in works', async ({ page }) => {
+  // Opened as localhost, a login would be saved where the 127.0.0.1 callback can't see it.
+  await page.goto('http://localhost:4174/connect?via=bookmark#top')
+  await expect(page).toHaveURL('http://127.0.0.1:4174/connect?via=bookmark#top')
+  await page.getByRole('button', { name: 'Connect Spotify' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'History' })).toBeVisible()
+})

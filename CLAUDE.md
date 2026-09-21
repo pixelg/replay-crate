@@ -36,7 +36,7 @@ pnpm db:migrate         # apply migrations to DATABASE_URL
 
 - **Workflow:** never commit to `main` directly. One issue → branch `feat/<issue#>-slug` (or `fix/`, `chore/`) from `main` → PR with `Closes #n` → merge into `main`. Merge commits are fine. Conventional commit messages.
 - **Env:** varlock. Values live in the root `.env.local`; each app's `.env.schema` imports what it needs from the root `.env.schema`. Secrets are `@sensitive` and can never reach the web bundle. Read config with `import { ENV } from 'varlock/env'`, never `process.env`. `env.d.ts` files are generated; commit them.
-- **Dev host:** always `127.0.0.1`, never `localhost`. Spotify rejects `localhost` redirect URIs, and cookies are per-host.
+- **Dev host:** always `127.0.0.1`, never `localhost`. Spotify rejects `localhost` redirect URIs, and cookies and the pending login (sessionStorage) are per-origin. The web app moves itself to the origin of `SPOTIFY_REDIRECT_URI` at startup (`src/lib/app-origin.ts`).
 - **Auth model:** the API owns every Spotify call and the refresh token (PKCE, no client secret). The browser never holds Spotify tokens.
 - **Running modes:** `pnpm dev` (Vite 5173 + API 8787) for development; `pnpm serve` (one origin on 4173, `WEB_DIST_DIR`) for everyday use, optionally as a systemd user service (`scripts/install-service.sh`). Both run the in-process sync scheduler (`SYNC_INTERVAL_MINUTES`); they can run at once against the same DB since syncs are idempotent. Env-schema changes need a `pnpm dev` restart (`varlock run` reads config at start).
 - **Charts:** every chart, metric and stat uses [shadcn/ui charts](https://ui.shadcn.com/charts/area) (Base UI flavor, Recharts v3). No hand-rolled charts or other chart libraries.
