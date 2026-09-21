@@ -23,6 +23,7 @@ pnpm lint               # oxlint
 pnpm typecheck          # tsc in every package
 pnpm test               # vitest everywhere; web runs every story as a browser test
 pnpm build              # production build of the web app
+pnpm serve              # built app + API + scheduled sync on :4173 (the everyday/always-on mode)
 pnpm storybook          # component workshop on :6006
 pnpm --filter @replay-crate/db db:generate   # new migration from schema changes
 pnpm --filter @replay-crate/db db:migrate    # apply migrations to DATABASE_URL
@@ -34,6 +35,8 @@ pnpm --filter @replay-crate/db db:migrate    # apply migrations to DATABASE_URL
 - **Env:** varlock. Values live in the root `.env.local`; each app's `.env.schema` imports what it needs from the root `.env.schema`. Secrets are `@sensitive` and can never reach the web bundle. Read config with `import { ENV } from 'varlock/env'`, never `process.env`. `env.d.ts` files are generated; commit them.
 - **Dev host:** always `127.0.0.1`, never `localhost`. Spotify rejects `localhost` redirect URIs, and cookies are per-host.
 - **Auth model:** the API owns every Spotify call and the refresh token (PKCE, no client secret). The browser never holds Spotify tokens.
+- **Running modes:** `pnpm dev` (Vite 5173 + API 8787) for development; `pnpm serve` (one origin on 4173, `WEB_DIST_DIR`) for everyday use, optionally as a systemd user service (`scripts/install-service.sh`). Both run the in-process sync scheduler (`SYNC_INTERVAL_MINUTES`); they can run at once against the same DB since syncs are idempotent. Env-schema changes need a `pnpm dev` restart (`varlock run` reads config at start).
+- **Charts:** every chart, metric and stat uses [shadcn/ui charts](https://ui.shadcn.com/charts/area) (Base UI flavor, Recharts v3). No hand-rolled charts or other chart libraries.
 - **UI:** mobile-first. Style with the semantic tokens in `apps/web/src/styles.css` (`bg-surface`, `text-fg-muted`, `bg-accent`...), not raw colours. Wrap Base UI primitives in `src/components/ui`.
 - **Stories:** CSF Next (`preview.meta` / `meta.story`, import `preview` from `#storybook/preview`). Every story is a test that must pass its `play` function and the a11y check. Mock HTTP with `beforeEach({ msw }) { msw.use(...) }`.
 - **Tests:** API tests call `createApp(...).request(...)` with a PGlite DB from `@replay-crate/db/testing`; no network.

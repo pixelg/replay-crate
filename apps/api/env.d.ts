@@ -11,6 +11,22 @@ export type CoercedEnvSchema = {
   API_PORT: number;
   
   /**
+   * **SYNC_INTERVAL_MINUTES**  
+   * How often the running API syncs every user's recently played tracks. 0 turns it off.  
+   * Spotify only keeps the last 50 plays, so keep this well under a couple of hours.  
+   * ![icon](data:image/svg+xml;utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%23808080%22%20d%3D%22M26%2012h-4v2h4v2h-3v2h3v2h-4v2h4a2.003%202.003%200%200%200%202-2v-6a2%202%200%200%200-2-2m-7%2010h-6v-4a2%202%200%200%201%202-2h2v-2h-4v-2h4a2%202%200%200%201%202%202v2a2%202%200%200%201-2%202h-2v2h4ZM8%2020v-8H6v1H4v2h2v5H4v2h6v-2z%22%2F%3E%3C%2Fsvg%3E)   
+   */
+  SYNC_INTERVAL_MINUTES: number;
+  
+  /**
+   * **WEB_DIST_DIR**  
+   * Built web app (apps/web/dist) to serve alongside the API on one origin. `pnpm serve` sets  
+   * it; leave empty in development, where Vite serves the app.  
+   * ![icon](data:image/svg+xml;utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%23808080%22%20d%3D%22M29%2022h-5a2.003%202.003%200%200%201-2-2v-6a2%202%200%200%201%202-2h5v2h-5v6h5ZM18%2012h-4V8h-2v14h6a2.003%202.003%200%200%200%202-2v-6a2%202%200%200%200-2-2m-4%208v-6h4v6Zm-6-8H3v2h5v2H4a2%202%200%200%200-2%202v2a2%202%200%200%200%202%202h6v-8a2%202%200%200%200-2-2m0%208H4v-2h4Z%22%2F%3E%3C%2Fsvg%3E)   
+   */
+  WEB_DIST_DIR?: string;
+  
+  /**
    * **MUSICBRAINZ_USER_AGENT**  
    * MusicBrainz requires an identifying User-Agent with contact info.  
    * ![icon](data:image/svg+xml;utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%23808080%22%20d%3D%22M29%2022h-5a2.003%202.003%200%200%201-2-2v-6a2%202%200%200%201%202-2h5v2h-5v6h5ZM18%2012h-4V8h-2v14h6a2.003%202.003%200%200%200%202-2v-6a2%202%200%200%200-2-2m-4%208v-6h4v6Zm-6-8H3v2h5v2H4a2%202%200%200%200-2%202v2a2%202%200%200%200%202%202h6v-8a2%202%200%200%200-2-2m0%208H4v-2h4Z%22%2F%3E%3C%2Fsvg%3E)   
@@ -64,11 +80,11 @@ export type CoercedEnvSchema = {
   
 };
 
-type _CoercedEnvSchema_82c2ecf7 = CoercedEnvSchema;
+type _CoercedEnvSchema_609f9c31 = CoercedEnvSchema;
 
 declare module 'varlock/env' {
-  export interface TypedEnvSchema extends Readonly<_CoercedEnvSchema_82c2ecf7> {}
-  export interface PublicTypedEnvSchema extends Readonly<Pick<_CoercedEnvSchema_82c2ecf7, 'API_PORT' | 'MUSICBRAINZ_USER_AGENT' | 'SPOTIFY_CLIENT_ID' | 'SPOTIFY_REDIRECT_URI'>> {}
+  export interface TypedEnvSchema extends Readonly<_CoercedEnvSchema_609f9c31> {}
+  export interface PublicTypedEnvSchema extends Readonly<Pick<_CoercedEnvSchema_609f9c31, 'API_PORT' | 'SYNC_INTERVAL_MINUTES' | 'WEB_DIST_DIR' | 'MUSICBRAINZ_USER_AGENT' | 'SPOTIFY_CLIENT_ID' | 'SPOTIFY_REDIRECT_URI'>> {}
 }
 
 
@@ -78,17 +94,17 @@ export type EnvSchemaAsStrings = {
       : (NonNullable<CoercedEnvSchema[Property]> extends boolean ? ('true' | 'false') : string)
 };
 
-type _EnvSchemaAsStrings_82c2ecf7 = EnvSchemaAsStrings;
+type _EnvSchemaAsStrings_609f9c31 = EnvSchemaAsStrings;
 declare global {
 
   // add types for global import.meta.env
-  interface ImportMetaEnv extends _EnvSchemaAsStrings_82c2ecf7 {}
+  interface ImportMetaEnv extends _EnvSchemaAsStrings_609f9c31 {}
   interface ImportMeta {
     readonly env: ImportMetaEnv;
   }
 
   // add types for global process.env
   namespace NodeJS {
-    interface ProcessEnv extends _EnvSchemaAsStrings_82c2ecf7 {}
+    interface ProcessEnv extends _EnvSchemaAsStrings_609f9c31 {}
   }
 }
