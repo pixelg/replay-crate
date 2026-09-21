@@ -219,3 +219,8 @@ export function getTopArtists(
 ): Promise<Paging<SpotifyArtist>> {
   return spotifyGet(`/me/top/artists?time_range=${timeRange}&limit=20`, accessToken, options)
 }
+
+/** One track by id. (The batch `GET /tracks?ids=` was removed in Feb 2026.) */
+export function getTrack(accessToken: string, id: string, options?: RequestOptions): Promise<SpotifyTrack> {
+  return spotifyGet(`/tracks/${encodeURIComponent(id)}`, accessToken, options)
+}

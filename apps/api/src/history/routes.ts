@@ -8,6 +8,7 @@ import type { AppDeps } from '../deps.ts'
 import { validate } from '../lib/validate.ts'
 import { ReauthRequiredError } from '../spotify/access-token.ts'
 import { syncRecentlyPlayed } from '../sync/recently-played.ts'
+import { jobStatus } from '../jobs/queue.ts'
 import { loadTrackArtists, toContext } from './queries.ts'
 
 const { albums, contexts, playlistItems, playlists, plays, syncGaps, tracks, userPlaylists } = schema
@@ -55,6 +56,9 @@ export function historyRoutes(deps: AppDeps) {
           throw error
         }
       })
+
+      /** Background Spotify lookups still queued for this user (e.g. after an import). */
+      .get('/jobs', auth, async (c) => c.json(await jobStatus(db, c.get('user').id), 200))
 
       /** Stretches of history where plays may be missing, newest first. */
       .get('/gaps', auth, async (c) => {

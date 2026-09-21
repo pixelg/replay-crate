@@ -3,6 +3,7 @@ export * as schema from './schema/index.ts'
 export type {
   Album,
   Artist,
+  Job,
   Play,
   PlayContext,
   Playlist,

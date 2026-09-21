@@ -35,6 +35,7 @@ export type SpotifyGateway = {
   ): Promise<{ snapshot_id: string }>
   getTopTracks(accessToken: string, timeRange: TopTimeRange): Promise<Paging<SpotifyTrack>>
   getTopArtists(accessToken: string, timeRange: TopTimeRange): Promise<Paging<SpotifyArtist>>
+  getTrack(accessToken: string, id: string): Promise<SpotifyTrack>
 }
 
 export type AppDeps = {

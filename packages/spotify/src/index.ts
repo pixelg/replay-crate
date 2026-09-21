@@ -11,6 +11,7 @@ export {
   getRecentlyPlayed,
   getTopArtists,
   getTopTracks,
+  getTrack,
   removePlaylistItems,
   reorderPlaylistItems,
   SpotifyApiError,

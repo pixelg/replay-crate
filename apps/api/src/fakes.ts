@@ -134,6 +134,7 @@ export function createFakeLibrary() {
 
   return {
     store,
+    catalog,
     remember,
     /** Seeds a playlist the user owns. */
     add(id: string, tracks: SpotifyTrack[], name = `Playlist ${id}`) {
@@ -246,6 +247,8 @@ export function createFakeSpotify(
       }
       return paged([...seen.values()])(0)
     },
+    // Tracks the fake has seen come back as themselves; anything else is a made-up track.
+    getTrack: async (_token, id) => library.catalog.get(id) ?? track(id),
     ...library.gateway,
   }
 }
