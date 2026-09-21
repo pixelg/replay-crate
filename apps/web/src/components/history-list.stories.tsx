@@ -1,0 +1,34 @@
+import preview from '#storybook/preview'
+import { createRootRoute, createRouter, RouterProvider, createMemoryHistory } from '@tanstack/react-router'
+import { expect } from 'storybook/test'
+import { plays } from '../test/fixtures.ts'
+import { HistoryList } from './history-list.tsx'
+
+const meta = preview.meta({
+  component: HistoryList,
+  args: { plays },
+  // Rows link to track pages, so render inside a throwaway router.
+  decorators: [
+    (Story) => {
+      const router = createRouter({
+        routeTree: createRootRoute({ component: Story }),
+        history: createMemoryHistory(),
+      })
+      return <RouterProvider router={router} />
+    },
+  ],
+})
+
+export const Default = meta.story({
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { name: 'Today' })).toBeVisible()
+    await expect(canvas.getByRole('heading', { name: 'Yesterday' })).toBeVisible()
+    await expect(canvas.getByText('Late Night Crate')).toBeVisible()
+    // Spotify won't name its own algorithmic playlists; fall back to a generic label.
+    await expect(canvas.getByText('Spotify playlist')).toBeVisible()
+  },
+})
+
+export const Mobile = meta.story({
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+})

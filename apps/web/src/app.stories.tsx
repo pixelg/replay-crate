@@ -1,13 +1,11 @@
 import preview from '#storybook/preview'
-import type { Me } from '@replay-crate/api-client'
 import { useQueryClient } from '@tanstack/react-query'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { http, HttpResponse } from 'msw'
 import { useState } from 'react'
 import { expect, screen, within } from 'storybook/test'
 import { createAppRouter } from './router.ts'
-
-const pixelg: Me = { id: 'pixelg', displayName: 'Pixel G', imageUrl: null, needsReauth: false }
+import { pixelg, playsPage, trackDetail } from './test/fixtures.ts'
 
 /** The whole app (real route tree + shell) at a given URL. */
 function App({ path }: { path: string }) {
@@ -27,6 +25,11 @@ const meta = preview.meta({
     msw.use(
       http.get('/api/health', () => HttpResponse.json({ ok: true })),
       http.get('/api/me', () => HttpResponse.json(pixelg)),
+      http.get('/api/plays', () => HttpResponse.json(playsPage)),
+      http.post('/api/sync', () =>
+        HttpResponse.json({ status: 'skipped', inserted: 0, lastSyncedAt: playsPage.lastSyncedAt }),
+      ),
+      http.get('/api/tracks/:id', () => HttpResponse.json(trackDetail)),
     )
   },
 })
@@ -34,6 +37,43 @@ const meta = preview.meta({
 export const History = meta.story({
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('heading', { level: 1, name: 'History' })).toBeVisible()
+    await expect(await canvas.findByRole('heading', { name: 'Today' })).toBeVisible()
+    // The automatic sync on open may still be running ("Syncing…"); wait for it to settle.
+    await expect(await canvas.findByRole('button', { name: 'Sync now' })).toBeEnabled()
+  },
+})
+
+export const HistoryEmpty = meta.story({
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/plays', () => HttpResponse.json({ items: [], nextCursor: null, lastSyncedAt: null })))
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('No plays yet')).toBeVisible()
+  },
+})
+
+export const OpensTrackFromHistory = meta.story({
+  play: async ({ canvas, userEvent }) => {
+    const [link] = await canvas.findAllByRole('link', { name: 'Brass Monkey Business' })
+    await userEvent.click(link!)
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Brass Monkey Business' })).toBeVisible()
+    await expect(canvas.getByText('12')).toBeVisible()
+    await expect(canvas.getByRole('heading', { name: 'Played from' })).toBeVisible()
+  },
+})
+
+export const TrackMobile = meta.story({
+  args: { path: '/tracks/t1' },
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+})
+
+export const TrackNotFound = meta.story({
+  args: { path: '/tracks/unknown' },
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/tracks/:id', () => HttpResponse.json({ error: 'not_found' }, { status: 404 })))
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('Track not found')).toBeVisible()
   },
 })
 

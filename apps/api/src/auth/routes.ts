@@ -5,14 +5,8 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { AppDeps } from '../deps.ts'
 import { toMe } from './me.ts'
-import {
-  clearSessionCookie,
-  createSession,
-  deleteSession,
-  readSessionToken,
-  setSessionCookie,
-  validateSession,
-} from './session.ts'
+import { authenticate } from './middleware.ts'
+import { clearSessionCookie, createSession, deleteSession, readSessionToken, setSessionCookie } from './session.ts'
 
 const callbackBody = z.object({
   code: z.string().min(1),
@@ -78,14 +72,9 @@ export function authRoutes(deps: AppDeps) {
       })
 
       .get('/me', async (c) => {
-        const credentials = readSessionToken(c)
-        const session = credentials ? await validateSession(db, credentials.token, now()) : null
-        if (!session || !credentials) return c.json({ error: 'unauthorized' as const }, 401)
-
-        if (session.renewed && credentials.via === 'cookie') {
-          setSessionCookie(c, credentials.token, session.expiresAt, secure)
-        }
-        return c.json(toMe(session.user), 200)
+        const user = await authenticate(c, deps)
+        if (!user) return c.json({ error: 'unauthorized' as const }, 401)
+        return c.json(toMe(user), 200)
       })
   )
 }

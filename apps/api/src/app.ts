@@ -3,6 +3,8 @@ import { csrf } from 'hono/csrf'
 import { HTTPException } from 'hono/http-exception'
 import { authRoutes } from './auth/routes.ts'
 import type { AppDeps } from './deps.ts'
+import { historyRoutes } from './history/routes.ts'
+import { cronRoutes } from './sync/cron-routes.ts'
 
 /**
  * Builds the API. Everything it talks to arrives through `deps`, so tests can
@@ -18,6 +20,8 @@ export function createApp(deps: AppDeps) {
     .use((c, next) => (c.req.header('Authorization')?.startsWith('Bearer ') ? next() : checkOrigin(c, next)))
     .get('/health', (c) => c.json({ ok: true }))
     .route('/', authRoutes(deps))
+    .route('/', historyRoutes(deps))
+    .route('/', cronRoutes(deps))
 
   app.onError((error, c) => {
     if (error instanceof HTTPException) return error.getResponse()

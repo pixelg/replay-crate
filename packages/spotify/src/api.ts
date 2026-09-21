@@ -1,26 +1,87 @@
 import { SPOTIFY_API_URL } from './constants.ts'
+import type {
+  RecentlyPlayedPage,
+  SpotifyArtist,
+  SpotifyImage,
+  SpotifyPlaylistMeta,
+  SpotifySimplifiedAlbum,
+} from './types.ts'
 
 /** Fields of `GET /me` still returned to development-mode apps after the Feb 2026 changes. */
 export type SpotifyUser = {
   id: string
   display_name: string | null
-  images: Array<{ url: string; width: number | null; height: number | null }>
+  images: SpotifyImage[]
 }
 
 export class SpotifyApiError extends Error {
   readonly status: number
+  /** Seconds to wait before retrying, when Spotify rate-limits us (429). */
+  readonly retryAfter: number | undefined
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, retryAfter?: number) {
     super(message)
     this.name = 'SpotifyApiError'
     this.status = status
+    this.retryAfter = retryAfter
   }
 }
 
-export async function getCurrentUser(accessToken: string, fetchFn: typeof fetch = fetch): Promise<SpotifyUser> {
-  const res = await fetchFn(`${SPOTIFY_API_URL}/me`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!res.ok) throw new SpotifyApiError(res.status, `GET /me failed with ${res.status}`)
-  return (await res.json()) as SpotifyUser
+type Fetch = typeof fetch
+
+export type RequestOptions = {
+  fetchFn?: Fetch
+  /** Longest Retry-After we'll wait out in-process before giving up. */
+  maxRetryWaitSeconds?: number
+  sleep?: (ms: number) => Promise<void>
+}
+
+const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+/**
+ * GET a Web API path as JSON. On 429 it waits out short Retry-After windows
+ * (up to twice) and otherwise throws SpotifyApiError with `retryAfter` set.
+ */
+export async function spotifyGet<T>(path: string, accessToken: string, options: RequestOptions = {}): Promise<T> {
+  const { fetchFn = fetch, maxRetryWaitSeconds = 5, sleep = defaultSleep } = options
+
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetchFn(`${SPOTIFY_API_URL}${path}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (res.ok) return (await res.json()) as T
+
+    if (res.status === 429) {
+      const retryAfter = Number(res.headers.get('Retry-After') ?? '1')
+      if (attempt < 2 && retryAfter <= maxRetryWaitSeconds) {
+        await sleep(retryAfter * 1000)
+        continue
+      }
+      throw new SpotifyApiError(429, `GET ${path} was rate limited`, retryAfter)
+    }
+    throw new SpotifyApiError(res.status, `GET ${path} failed with ${res.status}`)
+  }
+}
+
+export function getCurrentUser(accessToken: string, options?: RequestOptions): Promise<SpotifyUser> {
+  return spotifyGet('/me', accessToken, options)
+}
+
+/** The user's last 50 plays. Spotify keeps no history beyond that. */
+export function getRecentlyPlayed(accessToken: string, options?: RequestOptions): Promise<RecentlyPlayedPage> {
+  return spotifyGet('/me/player/recently-played?limit=50', accessToken, options)
+}
+
+/** Playlist name, image and owner. Works for any playlist; contents only for the user's own. */
+export function getPlaylistMeta(accessToken: string, id: string, options?: RequestOptions): Promise<SpotifyPlaylistMeta> {
+  const fields = encodeURIComponent('id,name,images,owner(id,display_name)')
+  return spotifyGet(`/playlists/${encodeURIComponent(id)}?fields=${fields}`, accessToken, options)
+}
+
+export function getAlbum(accessToken: string, id: string, options?: RequestOptions): Promise<SpotifySimplifiedAlbum> {
+  return spotifyGet(`/albums/${encodeURIComponent(id)}`, accessToken, options)
+}
+
+export function getArtist(accessToken: string, id: string, options?: RequestOptions): Promise<SpotifyArtist> {
+  return spotifyGet(`/artists/${encodeURIComponent(id)}`, accessToken, options)
 }

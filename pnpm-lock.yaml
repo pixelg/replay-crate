@@ -181,6 +181,9 @@ importers:
       '@hono/zod-validator':
         specifier: ^0.9.1
         version: 0.9.1(hono@4.13.8)(zod@4.6.5)
+      '@replay-crate/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@replay-crate/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -218,6 +221,9 @@ importers:
       '@replay-crate/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@replay-crate/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@replay-crate/spotify':
         specifier: workspace:*
         version: link:../../packages/spotify
