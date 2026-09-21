@@ -1,7 +1,9 @@
 import type { AppType, Me } from '@replay-crate/api'
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
 import { hc, type InferResponseType } from 'hono/client'
+import { ApiError, expectOk, send } from './errors.ts'
 
+export { ApiError, isApiError } from './errors.ts'
 export type { Me }
 export type ApiClient = ReturnType<typeof hc<AppType>>
 
@@ -10,6 +12,13 @@ export type PlayItem = PlaysPage['items'][number]
 export type PlayContext = NonNullable<PlayItem['context']>
 export type TrackDetail = InferResponseType<ApiClient['api']['tracks'][':id']['$get'], 200>
 export type SyncResult = InferResponseType<ApiClient['api']['sync']['$post'], 200>
+export type PlaylistsList = InferResponseType<ApiClient['api']['playlists']['$get'], 200>
+export type PlaylistSummary = PlaylistsList['playlists'][number]
+export type PlaylistDetail = InferResponseType<ApiClient['api']['playlists'][':id']['$get'], 200>
+export type PlaylistTrack = PlaylistDetail['items'][number]
+export type PlaylistSyncResult = InferResponseType<ApiClient['api']['playlists']['sync']['$post'], 200>
+
+// Every call below either returns data or throws an ApiError.
 
 /**
  * Typed client for the Hono API. The web app passes its own origin; a React
@@ -23,9 +32,8 @@ export const healthQueryOptions = (api: ApiClient) =>
   queryOptions({
     queryKey: ['health'],
     queryFn: async () => {
-      const res = await api.api.health.$get()
-      if (!res.ok) throw new Error(`Health check failed: ${res.status}`)
-      return res.json()
+      const endpoint = 'GET /api/health'
+      return expectOk(await send(endpoint, () => api.api.health.$get()), endpoint)
     },
   })
 
@@ -34,38 +42,27 @@ export const meQueryOptions = (api: ApiClient) =>
   queryOptions({
     queryKey: ['me'],
     queryFn: async (): Promise<Me | null> => {
-      const res = await api.api.me.$get()
+      const endpoint = 'GET /api/me'
+      const res = await send(endpoint, () => api.api.me.$get())
       if (res.status === 401) return null
-      // Only 200/401 are typed; anything else (e.g. a 500) still needs handling.
-      if (!res.ok) throw new Error('GET /api/me failed')
-      return res.json()
+      return expectOk(res, endpoint)
     },
     staleTime: 5 * 60_000,
   })
-
-export class LoginFailedError extends Error {
-  readonly code: string
-
-  constructor(code: string, detail?: string) {
-    super(detail ? `${code}: ${detail}` : code)
-    this.name = 'LoginFailedError'
-    this.code = code
-  }
-}
 
 /** Sends the Spotify authorization code + PKCE verifier to the API, which starts a session. */
 export async function completeLogin(
   api: ApiClient,
   body: { code: string; codeVerifier: string; redirectUri: string },
 ): Promise<Me> {
-  const res = await api.api.auth.callback.$post({ json: body })
-  if (res.status === 200) return res.json()
-  const error = (await res.json().catch(() => ({}))) as { error?: string; detail?: string }
-  throw new LoginFailedError(error.error ?? `http_${res.status}`, error.detail)
+  const endpoint = 'POST /api/auth/callback'
+  return expectOk(await send(endpoint, () => api.api.auth.callback.$post({ json: body })), endpoint)
 }
 
 export async function logout(api: ApiClient): Promise<void> {
-  await api.api.auth.logout.$post()
+  const endpoint = 'POST /api/auth/logout'
+  const res = await send(endpoint, () => api.api.auth.logout.$post())
+  if (!res.ok) throw await ApiError.fromResponse(res, endpoint)
 }
 
 /** Newest-first play history; each page's `nextCursor` fetches older plays. */
@@ -73,61 +70,35 @@ export const playsInfiniteQueryOptions = (api: ApiClient) =>
   infiniteQueryOptions({
     queryKey: ['plays'],
     queryFn: async ({ pageParam }): Promise<PlaysPage> => {
-      const res = await api.api.plays.$get({ query: pageParam ? { before: pageParam } : {} })
-      if (!res.ok) throw new Error('GET /api/plays failed')
-      return res.json()
+      const endpoint = 'GET /api/plays'
+      const res = await send(endpoint, () => api.api.plays.$get({ query: pageParam ? { before: pageParam } : {} }))
+      return expectOk(res, endpoint)
     },
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
   })
 
-export class NotFoundError extends Error {
-  constructor(what: string) {
-    super(`${what} not found`)
-    this.name = 'NotFoundError'
-  }
-}
-
 export const trackQueryOptions = (api: ApiClient, trackId: string) =>
   queryOptions({
     queryKey: ['tracks', trackId],
     queryFn: async (): Promise<TrackDetail> => {
-      const res = await api.api.tracks[':id'].$get({ param: { id: trackId } })
-      if (res.status === 404) throw new NotFoundError(`Track ${trackId}`)
-      if (!res.ok) throw new Error(`GET /api/tracks/${trackId} failed`)
-      return res.json()
+      const endpoint = `GET /api/tracks/${trackId}`
+      return expectOk(await send(endpoint, () => api.api.tracks[':id'].$get({ param: { id: trackId } })), endpoint)
     },
   })
 
-/** Spotify access expired; the user must reconnect. */
-export class ReauthRequiredError extends Error {
-  constructor() {
-    super('Spotify access has expired')
-    this.name = 'ReauthRequiredError'
-  }
-}
-
 /** Pulls the latest plays from Spotify into the user's history. */
 export async function syncNow(api: ApiClient): Promise<SyncResult> {
-  const res = await api.api.sync.$post()
-  if (res.status === 200) return res.json()
-  if (res.status === 409) throw new ReauthRequiredError()
-  throw new Error(`POST /api/sync failed: ${res.status}`)
+  const endpoint = 'POST /api/sync'
+  return expectOk(await send(endpoint, () => api.api.sync.$post()), endpoint)
 }
-
-export type PlaylistsList = InferResponseType<ApiClient['api']['playlists']['$get'], 200>
-export type PlaylistSummary = PlaylistsList['playlists'][number]
-export type PlaylistDetail = InferResponseType<ApiClient['api']['playlists'][':id']['$get'], 200>
-export type PlaylistTrack = PlaylistDetail['items'][number]
-export type PlaylistSyncResult = InferResponseType<ApiClient['api']['playlists']['sync']['$post'], 200>
 
 export const playlistsQueryOptions = (api: ApiClient) =>
   queryOptions({
     queryKey: ['playlists'],
     queryFn: async (): Promise<PlaylistsList> => {
-      const res = await api.api.playlists.$get()
-      if (!res.ok) throw new Error('GET /api/playlists failed')
-      return res.json()
+      const endpoint = 'GET /api/playlists'
+      return expectOk(await send(endpoint, () => api.api.playlists.$get()), endpoint)
     },
   })
 
@@ -135,10 +106,9 @@ export const playlistQueryOptions = (api: ApiClient, playlistId: string) =>
   queryOptions({
     queryKey: ['playlists', playlistId],
     queryFn: async (): Promise<PlaylistDetail> => {
-      const res = await api.api.playlists[':id'].$get({ param: { id: playlistId } })
-      if (res.status === 404) throw new NotFoundError(`Playlist ${playlistId}`)
-      if (!res.ok) throw new Error(`GET /api/playlists/${playlistId} failed`)
-      return res.json()
+      const endpoint = `GET /api/playlists/${playlistId}`
+      const res = await send(endpoint, () => api.api.playlists[':id'].$get({ param: { id: playlistId } }))
+      return expectOk(res, endpoint)
     },
   })
 
@@ -150,13 +120,11 @@ export async function syncPlaylists(
   api: ApiClient,
   onProgress?: (result: PlaylistSyncResult) => void,
 ): Promise<PlaylistSyncResult> {
+  const endpoint = 'POST /api/playlists/sync'
   for (let round = 0; ; round++) {
-    const res = await api.api.playlists.sync.$post()
-    if (res.status === 409) throw new ReauthRequiredError()
-    if (res.status !== 200) throw new Error(`POST /api/playlists/sync failed: ${res.status}`)
-    const result = await res.json()
+    const result = await expectOk(await send(endpoint, () => api.api.playlists.sync.$post()), endpoint)
     onProgress?.(result)
-    // Guard against a playlist that never finishes: stop after a generous number of rounds.
+    // Stop if a round makes no progress, and after a generous number of rounds.
     if (result.remaining === 0 || result.synced === 0 || round >= 20) return result
   }
 }

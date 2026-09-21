@@ -5,6 +5,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { History, RefreshCw } from 'lucide-react'
 import { EmptyState } from '../../components/empty-state.tsx'
 import { HistoryList } from '../../components/history-list.tsx'
+import { InlineError } from '../../components/inline-error.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { api } from '../../lib/api.ts'
@@ -20,7 +21,7 @@ function HistoryPage() {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useSuspenseInfiniteQuery(
     playsInfiniteQueryOptions(api),
   )
-  const { sync, isSyncing } = useSync()
+  const { sync, isSyncing, error: syncError } = useSync()
   const plays = data.pages.flatMap((page) => page.items)
   const lastSyncedAt = data.pages[0]?.lastSyncedAt
 
@@ -28,7 +29,8 @@ function HistoryPage() {
     <>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader title="History" description="Every track you've played, and where you played it from." />
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {syncError && !isSyncing && <InlineError error={syncError} action="Sync" />}
           {lastSyncedAt && (
             <p className="text-xs text-fg-muted">Synced {formatRelative(new Date(lastSyncedAt))}</p>
           )}

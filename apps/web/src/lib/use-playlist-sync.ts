@@ -1,4 +1,4 @@
-import { ReauthRequiredError, syncPlaylists, type PlaylistSyncResult } from '@replay-crate/api-client'
+import { isApiError, syncPlaylists, type PlaylistSyncResult } from '@replay-crate/api-client'
 import { useIsMutating, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from './api.ts'
@@ -22,9 +22,9 @@ export function usePlaylistSync() {
       void queryClient.invalidateQueries({ queryKey: ['tracks'] })
     },
     onError: (error) => {
-      if (error instanceof ReauthRequiredError) void queryClient.invalidateQueries({ queryKey: ['me'] })
+      if (isApiError(error) && error.code === 'reauth_required') void queryClient.invalidateQueries({ queryKey: ['me'] })
     },
   })
   const isSyncing = useIsMutating({ mutationKey: KEY }) > 0
-  return { sync: mutation.mutate, isSyncing, progress }
+  return { sync: mutation.mutate, isSyncing, progress, error: mutation.error }
 }
