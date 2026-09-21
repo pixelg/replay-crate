@@ -221,3 +221,45 @@ export const gapsQueryOptions = (api: ApiClient) =>
       return (await expectOk(await send(endpoint, () => api.api.gaps.$get()), endpoint)).gaps
     },
   })
+
+export type ImportStatus = NonNullable<InferResponseType<ApiClient['api']['imports']['latest']['$get'], 200>['import']>
+/** One play from a streaming history export, as the web app sends it: end time, play time, track id. */
+export type ImportPlay = { ts: string; ms: number; trackId: string }
+
+/** Plays per upload request; the API accepts up to 5,000. */
+export const IMPORT_CHUNK_SIZE = 5_000
+
+/** The most recent import, or `null` if there's never been one. Polls while tracks are still being looked up. */
+export const latestImportQueryOptions = (api: ApiClient) =>
+  queryOptions({
+    queryKey: ['imports', 'latest'],
+    queryFn: async (): Promise<ImportStatus | null> => {
+      const endpoint = 'GET /api/imports/latest'
+      return (await expectOk(await send(endpoint, () => api.api.imports.latest.$get()), endpoint)).import
+    },
+    refetchInterval: (query) => (query.state.data && !query.state.data.done ? 5_000 : false),
+  })
+
+/**
+ * Uploads a parsed export in chunks, then finishes it: plays of tracks already in the
+ * catalog land at once, the rest once their tracks have been looked up on Spotify.
+ * `onProgress` gets the number of plays sent so far.
+ */
+export async function uploadImport(
+  api: ApiClient,
+  plays: ImportPlay[],
+  onProgress?: (sent: number) => void,
+): Promise<{ id: number; tracksToFetch: number }> {
+  let endpoint = 'POST /api/imports'
+  const { id } = await expectOk(await send(endpoint, () => api.api.imports.$post()), endpoint)
+  const param = { id: String(id) }
+  endpoint = `POST /api/imports/${id}/plays`
+  for (let start = 0; start < plays.length; start += IMPORT_CHUNK_SIZE) {
+    const chunk = plays.slice(start, start + IMPORT_CHUNK_SIZE)
+    await expectOk(await send(endpoint, () => api.api.imports[':id'].plays.$post({ param, json: { plays: chunk } })), endpoint)
+    onProgress?.(start + chunk.length)
+  }
+  endpoint = `POST /api/imports/${id}/finish`
+  const { tracksToFetch } = await expectOk(await send(endpoint, () => api.api.imports[':id'].finish.$post({ param })), endpoint)
+  return { id, tracksToFetch }
+}

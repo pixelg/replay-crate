@@ -60,6 +60,17 @@ For everyday use, run the built app and the API as one server on http://127.0.0.
 
    Logs: `journalctl --user -u replay-crate -f`. Stop: `systemctl --user stop replay-crate`. After pulling changes, run `systemctl --user restart replay-crate`, which rebuilds the app.
 
+## Import your full history
+
+Replay Crate only sees plays from while it's running. To fill in everything before that, and any gaps since:
+
+1. On Spotify's [Account privacy page](https://www.spotify.com/account/privacy/), request your **Extended streaming history**. It can take up to 30 days to arrive by email.
+2. Open **Settings → Import** (or `/import`) and drop in `my_spotify_data.zip`. You don't need to unzip it.
+
+The zip is read in your browser. Only each play's time, length and track id are uploaded, not the IP addresses, devices and other details in the export. Plays under 30 seconds are skipped, since Spotify doesn't count them as streams. Plays Replay Crate already has are skipped too, so importing again is safe.
+
+Spotify no longer offers batch lookups, so tracks new to Replay Crate are fetched one at a time in the background while the app runs. For a large export this can take hours. The import page shows progress, and imported plays appear in History and Stats as their tracks arrive.
+
 ## Scripts
 
 | Command | What it does |

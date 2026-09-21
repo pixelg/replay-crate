@@ -1,5 +1,6 @@
 import type {
   HistoryGap,
+  ImportStatus,
   Me,
   PlaylistDetail,
   PlaylistsList,
@@ -260,3 +261,25 @@ export const gaps: HistoryGap[] = [
     detectedAt: plays[3]!.playedAt,
   },
 ]
+
+/** An import of about four years of history, uploaded an hour ago, still looking up tracks. */
+export const importInProgress: ImportStatus = {
+  id: 1,
+  playCount: 48_213,
+  earliest: '2021-02-14T19:03:00.000Z',
+  latest: '2025-06-30T22:41:00.000Z',
+  unavailable: 0,
+  createdAt: hoursAgo(1.1),
+  uploadedAt: hoursAgo(1),
+  waitingPlays: 16_870,
+  tracksToFetch: 2_904,
+  done: false,
+}
+
+export const importDone: ImportStatus = {
+  ...importInProgress,
+  unavailable: 37,
+  waitingPlays: 0,
+  tracksToFetch: 0,
+  done: true,
+}

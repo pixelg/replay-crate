@@ -3,21 +3,33 @@ import { pickImage, SpotifyApiError } from '@replay-crate/spotify'
 import { and, asc, count, eq, gt, lte, sql } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
 import { getAccessToken, ReauthRequiredError } from '../spotify/access-token.ts'
+import { discardTrack, promote } from '../imports/service.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
 
 const { artists, jobs } = schema
 
 export type JobKind = 'track' | 'artist'
-type Handler = (deps: AppDeps, accessToken: string, ref: string) => Promise<void>
+type Handler = {
+  /** Does the work; makes exactly one Spotify call. */
+  run: (deps: AppDeps, accessToken: string, ref: string) => Promise<void>
+  /** Spotify doesn't have the thing any more (404/400); clean up anything waiting on it. */
+  gone?: (deps: AppDeps, ref: string) => Promise<void>
+}
 
-/** What each kind of job does. Each makes exactly one Spotify call. */
 const handlers: Record<JobKind, Handler> = {
-  /** Fetch a track (e.g. one named in an import) and add it, its album and artists to the catalog. */
-  track: async (deps, accessToken, id) => {
-    await upsertCatalog(deps.db, [await deps.spotify.getTrack(accessToken, id)])
+  /**
+   * Fetch a track (e.g. one named in an import) into the catalog, then move any imported
+   * plays that were waiting for it into history.
+   */
+  track: {
+    run: async (deps, accessToken, id) => {
+      await upsertCatalog(deps.db, [await deps.spotify.getTrack(accessToken, id)])
+      await promote(deps.db, [id])
+    },
+    gone: (deps, id) => discardTrack(deps.db, id),
   },
   /** Fetch an artist for its image (artists in plays come without one). */
-  artist: async (deps, accessToken, id) => {
+  artist: { run: async (deps, accessToken, id) => {
     const artist = await deps.spotify.getArtist(accessToken, id)
     await deps.db
       .insert(artists)
@@ -26,7 +38,7 @@ const handlers: Record<JobKind, Handler> = {
         target: artists.id,
         set: { name: sql`excluded.name`, imageUrl: sql`excluded.image_url`, updatedAt: sql`now()` },
       })
-  },
+  } },
 }
 
 const CHUNK = 1_000
@@ -94,11 +106,12 @@ export async function runJobs(
         token = await getAccessToken(deps, job.userId)
         tokens.set(job.userId, token)
       }
-      await handler(deps, token, job.ref)
+      await handler.run(deps, token, job.ref)
       await db.delete(jobs).where(eq(jobs.id, job.id))
       result.done++
     } catch (error) {
       if (error instanceof SpotifyApiError && (error.status === 404 || error.status === 400)) {
+        await handler?.gone?.(deps, job.ref)
         await db.delete(jobs).where(eq(jobs.id, job.id))
         result.dropped++
       } else if (error instanceof SpotifyApiError && error.status === 429) {

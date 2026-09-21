@@ -5,6 +5,7 @@ import { requestId } from 'hono/request-id'
 import { authRoutes } from './auth/routes.ts'
 import type { AppDeps } from './deps.ts'
 import { historyRoutes } from './history/routes.ts'
+import { importRoutes } from './imports/routes.ts'
 import { playlistManageRoutes } from './playlists/manage-routes.ts'
 import { playlistRoutes } from './playlists/routes.ts'
 import { statsRoutes } from './stats/routes.ts'
@@ -31,6 +32,7 @@ export function createApp(deps: AppDeps) {
     .route('/', playlistManageRoutes(deps))
     .route('/', playlistRoutes(deps))
     .route('/', statsRoutes(deps))
+    .route('/', importRoutes(deps))
     .route('/', cronRoutes(deps))
 
   // Every error response is JSON: `{ error: <code>, ...details }`.
