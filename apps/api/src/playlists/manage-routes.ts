@@ -12,7 +12,6 @@ const trackIds = z.array(z.string().min(1).max(64)).max(500)
 const createBody = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().trim().max(300).optional(),
-  isPublic: z.boolean().default(false),
   trackIds: trackIds.default([]),
 })
 

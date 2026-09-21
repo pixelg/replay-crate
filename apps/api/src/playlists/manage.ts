@@ -26,7 +26,7 @@ const toUri = (trackId: string) => `spotify:track:${trackId}`
 export async function createPlaylistFor(
   deps: AppDeps,
   userId: string,
-  input: { name: string; description?: string; isPublic: boolean; trackIds: string[] },
+  input: { name: string; description?: string; trackIds: string[] },
 ): Promise<{ id: string }> {
   const { db, spotify } = deps
   const accessToken = await getAccessToken(deps, userId)
@@ -34,7 +34,9 @@ export async function createPlaylistFor(
   const created = await spotify.createPlaylist(accessToken, {
     name: input.name,
     description: input.description ?? DEFAULT_DESCRIPTION,
-    public: input.isPublic,
+    // Asked for, but Spotify currently makes app-created playlists public regardless (checked
+    // Sep 2026; Change Playlist Details ignores it too). Users can switch it in the Spotify app.
+    public: false,
   })
   await db
     .insert(playlists)
@@ -108,15 +110,16 @@ export async function moveTrack(deps: AppDeps, userId: string, playlistId: strin
   const { snapshot_id } = await deps.spotify.reorderPlaylistItems(accessToken, playlistId, {
     rangeStart: from,
     insertBefore,
-    // Guards against reordering a playlist that changed since we last read it.
-    snapshotId: playlist.snapshotId,
+    // The version our stored positions came from, so Spotify applies the move to the list
+    // the user was looking at even if the playlist changed since.
+    snapshotId: playlist.itemsSnapshotId ?? undefined,
   })
   await syncPlaylistItems(deps, accessToken, playlistId, snapshot_id)
 }
 
 async function requireInLibrary(deps: AppDeps, userId: string, playlistId: string) {
   const [row] = await deps.db
-    .select({ snapshotId: playlists.snapshotId, itemCount: playlists.itemCount })
+    .select({ itemsSnapshotId: playlists.itemsSnapshotId })
     .from(playlists)
     .innerJoin(userPlaylists, and(eq(userPlaylists.playlistId, playlists.id), eq(userPlaylists.userId, userId)))
     .where(eq(playlists.id, playlistId))

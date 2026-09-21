@@ -9,7 +9,6 @@ import { InlineError } from '../../components/inline-error.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { Segmented } from '../../components/ui/segmented.tsx'
-import { Switch } from '../../components/ui/switch.tsx'
 import { TextField } from '../../components/ui/text-field.tsx'
 import { api } from '../../lib/api.ts'
 
@@ -70,7 +69,6 @@ function NewPlaylistPage() {
   const [range, setRange] = useState<Range>('30d')
   const [size, setSize] = useState<(typeof sizes)[number]['value']>('50')
   const [name, setName] = useState<string | null>(null)
-  const [isPublic, setIsPublic] = useState(false)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -87,7 +85,7 @@ function NewPlaylistPage() {
 
   const create = useMutation({
     mutationFn: () =>
-      createPlaylist(api, { name: finalName, isPublic, trackIds: tracks.map((track) => track.id) }),
+      createPlaylist(api, { name: finalName, trackIds: tracks.map((track) => track.id) }),
     onSuccess: async ({ id }) => {
       await queryClient.invalidateQueries({ queryKey: ['playlists'] })
       await navigate({ to: '/playlists/$playlistId', params: { playlistId: id } })
@@ -129,7 +127,9 @@ function NewPlaylistPage() {
           onChange={(event) => setName(event.target.value)}
           maxLength={100}
         />
-        <Switch label="Public on your Spotify profile" checked={isPublic} onCheckedChange={setIsPublic} />
+        <p className="text-xs text-fg-muted">
+          Spotify makes playlists created by apps public. You can make it private in the Spotify app afterwards.
+        </p>
         <div className="flex flex-wrap items-center gap-3">
           <Button onClick={() => create.mutate()} disabled={!canCreate}>
             {create.isPending ? 'Creating…' : kind === 'empty' ? 'Create playlist' : `Create with ${tracks.length} tracks`}

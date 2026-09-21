@@ -51,6 +51,7 @@ export type SpotifyPlaylistMeta = {
   name: string
   images: SpotifyImage[] | null
   owner: { id: string; display_name: string | null }
+  snapshot_id: string
 }
 
 export type SpotifyArtist = SpotifySimplifiedArtist & { images: SpotifyImage[] }

@@ -111,6 +111,8 @@ export function paged<T>(items: T[], pageSize = 50) {
 export function createFakeLibrary() {
   const store = new Map<string, { meta: SpotifyPlaylist; entries: SpotifyTrack[]; version: number }>()
   let nextId = 1
+  /** When set, `GET /me/playlists` keeps returning these copies, like Spotify's lagging listing. */
+  let frozenListing: SpotifyPlaylist[] | null = null
 
   const snapshot = (id: string) => {
     const playlist = store.get(id)!
@@ -133,9 +135,15 @@ export function createFakeLibrary() {
       store.set(id, { meta: playlist(id, { name, total: tracks.length }), entries: [...tracks], version: 1 })
     },
     trackIds: (id: string) => get(id).entries.map((entry) => entry.id),
+    /** From now on the listing reports the current versions, even after later changes. */
+    freezeListing() {
+      frozenListing = [...store.values()].map((p) => ({ ...p.meta, items: { ...p.meta.items! } }))
+    },
+    has: (id: string) => store.has(id),
+    snapshotOf: (id: string) => get(id).meta.snapshot_id,
     gateway: {
       getMyPlaylists: async (_token: string, offset: number) =>
-        paged([...store.values()].map((p) => ({ ...p.meta })))(offset),
+        paged(frozenListing ?? [...store.values()].map((p) => ({ ...p.meta })))(offset),
       getPlaylistItems: async (_token: string, id: string, offset: number) =>
         paged(get(id).entries.map((entry) => playlistEntry(entry)))(offset),
       createPlaylist: async (_token: string, details: { name: string; description?: string; public?: boolean }) => {
@@ -200,6 +208,8 @@ export async function createTestContext() {
       name: `Playlist ${id}`,
       images: [{ url: `https://i.scdn.co/${id}`, width: 300, height: 300 }],
       owner: { id: 'pixelg', display_name: 'Pixel G' },
+      // Live version for playlists in the fake library.
+      snapshot_id: library.has(id) ? library.snapshotOf(id) : `${id}-v1`,
     })),
     getAlbum: vi.fn<SpotifyGateway['getAlbum']>(),
     getArtist: vi.fn<SpotifyGateway['getArtist']>(async (_token, id) => ({

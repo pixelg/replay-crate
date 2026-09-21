@@ -63,7 +63,11 @@ export async function spotifyRequest<T>(
       },
       ...(body !== undefined && { body: JSON.stringify(body) }),
     })
-    if (res.ok) return (res.status === 204 ? undefined : await res.json()) as T
+    if (res.ok) {
+      // Some endpoints answer 200 with an empty body (e.g. Change Playlist Details).
+      const text = await res.text()
+      return (text ? JSON.parse(text) : undefined) as T
+    }
 
     if (res.status === 429) {
       const retryAfter = Number(res.headers.get('Retry-After') ?? '1')
@@ -90,9 +94,13 @@ export function getRecentlyPlayed(accessToken: string, options?: RequestOptions)
   return spotifyGet('/me/player/recently-played?limit=50', accessToken, options)
 }
 
-/** Playlist name, image and owner. Works for any playlist; contents only for the user's own. */
+/**
+ * Playlist name, image, owner and current snapshot. Works for any playlist; contents only
+ * for the user's own. Unlike `GET /me/playlists`, which can lag a recent change by a minute,
+ * this reflects the latest version.
+ */
 export function getPlaylistMeta(accessToken: string, id: string, options?: RequestOptions): Promise<SpotifyPlaylistMeta> {
-  const fields = encodeURIComponent('id,name,images,owner(id,display_name)')
+  const fields = encodeURIComponent('id,name,images,owner(id,display_name),snapshot_id')
   return spotifyGet(`/playlists/${encodeURIComponent(id)}?fields=${fields}`, accessToken, options)
 }
 

@@ -343,7 +343,6 @@ export const NewPlaylistFromHistory = meta.story({
     await waitFor(() =>
       expect(requests).toHaveBeenCalledWith({
         name: 'Top 50 · last 30 days',
-        isPublic: false,
         trackIds: ['t4', 't1', 't2'],
       }),
     )

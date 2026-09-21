@@ -78,3 +78,11 @@ describe('playlist writes', () => {
     expect(JSON.parse(init?.body as string)).toEqual({ range_start: 4, insert_before: 0, range_length: 1, snapshot_id: 's2' })
   })
 })
+
+describe('spotifyRequest', () => {
+  it('handles a 200 with an empty body', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(new Response('', { status: 200 }))
+    const { spotifyRequest } = await import('./api.ts')
+    await expect(spotifyRequest('PUT', '/playlists/pl', 't', { fetchFn, body: { name: 'x' } })).resolves.toBeUndefined()
+  })
+})

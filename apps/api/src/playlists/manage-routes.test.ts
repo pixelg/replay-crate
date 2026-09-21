@@ -48,7 +48,9 @@ describe('playlist management', () => {
       expect(ctx.library.trackIds('road')).toEqual(['a', 'x', 'y', 'b', 'c', 'd'])
       expect(await storedOrder('road')).toEqual(['a', 'x', 'y', 'b', 'c', 'd'])
       const [playlist] = await ctx.db.select().from(schema.playlists).where(eq(schema.playlists.id, 'road'))
-      expect(playlist).toMatchObject({ itemCount: 6, snapshotId: 'road-v2', itemsSnapshotId: 'road-v2' })
+      // Items are recorded at the version the write returned; `snapshotId` is the listing's
+      // view and only moves when the next library sync sees the new version.
+      expect(playlist).toMatchObject({ itemCount: 6, itemsSnapshotId: 'road-v2', snapshotId: 'road-v1' })
     })
 
     it('removes every copy of a track', async () => {
@@ -68,6 +70,21 @@ describe('playlist management', () => {
       expect(res.status).toBe(200)
       expect(ctx.library.trackIds('road')).toEqual(expected)
       expect(await storedOrder('road')).toEqual(expected)
+    })
+
+    it('guards moves with the version its positions came from, even while the listing lags', async () => {
+      ctx.library.freezeListing() // GET /me/playlists keeps reporting road-v1
+      await send('POST', '/api/playlists/road/items', { trackIds: ['x'] }) // road is now v2
+      await syncLibrary() // must not replace the guard with the stale v1
+
+      const res = await send('PUT', '/api/playlists/road/items/move', { from: 4, to: 0 })
+      expect(res.status).toBe(200)
+      expect(ctx.spotify.reorderPlaylistItems).toHaveBeenLastCalledWith('access-1', 'road', {
+        rangeStart: 4,
+        insertBefore: 0,
+        snapshotId: 'road-v2',
+      })
+      expect(await storedOrder('road')).toEqual(['x', 'a', 'b', 'c', 'd'])
     })
 
     it('refuses playlists outside the library', async () => {

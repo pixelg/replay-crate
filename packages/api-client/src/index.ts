@@ -138,7 +138,7 @@ export async function previewRule(api: ApiClient, rule: PlaylistRule): Promise<R
 
 export async function createPlaylist(
   api: ApiClient,
-  input: { name: string; description?: string; isPublic: boolean; trackIds: string[] },
+  input: { name: string; description?: string; trackIds: string[] },
 ): Promise<{ id: string }> {
   const endpoint = 'POST /api/playlists'
   return expectOk(await send(endpoint, () => api.api.playlists.$post({ json: input })), endpoint)

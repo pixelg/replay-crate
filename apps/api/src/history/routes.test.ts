@@ -57,7 +57,7 @@ describe('history', () => {
     it('resolves each context once and remembers ones Spotify will not describe', async () => {
       ctx.spotify.getPlaylistMeta.mockImplementation(async (_token, id) => {
         if (id === 'algorithmic') throw new SpotifyApiError(404, 'not found')
-        return { id, name: 'Road Trip', images: [], owner: { id: 'pixelg', display_name: null } }
+        return { id, name: 'Road Trip', images: [], owner: { id: 'pixelg', display_name: null }, snapshot_id: `${id}-v1` }
       })
       ctx.spotify.getRecentlyPlayed.mockResolvedValue({
         items: [
