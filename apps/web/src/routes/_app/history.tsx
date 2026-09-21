@@ -1,7 +1,7 @@
 import { gapsQueryOptions, playsInfiniteQueryOptions } from '@replay-crate/api-client'
 import { formatRelative } from '@replay-crate/core'
 import { useQuery, useSuspenseInfiniteQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { CircleDashed, History, RefreshCw } from 'lucide-react'
 import { EmptyState } from '../../components/empty-state.tsx'
 import { HistoryList } from '../../components/history-list.tsx'
@@ -47,7 +47,11 @@ function HistoryPage() {
           <CircleDashed aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
           <span>
             {gaps.length === 1 ? 'One stretch' : `${gaps.length} stretches`} of your history may be missing plays: Spotify
-            only keeps your last 50, and Replay Crate wasn't running. Importing your Spotify data fills them in.
+            only keeps your last 50, and Replay Crate wasn't running.{' '}
+            <Link to="/import" className="font-medium text-primary hover:underline">
+              Importing your Spotify data
+            </Link>{' '}
+            fills them in.
           </span>
         </p>
       )}

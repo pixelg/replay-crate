@@ -3,10 +3,13 @@ import { useQueryClient } from '@tanstack/react-query'
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { http, HttpResponse } from 'msw'
 import { useState } from 'react'
+import { strToU8, zipSync } from 'fflate'
 import { expect, fn, screen, waitFor, within } from 'storybook/test'
 import { createAppRouter } from './router.ts'
 import {
   gaps,
+  importDone,
+  importInProgress,
   pixelg,
   playlistDetail,
   playlistsList,
@@ -51,6 +54,7 @@ const meta = preview.meta({
       }),
       http.get('/api/stats/spotify-top', () => HttpResponse.json(spotifyTop)),
       http.get('/api/gaps', () => HttpResponse.json({ gaps: [] })),
+      http.get('/api/imports/latest', () => HttpResponse.json({ import: null })),
     )
   },
 })
@@ -427,7 +431,8 @@ export const HistoryWithGap = meta.story({
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByText(/One stretch of your history may be missing plays/)).toBeVisible()
-    await expect(canvas.getByText(/may be missing\. Importing your Spotify data fills them in\./)).toBeVisible()
+    await expect(canvas.getByRole('link', { name: 'Importing your Spotify data' })).toHaveAttribute('href', '/import')
+    await expect(canvas.getByRole('link', { name: 'Import your Spotify data' })).toHaveAttribute('href', '/import')
   },
 })
 
@@ -438,5 +443,139 @@ export const StatsWithGap = meta.story({
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByText(/these are minimums/)).toBeVisible()
+  },
+})
+
+/** A Spotify export as it arrives: audio history files plus things we don't read. */
+function spotifyExport() {
+  const json = (entries: unknown[]) => strToU8(JSON.stringify(entries))
+  const history = 'Spotify Extended Streaming History'
+  const zip = zipSync({
+    [`${history}/Streaming_History_Audio_2021-2023_0.json`]: json([
+      { ts: '2021-02-14T19:03:00Z', ms_played: 201_000, spotify_track_uri: 'spotify:track:4uLU6hMCjMI75M1A2tKUQC', ip_addr: '203.0.113.7', conn_country: 'US' },
+      { ts: '2021-02-14T19:05:00Z', ms_played: 9_000, spotify_track_uri: 'spotify:track:4uLU6hMCjMI75M1A2tKUQC' },
+      { ts: '2022-08-01T07:30:00Z', ms_played: 2_400_000, spotify_track_uri: null, spotify_episode_uri: 'spotify:episode:5Xt5DXGzch68nYYamXrNxZ' },
+    ]),
+    [`${history}/Streaming_History_Audio_2023-2025_1.json`]: json([
+      { ts: '2023-05-05T12:00:00Z', ms_played: 187_000, spotify_track_uri: 'spotify:track:7ouMYWpwJ422jRcDASZB7P' },
+      { ts: '2025-06-30T22:41:00Z', ms_played: 240_000, spotify_track_uri: 'spotify:track:4uLU6hMCjMI75M1A2tKUQC' },
+    ]),
+    [`${history}/Streaming_History_Video_2021-2025.json`]: json([{ ts: '2024-01-01T00:00:00Z', ms_played: 60_000 }]),
+    [`${history}/ReadMeFirst_ExtendedStreamingHistory.pdf`]: strToU8('%PDF-1.7'),
+  })
+  return new File([zip], 'my_spotify_data.zip', { type: 'application/zip' })
+}
+
+export const ImportHistory = meta.story({
+  args: { path: '/import' },
+  beforeEach({ msw }) {
+    let latest: unknown = null
+    const uploaded: unknown[] = []
+    msw.use(
+      http.get('/api/imports/latest', () => HttpResponse.json({ import: latest })),
+      http.post('/api/imports', () => HttpResponse.json({ id: 7 }, { status: 201 })),
+      http.post('/api/imports/7/plays', async ({ request }) => {
+        const { plays } = (await request.json()) as { plays: unknown[] }
+        uploaded.push(...plays)
+        return HttpResponse.json({ received: plays.length })
+      }),
+      http.post('/api/imports/7/finish', () => {
+        latest = { ...importInProgress, id: 7, playCount: uploaded.length, waitingPlays: 1, tracksToFetch: 1, uploaded }
+        return HttpResponse.json({ tracksToFetch: 1 })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Import history' })).toBeVisible()
+    await expect(canvas.getByRole('link', { name: 'Account privacy page' })).toHaveAttribute('target', '_blank')
+
+    await userEvent.upload(await canvas.findByLabelText(/Choose your Spotify data/), [spotifyExport()])
+    await expect(await canvas.findByText('3 plays of 2 tracks')).toBeVisible()
+    await expect(canvas.getByText('Feb 2021 to Jun 2025, from 2 files')).toBeVisible()
+    await expect(canvas.getByText(/1 play under 30 seconds/)).toBeVisible()
+    await expect(canvas.getByText('1 podcast, audiobook or video')).toBeVisible()
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Import 3 plays' }))
+    const status = await canvas.findByRole('status', { name: 'Last import' })
+    await expect(within(status).getByText('Looking up 1 track on Spotify')).toBeVisible()
+    await expect(canvas.getByLabelText(/Choose your Spotify data/)).toBeInTheDocument()
+  },
+})
+
+export const ImportSendsOnlyTimeLengthAndTrack = meta.story({
+  args: { path: '/import' },
+  beforeEach({ msw }) {
+    msw.use(
+      http.post('/api/imports', () => HttpResponse.json({ id: 7 }, { status: 201 })),
+      http.post('/api/imports/7/plays', async ({ request }) => {
+        const body = JSON.stringify(await request.json())
+        // Nothing else from the export (IP address, country, platform...) may leave the device.
+        if (body.includes('203.0.113.7') || body.includes('conn_country')) return HttpResponse.json({ error: 'leak' }, { status: 400 })
+        return HttpResponse.json({ received: 3 })
+      }),
+      http.post('/api/imports/7/finish', () => HttpResponse.json({ tracksToFetch: 0 })),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.upload(await canvas.findByLabelText(/Choose your Spotify data/), [spotifyExport()])
+    await userEvent.click(await canvas.findByRole('button', { name: 'Import 3 plays' }))
+    await expect(await canvas.findByLabelText(/Choose your Spotify data/)).toBeInTheDocument()
+    await expect(canvas.queryByRole('alert')).not.toBeInTheDocument()
+  },
+})
+
+export const ImportRejectsOtherFiles = meta.story({
+  args: { path: '/import' },
+  play: async ({ canvas, userEvent }) => {
+    const photos = new File([zipSync({ 'holiday.jpg': strToU8('jpeg') })], 'photos.zip', { type: 'application/zip' })
+    await userEvent.upload(await canvas.findByLabelText(/Choose your Spotify data/), [photos])
+    await expect(await canvas.findByRole('alert')).toHaveTextContent(/No streaming history in there/)
+  },
+})
+
+export const ImportUploadFails = meta.story({
+  args: { path: '/import' },
+  beforeEach({ msw }) {
+    msw.use(http.post('/api/imports', () => HttpResponse.json({ error: 'internal_error' }, { status: 500 })))
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.upload(await canvas.findByLabelText(/Choose your Spotify data/), [spotifyExport()])
+    await userEvent.click(await canvas.findByRole('button', { name: 'Import 3 plays' }))
+    await expect(await canvas.findByRole('alert')).toHaveTextContent(/^Import failed/)
+    // The summary stays, so trying again is one click.
+    await expect(canvas.getByRole('button', { name: 'Import 3 plays' })).toBeEnabled()
+  },
+})
+
+export const ImportInProgress = meta.story({
+  args: { path: '/import' },
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/imports/latest', () => HttpResponse.json({ import: importInProgress })))
+  },
+  play: async ({ canvas }) => {
+    const status = await canvas.findByRole('status', { name: 'Last import' })
+    await expect(within(status).getByText('Looking up 2,904 tracks on Spotify')).toBeVisible()
+    await expect(within(status).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '65')
+  },
+})
+
+export const ImportDone = meta.story({
+  args: { path: '/import' },
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/imports/latest', () => HttpResponse.json({ import: importDone })))
+  },
+  play: async ({ canvas }) => {
+    const status = await canvas.findByRole('status', { name: 'Last import' })
+    await expect(within(status).getByText('Imported 48,213 plays from Feb 2021 to Jun 2025')).toBeVisible()
+    await expect(within(status).getByText(/37 plays of tracks Spotify no longer has were left out/)).toBeVisible()
+    await expect(within(status).getByRole('link', { name: 'All-time stats' })).toHaveAttribute('href', '/stats?range=all')
+  },
+})
+
+export const ImportMobile = meta.story({
+  args: { path: '/import' },
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/imports/latest', () => HttpResponse.json({ import: importInProgress })))
   },
 })

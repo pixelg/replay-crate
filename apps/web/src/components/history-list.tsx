@@ -70,7 +70,11 @@ function GapMarker({ gap }: { gap: HistoryGap }) {
       <CircleDashed aria-hidden className="size-4 shrink-0" />
       <span>
         Plays between {gapFormat.format(new Date(gap.after))} and {gapFormat.format(new Date(gap.before))} may be
-        missing. Importing your Spotify data fills them in.
+        missing.{' '}
+        <Link to="/import" className="font-medium text-primary hover:underline">
+          Import your Spotify data
+        </Link>{' '}
+        to fill them in.
       </span>
     </p>
   )

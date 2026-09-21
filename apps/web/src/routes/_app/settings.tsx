@@ -1,9 +1,10 @@
 import { healthQueryOptions, meQueryOptions } from '@replay-crate/api-client'
 import { useSuspenseQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { ApiStatus } from '../../components/api-status.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
 import { Button } from '../../components/ui/button.tsx'
+import { buttonClasses } from '../../components/ui/button-classes.ts'
 import { UserAvatar } from '../../components/user-avatar.tsx'
 import { api } from '../../lib/api.ts'
 import { useLogout } from '../../lib/use-logout.ts'
@@ -39,6 +40,17 @@ function SettingsPage() {
             </div>
           </section>
         )}
+        <section className="rounded-lg border border-border bg-card p-4">
+          <h2 className="font-medium">Import history</h2>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+              Add plays from before Replay Crate, or from while it wasn't running, with your Spotify data export.
+            </p>
+            <Link to="/import" className={buttonClasses({ variant: 'secondary' })}>
+              Import
+            </Link>
+          </div>
+        </section>
         <section className="rounded-lg border border-border bg-card p-4">
           <h2 className="font-medium">Status</h2>
           <div className="mt-2">
