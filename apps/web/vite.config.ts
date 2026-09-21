@@ -38,5 +38,8 @@ export default defineConfig({
     strictPort: true,
     // Same-origin API in dev, matching production. Port is API_PORT in apps/api/.env.schema.
     proxy: { '/api': 'http://127.0.0.1:8787' },
+    // Vite already ignores its own dist. The other builds (`pnpm serve`, E2E, Storybook)
+    // write HTML too, and a changed .html file reloads every open dev tab.
+    watch: { ignored: ['**/dist-serve/**', '**/dist-e2e/**', '**/storybook-static/**', '**/playwright-report/**'] },
   },
 })
