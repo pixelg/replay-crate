@@ -1,4 +1,4 @@
-import type { Me, PlaylistDetail, PlaylistsList, PlayItem, PlaysPage, TrackDetail } from '@replay-crate/api-client'
+import type { Me, PlaylistDetail, PlaylistsList, PlayItem, PlaysPage, RulePreview, TrackDetail } from '@replay-crate/api-client'
 
 // Fictional data for stories. Images are null so tests never hit the network.
 
@@ -171,4 +171,21 @@ export const playlistDetail: PlaylistDetail = {
     playlistTrack(2, plays[2]!.track, 0, 0, [{ id: 'p2', name: 'Boom Bap Essentials' }]),
     playlistTrack(3, plays[4]!.track, 27, 20),
   ],
+}
+
+export const rulePreview: RulePreview = {
+  suggestedName: 'Top 50 · last 30 days',
+  tracks: [
+    { ...plays[4]!.track, album: { name: 'Found It', thumbUrl: null }, playCount: 27, lastPlayedAt: hoursAgo(1) },
+    { ...plays[0]!.track, album: { name: 'Dusty Grooves', thumbUrl: null }, playCount: 12, lastPlayedAt: hoursAgo(0.2) },
+    { ...plays[1]!.track, album: { name: 'Sunday Sessions', thumbUrl: null }, playCount: 3, lastPlayedAt: hoursAgo(0.3) },
+  ].map(({ id, name, durationMs, album, artists, playCount, lastPlayedAt }) => ({
+    id,
+    name,
+    durationMs,
+    album,
+    artists,
+    playCount,
+    lastPlayedAt,
+  })),
 }

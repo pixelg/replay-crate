@@ -1,11 +1,10 @@
 import { schema } from '@replay-crate/db'
-import { SpotifyApiError } from '@replay-crate/spotify'
 import { and, asc, count, eq, inArray, max, ne, sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { loadTrackArtists } from '../history/queries.ts'
-import { ReauthRequiredError } from '../spotify/access-token.ts'
+import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { syncPlaylists } from '../sync/playlists.ts'
 
 const { albums, playlistItems, playlists, plays, tracks, userPlaylists } = schema
@@ -23,10 +22,8 @@ export function playlistRoutes(deps: AppDeps) {
         try {
           return c.json(await syncPlaylists(deps, c.get('user').id), 200)
         } catch (error) {
-          if (error instanceof ReauthRequiredError) return c.json({ error: 'reauth_required' as const }, 409)
-          if (error instanceof SpotifyApiError && error.status === 429) {
-            return c.json({ error: 'rate_limited' as const, retryAfter: error.retryAfter ?? null }, 503)
-          }
+          const response = spotifyErrorResponse(c, error)
+          if (response) return response
           throw error
         }
       })

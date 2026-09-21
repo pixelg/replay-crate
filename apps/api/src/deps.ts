@@ -23,6 +23,14 @@ export type SpotifyGateway = {
   getArtist(accessToken: string, id: string): Promise<SpotifyArtist>
   getMyPlaylists(accessToken: string, offset: number): Promise<Paging<SpotifyPlaylist>>
   getPlaylistItems(accessToken: string, playlistId: string, offset: number): Promise<Paging<SpotifyPlaylistItem>>
+  createPlaylist(accessToken: string, details: { name: string; description?: string; public?: boolean }): Promise<SpotifyPlaylist>
+  addPlaylistItems(accessToken: string, playlistId: string, uris: string[], position?: number): Promise<{ snapshot_id: string }>
+  removePlaylistItems(accessToken: string, playlistId: string, uris: string[]): Promise<{ snapshot_id: string }>
+  reorderPlaylistItems(
+    accessToken: string,
+    playlistId: string,
+    move: { rangeStart: number; insertBefore: number; snapshotId?: string },
+  ): Promise<{ snapshot_id: string }>
 }
 
 export type AppDeps = {

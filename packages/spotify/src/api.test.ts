@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { SpotifyApiError, spotifyGet } from './api.ts'
+import { removePlaylistItems, reorderPlaylistItems, SpotifyApiError, spotifyGet } from './api.ts'
 import { pickImage } from './images.ts'
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
@@ -10,6 +10,7 @@ describe('spotifyGet', () => {
     const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(json(200, { id: 'me' }))
     await expect(spotifyGet('/me', 'token-1', { fetchFn })).resolves.toEqual({ id: 'me' })
     expect(fetchFn).toHaveBeenCalledWith('https://api.spotify.com/v1/me', {
+      method: 'GET',
       headers: { Authorization: 'Bearer token-1' },
     })
   })
@@ -56,5 +57,32 @@ describe('pickImage', () => {
     expect(pickImage([], 64)).toBeNull()
     expect(pickImage(null, 64)).toBeNull()
     expect(pickImage([{ url: 'U', width: null, height: null }], 64)).toBe('U')
+  })
+})
+
+describe('playlist writes', () => {
+  it('removes with the Feb 2026 `items` body', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(json(200, { snapshot_id: 's2' }))
+    await expect(removePlaylistItems('t', 'pl', ['spotify:track:a'], { fetchFn })).resolves.toEqual({ snapshot_id: 's2' })
+    const [url, init] = fetchFn.mock.calls[0]!
+    expect(url).toBe('https://api.spotify.com/v1/playlists/pl/items')
+    expect(init?.method).toBe('DELETE')
+    expect(JSON.parse(init?.body as string)).toEqual({ items: [{ uri: 'spotify:track:a' }] })
+  })
+
+  it('reorders with range_start / insert_before', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(json(200, { snapshot_id: 's3' }))
+    await reorderPlaylistItems('t', 'pl', { rangeStart: 4, insertBefore: 0, snapshotId: 's2' }, { fetchFn })
+    const [, init] = fetchFn.mock.calls[0]!
+    expect(init?.method).toBe('PUT')
+    expect(JSON.parse(init?.body as string)).toEqual({ range_start: 4, insert_before: 0, range_length: 1, snapshot_id: 's2' })
+  })
+})
+
+describe('spotifyRequest', () => {
+  it('handles a 200 with an empty body', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(new Response('', { status: 200 }))
+    const { spotifyRequest } = await import('./api.ts')
+    await expect(spotifyRequest('PUT', '/playlists/pl', 't', { fetchFn, body: { name: 'x' } })).resolves.toBeUndefined()
   })
 })

@@ -2,12 +2,13 @@ import { playlistsQueryOptions, type PlaylistSummary } from '@replay-crate/api-c
 import { formatRelative } from '@replay-crate/core'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { ListMusic, RefreshCw, Users } from 'lucide-react'
+import { ListMusic, Plus, RefreshCw, Users } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { AlbumArt } from '../../components/album-art.tsx'
 import { EmptyState } from '../../components/empty-state.tsx'
 import { InlineError } from '../../components/inline-error.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
+import { buttonClasses } from '../../components/ui/button-classes.ts'
 import { Button } from '../../components/ui/button.tsx'
 import { api } from '../../lib/api.ts'
 import { cx } from '../../lib/cx.ts'
@@ -51,6 +52,9 @@ function PlaylistsPage() {
             <RefreshCw aria-hidden className={cx('size-4', isSyncing && 'animate-spin')} />
             Sync playlists
           </Button>
+          <Link to="/playlists/new" className={buttonClasses({ size: 'sm' })}>
+            <Plus aria-hidden className="size-4" /> New playlist
+          </Link>
         </div>
       </div>
 

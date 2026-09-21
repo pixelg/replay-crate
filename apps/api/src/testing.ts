@@ -1,4 +1,5 @@
 import { createTestDb } from '@replay-crate/db/testing'
+import { SpotifyApiError } from '@replay-crate/spotify'
 import type {
   Paging,
   PlayHistoryItem,
@@ -103,11 +104,91 @@ export function paged<T>(items: T[], pageSize = 50) {
   })
 }
 
+/**
+ * In-memory stand-in for the user's Spotify playlists, so write operations can be
+ * followed by a re-read exactly like against the real API.
+ */
+export function createFakeLibrary() {
+  const store = new Map<string, { meta: SpotifyPlaylist; entries: SpotifyTrack[]; version: number }>()
+  let nextId = 1
+  /** When set, `GET /me/playlists` keeps returning these copies, like Spotify's lagging listing. */
+  let frozenListing: SpotifyPlaylist[] | null = null
+
+  const snapshot = (id: string) => {
+    const playlist = store.get(id)!
+    playlist.version++
+    playlist.meta.snapshot_id = `${id}-v${playlist.version}`
+    playlist.meta.items = { total: playlist.entries.length }
+    return { snapshot_id: playlist.meta.snapshot_id }
+  }
+  const get = (id: string) => {
+    const playlist = store.get(id)
+    if (!playlist) throw new SpotifyApiError(404, `playlist ${id} not found`)
+    return playlist
+  }
+  const trackFromUri = (uri: string) => track(uri.replace('spotify:track:', ''))
+
+  return {
+    store,
+    /** Seeds a playlist the user owns. */
+    add(id: string, tracks: SpotifyTrack[], name = `Playlist ${id}`) {
+      store.set(id, { meta: playlist(id, { name, total: tracks.length }), entries: [...tracks], version: 1 })
+    },
+    trackIds: (id: string) => get(id).entries.map((entry) => entry.id),
+    /** From now on the listing reports the current versions, even after later changes. */
+    freezeListing() {
+      frozenListing = [...store.values()].map((p) => ({ ...p.meta, items: { ...p.meta.items! } }))
+    },
+    has: (id: string) => store.has(id),
+    snapshotOf: (id: string) => get(id).meta.snapshot_id,
+    gateway: {
+      getMyPlaylists: async (_token: string, offset: number) =>
+        paged(frozenListing ?? [...store.values()].map((p) => ({ ...p.meta })))(offset),
+      getPlaylistItems: async (_token: string, id: string, offset: number) =>
+        paged(get(id).entries.map((entry) => playlistEntry(entry)))(offset),
+      createPlaylist: async (_token: string, details: { name: string; description?: string; public?: boolean }) => {
+        const id = `new-${nextId++}`
+        store.set(id, {
+          meta: { ...playlist(id, { name: details.name }), description: details.description ?? null, public: details.public ?? true, images: [] },
+          entries: [],
+          version: 1,
+        })
+        return { ...store.get(id)!.meta }
+      },
+      addPlaylistItems: async (_token: string, id: string, uris: string[], position?: number) => {
+        const entries = get(id).entries
+        entries.splice(position ?? entries.length, 0, ...uris.map(trackFromUri))
+        return snapshot(id)
+      },
+      removePlaylistItems: async (_token: string, id: string, uris: string[]) => {
+        const playlistEntries = get(id)
+        playlistEntries.entries = playlistEntries.entries.filter((entry) => !uris.includes(entry.uri))
+        return snapshot(id)
+      },
+      reorderPlaylistItems: async (
+        _token: string,
+        id: string,
+        move: { rangeStart: number; insertBefore: number; snapshotId?: string },
+      ) => {
+        const playlistEntries = get(id)
+        if (move.snapshotId && move.snapshotId !== playlistEntries.meta.snapshot_id) {
+          throw new SpotifyApiError(400, 'snapshot mismatch')
+        }
+        const [moved] = playlistEntries.entries.splice(move.rangeStart, 1)
+        const target = move.insertBefore > move.rangeStart ? move.insertBefore - 1 : move.insertBefore
+        playlistEntries.entries.splice(target, 0, moved!)
+        return snapshot(id)
+      },
+    },
+  }
+}
+
 /** App wired to PGlite, a fake Spotify, and a controllable clock. */
 export async function createTestContext() {
   const { db, close } = await createTestDb()
   let current = new Date('2026-09-21T12:00:00Z')
 
+  const library = createFakeLibrary()
   const spotify = {
     exchangeCode: vi.fn<SpotifyGateway['exchangeCode']>(async () => tokens()),
     refreshAccessToken: vi.fn<SpotifyGateway['refreshAccessToken']>(async () =>
@@ -127,6 +208,8 @@ export async function createTestContext() {
       name: `Playlist ${id}`,
       images: [{ url: `https://i.scdn.co/${id}`, width: 300, height: 300 }],
       owner: { id: 'pixelg', display_name: 'Pixel G' },
+      // Live version for playlists in the fake library.
+      snapshot_id: library.has(id) ? library.snapshotOf(id) : `${id}-v1`,
     })),
     getAlbum: vi.fn<SpotifyGateway['getAlbum']>(),
     getArtist: vi.fn<SpotifyGateway['getArtist']>(async (_token, id) => ({
@@ -135,10 +218,12 @@ export async function createTestContext() {
       uri: `spotify:artist:${id}`,
       images: [{ url: `https://i.scdn.co/${id}`, width: 300, height: 300 }],
     })),
-    getMyPlaylists: vi.fn<SpotifyGateway['getMyPlaylists']>(async (_token, offset) => paged<SpotifyPlaylist>([])(offset)),
-    getPlaylistItems: vi.fn<SpotifyGateway['getPlaylistItems']>(async (_token, _id, offset) =>
-      paged<SpotifyPlaylistItem>([])(offset),
-    ),
+    getMyPlaylists: vi.fn<SpotifyGateway['getMyPlaylists']>(library.gateway.getMyPlaylists),
+    getPlaylistItems: vi.fn<SpotifyGateway['getPlaylistItems']>(library.gateway.getPlaylistItems),
+    createPlaylist: vi.fn<SpotifyGateway['createPlaylist']>(library.gateway.createPlaylist),
+    addPlaylistItems: vi.fn<SpotifyGateway['addPlaylistItems']>(library.gateway.addPlaylistItems),
+    removePlaylistItems: vi.fn<SpotifyGateway['removePlaylistItems']>(library.gateway.removePlaylistItems),
+    reorderPlaylistItems: vi.fn<SpotifyGateway['reorderPlaylistItems']>(library.gateway.reorderPlaylistItems),
   }
 
   const deps: AppDeps = {
@@ -168,6 +253,7 @@ export async function createTestContext() {
     deps,
     db,
     spotify,
+    library,
     login,
     advance: (ms: number) => {
       current = new Date(current.getTime() + ms)

@@ -92,7 +92,7 @@ export async function syncPlaylists(
   for (const playlist of stale) {
     if (Date.now() - startedAt > timeBudgetMs) break
     try {
-      await syncPlaylistItems(deps, accessToken, playlist.id, playlist.snapshotId)
+      await syncPlaylistItems(deps, accessToken, playlist.id)
       synced++
     } catch (error) {
       // Not (or no longer) a collaborator, or deleted since we listed it.
@@ -117,8 +117,22 @@ export async function syncPlaylists(
   return { total: mine.length - dropped, synced, remaining }
 }
 
-async function syncPlaylistItems(deps: AppDeps, accessToken: string, playlistId: string, snapshotId: string) {
+/**
+ * Re-reads a playlist's items from Spotify and records which version they came from.
+ * Pass the snapshot a write just returned; otherwise the current one is looked up first.
+ * (`GET /me/playlists` can report a version a minute old, so it's never used for this.)
+ * Returns how many entries Spotify has (including skipped local files).
+ */
+export async function syncPlaylistItems(
+  deps: AppDeps,
+  accessToken: string,
+  playlistId: string,
+  knownSnapshotId?: string,
+): Promise<number> {
   const { db, spotify } = deps
+  // Read the version before the items: if it changes in between, the items are newer than
+  // the recorded version and the next sync simply fetches them again.
+  const snapshotId = knownSnapshotId ?? (await spotify.getPlaylistMeta(accessToken, playlistId)).snapshot_id
   const entries = await fetchAll((offset) => spotify.getPlaylistItems(accessToken, playlistId, offset))
 
   // Keep each entry's index so positions match Spotify's, even with skipped local files/episodes.
@@ -150,7 +164,11 @@ async function syncPlaylistItems(deps: AppDeps, accessToken: string, playlistId:
       })),
     )
   }
-  await db.update(playlists).set({ itemsSnapshotId: snapshotId }).where(eq(playlists.id, playlistId))
+  await db
+    .update(playlists)
+    .set({ itemsSnapshotId: snapshotId, itemCount: entries.length })
+    .where(eq(playlists.id, playlistId))
+  return entries.length
 }
 
 function toPlaylistRow(playlist: SpotifyPlaylist) {
