@@ -39,6 +39,27 @@ Requirements: Node 24, pnpm (the version is pinned in `package.json`), and a Spo
 
    Open http://127.0.0.1:5173. Use the IP, not `localhost`.
 
+## Run it all day
+
+Spotify only remembers your last 50 plays, so Replay Crate needs to be running to catch them all. The API syncs every connected account every 30 minutes (`SYNC_INTERVAL_MINUTES`) for as long as it's running, whether or not the app is open.
+
+For everyday use, run the built app and the API as one server on http://127.0.0.1:4173. It uses port 4173 so it can run alongside `pnpm dev`.
+
+1. Add `http://127.0.0.1:4173/callback` to your Spotify app's redirect URIs.
+2. Try it:
+
+   ```bash
+   pnpm serve
+   ```
+
+3. Install it as a background service that starts with your desktop session. It's a systemd *user* service, so no sudo is needed:
+
+   ```bash
+   ./scripts/install-service.sh
+   ```
+
+   Logs: `journalctl --user -u replay-crate -f`. Stop: `systemctl --user stop replay-crate`. After pulling changes, run `systemctl --user restart replay-crate`, which rebuilds the app.
+
 ## Scripts
 
 | Command | What it does |
@@ -47,6 +68,7 @@ Requirements: Node 24, pnpm (the version is pinned in `package.json`), and a Spo
 | `pnpm test` | Unit tests and Storybook story tests (headless Chromium) |
 | `pnpm lint` / `pnpm typecheck` | oxlint / TypeScript |
 | `pnpm build` | Production build of the web app |
+| `pnpm serve` | Built app + API + scheduled sync on http://127.0.0.1:4173 |
 | `pnpm storybook` | Component workshop at http://127.0.0.1:6006 |
 
 The first time you run `pnpm test`, install the test browser with `pnpm --filter @replay-crate/web exec playwright install chromium`.
