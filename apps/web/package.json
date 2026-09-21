@@ -13,7 +13,10 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "storybook": "storybook dev -p 6006 --host 127.0.0.1 --no-open",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "e2e:build": "SPOTIFY_CLIENT_ID=e2e-client SPOTIFY_REDIRECT_URI=http://127.0.0.1:4174/callback vite build --outDir dist-e2e --emptyOutDir",
+    "e2e:server": "pnpm e2e:build && WEB_DIST_DIR=\"$PWD/dist-e2e\" pnpm --filter @replay-crate/api e2e:server",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -27,6 +30,7 @@
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@storybook/addon-a11y": "^10.6.0",
     "@storybook/addon-vitest": "^10.6.0",
     "@storybook/react-vite": "^10.6.0",

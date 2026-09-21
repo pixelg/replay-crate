@@ -14,7 +14,8 @@
     "test": "pnpm -r test",
     "storybook": "pnpm --filter @replay-crate/web storybook",
     "build-storybook": "pnpm --filter @replay-crate/web build-storybook",
-    "serve": "./scripts/serve.sh"
+    "serve": "./scripts/serve.sh",
+    "test:e2e": "pnpm --filter @replay-crate/web test:e2e"
   },
   "devDependencies": {
     "oxlint": "^1.81.0",
