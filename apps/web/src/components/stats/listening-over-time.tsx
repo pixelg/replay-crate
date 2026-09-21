@@ -44,6 +44,11 @@ export function ListeningOverTime({
         <CardDescription>
           {totals.plays.toLocaleString()} plays, {totals.newTracks.toLocaleString()} of them new to you
           {perWeek && ' · per week'}
+          {overview.openGaps > 0 && (
+            <span className="block text-xs">
+              Some plays in this range weren't recorded, so these are minimums. Importing your Spotify data fills them in.
+            </span>
+          )}
         </CardDescription>
         <CardAction>
           <ToggleGroup

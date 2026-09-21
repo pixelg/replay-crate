@@ -1,6 +1,6 @@
 import { schema } from '@replay-crate/db'
 import { SpotifyApiError } from '@replay-crate/spotify'
-import { and, asc, count, desc, eq, lt, max, min } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNull, lt, max, min } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireUser } from '../auth/middleware.ts'
@@ -10,7 +10,7 @@ import { ReauthRequiredError } from '../spotify/access-token.ts'
 import { syncRecentlyPlayed } from '../sync/recently-played.ts'
 import { loadTrackArtists, toContext } from './queries.ts'
 
-const { albums, contexts, playlistItems, playlists, plays, tracks, userPlaylists } = schema
+const { albums, contexts, playlistItems, playlists, plays, syncGaps, tracks, userPlaylists } = schema
 
 /** Manual syncs closer together than this reuse the last result instead of calling Spotify. */
 const MIN_SYNC_INTERVAL_MS = 30_000
@@ -31,12 +31,20 @@ export function historyRoutes(deps: AppDeps) {
       .post('/sync', auth, async (c) => {
         const user = c.get('user')
         if (user.lastSyncedAt && now().getTime() - user.lastSyncedAt.getTime() < MIN_SYNC_INTERVAL_MS) {
-          return c.json({ status: 'skipped' as const, inserted: 0, lastSyncedAt: user.lastSyncedAt.toISOString() }, 200)
+          return c.json(
+            { status: 'skipped' as const, inserted: 0, lastSyncedAt: user.lastSyncedAt.toISOString(), missedPlays: false },
+            200,
+          )
         }
         try {
           const result = await syncRecentlyPlayed(deps, user.id)
           return c.json(
-            { status: 'synced' as const, inserted: result.inserted, lastSyncedAt: result.syncedAt.toISOString() },
+            {
+              status: 'synced' as const,
+              inserted: result.inserted,
+              lastSyncedAt: result.syncedAt.toISOString(),
+              missedPlays: result.gap !== null,
+            },
             200,
           )
         } catch (error) {
@@ -46,6 +54,26 @@ export function historyRoutes(deps: AppDeps) {
           }
           throw error
         }
+      })
+
+      /** Stretches of history where plays may be missing, newest first. */
+      .get('/gaps', auth, async (c) => {
+        const gaps = await db
+          .select({ id: syncGaps.id, after: syncGaps.after, before: syncGaps.before, detectedAt: syncGaps.detectedAt })
+          .from(syncGaps)
+          .where(and(eq(syncGaps.userId, c.get('user').id), isNull(syncGaps.filledAt)))
+          .orderBy(desc(syncGaps.before))
+        return c.json(
+          {
+            gaps: gaps.map((gap) => ({
+              id: gap.id,
+              after: gap.after.toISOString(),
+              before: gap.before.toISOString(),
+              detectedAt: gap.detectedAt.toISOString(),
+            })),
+          },
+          200,
+        )
       })
 
       /** Newest-first play history, paginated with the `before` cursor. */

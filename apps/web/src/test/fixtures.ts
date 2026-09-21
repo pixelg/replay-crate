@@ -1,4 +1,5 @@
 import type {
+  HistoryGap,
   Me,
   PlaylistDetail,
   PlaylistsList,
@@ -224,6 +225,7 @@ export function statsOverview(days = 30): StatsOverview {
       newTracks: series.reduce((sum, p) => sum + p.newTracks, 0),
     },
     series,
+    openGaps: 0,
   }
 }
 
@@ -248,3 +250,13 @@ export const spotifyTop: SpotifyTop = {
     { rank: 2, id: 't9', name: 'Heard Elsewhere', subtitle: 'Other Device', imageUrl: null, plays: 0 },
   ],
 }
+
+/** One gap between the two older plays in `plays`. */
+export const gaps: HistoryGap[] = [
+  {
+    id: 1,
+    after: plays[4]!.playedAt,
+    before: plays[3]!.playedAt,
+    detectedAt: plays[3]!.playedAt,
+  },
+]
