@@ -1,0 +1,25 @@
+{
+  "name": "@replay-crate/api-client",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "hono": "^4.13.8"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.103.1"
+  },
+  "devDependencies": {
+    "@replay-crate/api": "workspace:*",
+    "@tanstack/react-query": "^5.103.1",
+    "typescript": "~6.0.2",
+    "vitest": "^4.1.11"
+  }
+}

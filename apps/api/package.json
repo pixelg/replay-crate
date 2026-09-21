@@ -1,0 +1,26 @@
+{
+  "name": "@replay-crate/api",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/app.ts"
+  },
+  "scripts": {
+    "dev": "varlock run -- node --watch src/index.ts",
+    "start": "varlock run -- node src/index.ts",
+    "typecheck": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "@replay-crate/db": "workspace:*",
+    "hono": "^4.13.8",
+    "varlock": "^1.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "~6.0.2",
+    "vitest": "^4.1.11"
+  }
+}

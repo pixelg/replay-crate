@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Build and tool output
+*.tsbuildinfo
+storybook-static
+coverage
