@@ -2,7 +2,7 @@ import { createTestDb } from '@replay-crate/db/testing'
 import { vi } from 'vitest'
 import { createApp } from './app.ts'
 import type { AppDeps, SpotifyGateway } from './deps.ts'
-import { createFakeLibrary, createFakeSpotify } from './fakes.ts'
+import { createFakeLibrary, createFakeSpotify, fakePlayerFor } from './fakes.ts'
 import { createTokenCipher } from './lib/crypto.ts'
 
 export {
@@ -26,7 +26,8 @@ export async function createTestContext() {
   let current = new Date('2026-09-21T12:00:00Z')
 
   const library = createFakeLibrary()
-  const fake = createFakeSpotify(library)
+  const player = fakePlayerFor(library, { now: () => current.getTime() })
+  const fake = createFakeSpotify(library, { player })
   const spotify = {
     exchangeCode: vi.fn<SpotifyGateway['exchangeCode']>(fake.exchangeCode),
     refreshAccessToken: vi.fn<SpotifyGateway['refreshAccessToken']>(fake.refreshAccessToken),
@@ -44,6 +45,19 @@ export async function createTestContext() {
     getTopTracks: vi.fn<SpotifyGateway['getTopTracks']>(fake.getTopTracks),
     getTopArtists: vi.fn<SpotifyGateway['getTopArtists']>(fake.getTopArtists),
     getTrack: vi.fn<SpotifyGateway['getTrack']>(fake.getTrack),
+    getPlaybackState: vi.fn<SpotifyGateway['getPlaybackState']>(fake.getPlaybackState),
+    getQueue: vi.fn<SpotifyGateway['getQueue']>(fake.getQueue),
+    getDevices: vi.fn<SpotifyGateway['getDevices']>(fake.getDevices),
+    play: vi.fn<SpotifyGateway['play']>(fake.play),
+    pause: vi.fn<SpotifyGateway['pause']>(fake.pause),
+    skipToNext: vi.fn<SpotifyGateway['skipToNext']>(fake.skipToNext),
+    skipToPrevious: vi.fn<SpotifyGateway['skipToPrevious']>(fake.skipToPrevious),
+    seek: vi.fn<SpotifyGateway['seek']>(fake.seek),
+    setRepeat: vi.fn<SpotifyGateway['setRepeat']>(fake.setRepeat),
+    setShuffle: vi.fn<SpotifyGateway['setShuffle']>(fake.setShuffle),
+    setVolume: vi.fn<SpotifyGateway['setVolume']>(fake.setVolume),
+    addToQueue: vi.fn<SpotifyGateway['addToQueue']>(fake.addToQueue),
+    transferPlayback: vi.fn<SpotifyGateway['transferPlayback']>(fake.transferPlayback),
   }
   const deps: AppDeps = {
     db,
@@ -73,6 +87,8 @@ export async function createTestContext() {
     db,
     spotify,
     library,
+    /** The fake player behind the player calls; seed it with `player.nowPlaying(track)`. */
+    player,
     login,
     advance: (ms: number) => {
       current = new Date(current.getTime() + ms)

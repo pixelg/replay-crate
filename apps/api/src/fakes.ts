@@ -10,6 +10,9 @@ import type {
   TokenResponse,
 } from '@replay-crate/spotify'
 import type { SpotifyGateway } from './deps.ts'
+import { createFakePlayer, type FakePlayer } from './fake-player.ts'
+
+export { createFakePlayer, fakeDevices, type FakePlayer } from './fake-player.ts'
 
 // A stand-in Spotify for unit tests (wrapped in vi.fn by testing.ts) and for the
 // end-to-end server (e2e-server.ts). No test framework imports here.
@@ -136,6 +139,9 @@ export function createFakeLibrary() {
     store,
     catalog,
     remember,
+    trackFromUri,
+    /** A playlist's tracks by `spotify:playlist:` URI, as the player plays them. */
+    contextTracks: (uri: string) => store.get(uri.replace('spotify:playlist:', ''))?.entries,
     /** Seeds a playlist the user owns. */
     add(id: string, tracks: SpotifyTrack[], name = `Playlist ${id}`) {
       remember(tracks)
@@ -190,13 +196,18 @@ export function createFakeLibrary() {
   }
 }
 
+/** The fake player over `library`'s tracks and playlists (Premium, laptop active, nothing playing). */
+export const fakePlayerFor = (library: ReturnType<typeof createFakeLibrary>, options: { now?: () => number } = {}) =>
+  createFakePlayer({ resolveTrack: library.trackFromUri, resolveContext: library.contextTracks, ...options })
+
 /** A Spotify gateway backed by `library`, with a fixed user and optional recent plays. */
 export function createFakeSpotify(
   library: ReturnType<typeof createFakeLibrary>,
   {
     recentlyPlayed = () => [],
     topTracks = () => [],
-  }: { recentlyPlayed?: () => PlayHistoryItem[]; topTracks?: () => SpotifyTrack[] } = {},
+    player = fakePlayerFor(library),
+  }: { recentlyPlayed?: () => PlayHistoryItem[]; topTracks?: () => SpotifyTrack[]; player?: FakePlayer } = {},
 ): SpotifyGateway {
   return {
     exchangeCode: async () => tokens(),
@@ -250,5 +261,6 @@ export function createFakeSpotify(
     // Tracks the fake has seen come back as themselves; anything else is a made-up track.
     getTrack: async (_token, id) => library.catalog.get(id) ?? track(id),
     ...library.gateway,
+    ...player.gateway,
   }
 }

@@ -88,3 +88,64 @@ export type SpotifyPlaylistItem = {
 }
 
 export type TopTimeRange = 'short_term' | 'medium_term' | 'long_term'
+
+// Player API (needs Premium, and the user-*-playback-state scopes).
+
+/** A podcast episode, as the player reports it when one is playing or queued. */
+export type SpotifyEpisode = {
+  type: 'episode'
+  id: string
+  name: string
+  uri: string
+  duration_ms: number
+  explicit: boolean
+  images: SpotifyImage[]
+  show: { id: string; name: string; uri: string; images: SpotifyImage[] }
+}
+
+/** What the player can hold: a track or an episode, told apart by `type`. */
+export type SpotifyPlayable = (SpotifyTrack & { type: 'track' }) | SpotifyEpisode
+
+export type SpotifyDevice = {
+  /** Null for some devices Spotify can't address directly. */
+  id: string | null
+  is_active: boolean
+  is_private_session: boolean
+  /** No Web API control at all (commands to it fail). */
+  is_restricted: boolean
+  name: string
+  type: string
+  volume_percent: number | null
+  supports_volume: boolean
+}
+
+export type RepeatState = 'off' | 'track' | 'context'
+
+export type SpotifyPlaybackState = {
+  device: SpotifyDevice
+  repeat_state: RepeatState
+  shuffle_state: boolean
+  context: (SpotifyContext & { href?: string }) | null
+  /** When the state last changed (ms since the epoch). */
+  timestamp: number
+  progress_ms: number | null
+  is_playing: boolean
+  item: SpotifyPlayable | null
+  currently_playing_type: 'track' | 'episode' | 'ad' | 'unknown'
+  /** Controls the current context doesn't allow (e.g. `skipping_prev` on the first track). */
+  actions?: { disallows?: Partial<Record<string, boolean>> }
+}
+
+export type SpotifyQueue = {
+  currently_playing: SpotifyPlayable | null
+  /** Up next: the user's queue first, then the rest of the context. */
+  queue: SpotifyPlayable[]
+}
+
+/** Where to start playback: tracks by URI, or a context (album, playlist, artist) with an offset. */
+export type PlayRequest = {
+  uris?: string[]
+  contextUri?: string
+  offset?: { position: number } | { uri: string }
+  positionMs?: number
+}
