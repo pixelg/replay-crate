@@ -1,6 +1,6 @@
 import { schema, type Db } from '@replay-crate/db'
 import { and, count, desc, eq, gte, inArray, lt, max, sql } from 'drizzle-orm'
-import { z } from 'zod'
+import { z } from '@hono/zod-openapi'
 import { loadTrackArtists } from '../history/queries.ts'
 
 const { albums, plays, tracks } = schema

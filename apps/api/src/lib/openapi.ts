@@ -46,6 +46,12 @@ const ERRORS = {
     schema: errorBody('reauth_required')
       .openapi('ReauthRequiredError', { description: 'Spotify refused the refresh token; the user must reconnect.' }),
   },
+  already_finished: {
+    status: 409,
+    schema: errorBody('already_finished').openapi('AlreadyFinishedError', {
+      description: 'The import was already finished; start a new one.',
+    }),
+  },
   rate_limited: {
     status: 503,
     schema: errorBody('rate_limited')

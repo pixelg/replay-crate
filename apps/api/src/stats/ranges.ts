@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '@hono/zod-openapi'
 
 export const RANGE_DAYS = { '7d': 7, '30d': 30, '90d': 90, '1y': 365, all: null } as const
 export type Range = keyof typeof RANGE_DAYS
