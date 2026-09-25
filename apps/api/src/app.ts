@@ -10,7 +10,8 @@ import { defaultHook, SECURITY_SCHEMES, TAGS } from './lib/openapi.ts'
 import { playlistManageRoutes } from './playlists/manage-routes.ts'
 import { playlistRoutes } from './playlists/routes.ts'
 import { statsRoutes } from './stats/routes.ts'
-import { cronRoutes } from './sync/cron-routes.ts'
+import { systemRoutes } from './system/routes.ts'
+import { trackRoutes } from './tracks/routes.ts'
 
 /** Every endpoint lives under this prefix; the spec is at `${API_BASE}/openapi.json`. */
 export const API_BASE = '/api/v1'
@@ -47,15 +48,15 @@ export function createApp(deps: AppDeps) {
     // Cookies ride along on cross-site requests, so check Origin on writes. Bearer
     // tokens (native clients) are never sent automatically, so they skip the check.
     .use((c, next) => (c.req.header('Authorization')?.startsWith('Bearer ') ? next() : checkOrigin(c, next)))
-    .get('/health', (c) => c.json({ ok: true }))
+    .route('/', systemRoutes(deps))
     .route('/', authRoutes(deps))
     .route('/', historyRoutes(deps))
+    .route('/', trackRoutes(deps))
     // Before playlistRoutes so /playlists/preview isn't taken for a playlist id.
     .route('/', playlistManageRoutes(deps))
     .route('/', playlistRoutes(deps))
     .route('/', statsRoutes(deps))
     .route('/', importRoutes(deps))
-    .route('/', cronRoutes(deps))
 
   // Every error response is JSON: `{ error: <code>, ...details }`.
   app.notFound((c) => c.json({ error: 'not_found' }, 404))

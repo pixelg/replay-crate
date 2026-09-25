@@ -33,7 +33,7 @@ describe('gaps through sync', () => {
   let cookie: string
   // oxlint-disable-next-line typescript/no-explicit-any
   const json = (res: Response): Promise<any> => res.json()
-  const sync = () => ctx.app.request('/api/v1/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })
+  const sync = () => ctx.app.request('/api/v1/history/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })
 
   beforeEach(async () => {
     ctx = await createTestContext()
@@ -52,7 +52,7 @@ describe('gaps through sync', () => {
     ctx.spotify.getRecentlyPlayed.mockResolvedValueOnce({ items: full, cursors: null })
     expect(await json(await sync())).toMatchObject({ missedPlays: true, inserted: 50 })
 
-    const { gaps } = await json(await ctx.app.request('/api/v1/gaps', { headers: { Cookie: cookie } }))
+    const { gaps } = await json(await ctx.app.request('/api/v1/history/gaps', { headers: { Cookie: cookie } }))
     expect(gaps).toEqual([
       {
         id: expect.any(Number),

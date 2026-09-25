@@ -52,6 +52,28 @@ const ERRORS = {
       .extend({ retryAfter: z.number().int().nullable().openapi({ description: 'Seconds to wait, when Spotify said.' }) })
       .openapi('RateLimitedError'),
   },
+  redirect_uri_mismatch: {
+    status: 400,
+    schema: errorBody('redirect_uri_mismatch').openapi('RedirectUriMismatchError', {
+      description: "The login's redirect URI isn't the one this server is configured with.",
+    }),
+  },
+  spotify_auth_failed: {
+    status: 400,
+    schema: errorBody('spotify_auth_failed')
+      .extend({ detail: z.string().openapi({ description: "Spotify's OAuth error, e.g. invalid_grant." }) })
+      .openapi('SpotifyAuthFailedError'),
+  },
+  missing_refresh_token: {
+    status: 502,
+    schema: errorBody('missing_refresh_token').openapi('MissingRefreshTokenError', {
+      description: 'Spotify completed the login without a refresh token.',
+    }),
+  },
+  cron_disabled: {
+    status: 503,
+    schema: errorBody('cron_disabled').openapi('CronDisabledError', { description: 'CRON_SECRET is not set.' }),
+  },
   internal_error: {
     status: 500,
     schema: errorBody('internal_error')

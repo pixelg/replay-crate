@@ -3,7 +3,7 @@ import { SpotifyAuthError } from '@replay-crate/spotify'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { hashSessionToken } from '../lib/crypto.ts'
-import { createTestContext, REDIRECT_URI } from '../testing.ts'
+import { createTestContext, REDIRECT_URI, tokens } from '../testing.ts'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -14,7 +14,7 @@ describe('auth', () => {
   })
   afterEach(() => ctx.close())
 
-  const me = (headers: Record<string, string> = {}) => ctx.app.request('/api/v1/me', { headers })
+  const me = (headers: Record<string, string> = {}) => ctx.app.request('/api/v1/auth/me', { headers })
 
   describe('POST /api/v1/auth/callback', () => {
     it('stores encrypted tokens, hashes the session, and sets an httpOnly cookie', async () => {
@@ -67,6 +67,14 @@ describe('auth', () => {
       expect(token).toBeUndefined()
     })
 
+    it('returns 502 when Spotify completes the login without a refresh token', async () => {
+      ctx.spotify.exchangeCode.mockResolvedValueOnce(tokens({ refreshToken: undefined }))
+      const { res, token } = await ctx.login()
+      expect(res.status).toBe(502)
+      expect(await res.json()).toEqual({ error: 'missing_refresh_token' })
+      expect(token).toBeUndefined()
+    })
+
     it('clears needsReauth and restarts the consent clock on a new login', async () => {
       await ctx.login()
       await ctx.db.update(schema.users).set({ needsReauth: true })
@@ -88,7 +96,7 @@ describe('auth', () => {
     })
   })
 
-  describe('GET /api/v1/me', () => {
+  describe('GET /api/v1/auth/me', () => {
     it('is 401 without a session', async () => {
       const res = await me()
       expect(res.status).toBe(401)

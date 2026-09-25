@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createTestContext, CRON_SECRET, play, track } from '../testing.ts'
 
-describe('POST /api/v1/cron/poll', () => {
+describe('POST /api/v1/system/cron/poll', () => {
   let ctx: Awaited<ReturnType<typeof createTestContext>>
   beforeEach(async () => {
     ctx = await createTestContext()
@@ -12,7 +12,7 @@ describe('POST /api/v1/cron/poll', () => {
   afterEach(() => ctx.close())
 
   const poll = (secret?: string) =>
-    ctx.app.request('/api/v1/cron/poll', {
+    ctx.app.request('/api/v1/system/cron/poll', {
       method: 'POST',
       headers: secret ? { Authorization: `Bearer ${secret}` } : {},
     })

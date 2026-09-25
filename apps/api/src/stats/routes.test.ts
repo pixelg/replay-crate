@@ -32,7 +32,7 @@ describe('stats', () => {
       ],
       cursors: null,
     })
-    await ctx.app.request('/api/v1/sync', { method: 'POST', headers: { Cookie: cookie, Origin: 'http://127.0.0.1:5173' } })
+    await ctx.app.request('/api/v1/history/sync', { method: 'POST', headers: { Cookie: cookie, Origin: 'http://127.0.0.1:5173' } })
   })
   afterEach(() => ctx.close())
 

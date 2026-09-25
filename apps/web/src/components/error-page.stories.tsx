@@ -6,7 +6,7 @@ import { LoginProblem } from '../lib/login-problem.ts'
 import { ErrorPage } from './error-page.tsx'
 
 const apiError = (status: number, code: string, extra: Partial<ConstructorParameters<typeof ApiError>[0]> = {}) =>
-  new ApiError({ status, code, endpoint: 'GET /api/v1/plays', requestId: 'c0ffee42-7f1d', ...extra })
+  new ApiError({ status, code, endpoint: 'GET /api/v1/history/plays', requestId: 'c0ffee42-7f1d', ...extra })
 
 const meta = preview.meta({
   component: ErrorPage,

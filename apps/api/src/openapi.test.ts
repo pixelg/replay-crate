@@ -4,18 +4,10 @@ import { TAGS } from './lib/openapi.ts'
 import { createTestContext } from './testing.ts'
 
 /**
- * Routes still on plain Hono, so not in the spec yet. #62 and #63 convert them; each
+ * Routes still on plain Hono, so not in the spec yet. #63 converts them; each
  * conversion deletes its lines here, and the tests below fail if one is missed.
  */
 const LEGACY_ROUTES = new Set([
-  'GET /api/v1/health',
-  'POST /api/v1/auth/callback',
-  'POST /api/v1/auth/logout',
-  'GET /api/v1/me',
-  'POST /api/v1/sync',
-  'GET /api/v1/jobs',
-  'GET /api/v1/gaps',
-  'GET /api/v1/plays',
   'GET /api/v1/tracks/:id',
   'POST /api/v1/playlists/preview',
   'POST /api/v1/playlists',
@@ -32,7 +24,6 @@ const LEGACY_ROUTES = new Set([
   'POST /api/v1/imports/:id/plays',
   'POST /api/v1/imports/:id/finish',
   'GET /api/v1/imports/latest',
-  'POST /api/v1/cron/poll',
 ])
 
 /** `GET /a/:id` → `GET /a/{id}`, as the spec writes it. */
