@@ -1,7 +1,12 @@
 import type { Db } from '@replay-crate/db'
 import type {
   Paging,
+  PlayRequest,
   RecentlyPlayedPage,
+  RepeatState,
+  SpotifyDevice,
+  SpotifyPlaybackState,
+  SpotifyQueue,
   SpotifyArtist,
   SpotifyPlaylist,
   SpotifyPlaylistItem,
@@ -36,6 +41,21 @@ export type SpotifyGateway = {
   getTopTracks(accessToken: string, timeRange: TopTimeRange): Promise<Paging<SpotifyTrack>>
   getTopArtists(accessToken: string, timeRange: TopTimeRange): Promise<Paging<SpotifyArtist>>
   getTrack(accessToken: string, id: string): Promise<SpotifyTrack>
+
+  // Player. Commands go to `deviceId`, or the active device.
+  getPlaybackState(accessToken: string): Promise<SpotifyPlaybackState | null>
+  getQueue(accessToken: string): Promise<SpotifyQueue>
+  getDevices(accessToken: string): Promise<SpotifyDevice[]>
+  play(accessToken: string, request: PlayRequest & { deviceId?: string }): Promise<void>
+  pause(accessToken: string, target: { deviceId?: string }): Promise<void>
+  skipToNext(accessToken: string, target: { deviceId?: string }): Promise<void>
+  skipToPrevious(accessToken: string, target: { deviceId?: string }): Promise<void>
+  seek(accessToken: string, positionMs: number, target: { deviceId?: string }): Promise<void>
+  setRepeat(accessToken: string, state: RepeatState, target: { deviceId?: string }): Promise<void>
+  setShuffle(accessToken: string, on: boolean, target: { deviceId?: string }): Promise<void>
+  setVolume(accessToken: string, percent: number, target: { deviceId?: string }): Promise<void>
+  addToQueue(accessToken: string, uri: string, target: { deviceId?: string }): Promise<void>
+  transferPlayback(accessToken: string, deviceId: string, options: { play?: boolean }): Promise<void>
 }
 
 export type AppDeps = {
