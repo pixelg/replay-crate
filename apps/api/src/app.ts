@@ -1,4 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
+import { Scalar } from '@scalar/hono-api-reference'
 import { csrf } from 'hono/csrf'
 import { HTTPException } from 'hono/http-exception'
 import { requestId } from 'hono/request-id'
@@ -39,6 +40,9 @@ export function createApp(deps: AppDeps) {
   for (const [name, scheme] of Object.entries(SECURITY_SCHEMES)) {
     root.openAPIRegistry.registerComponent('securitySchemes', name, scheme)
   }
+  // Interactive reference for the spec above. Same origin as the API, so "Test request" uses the
+  // browser's session cookie. The page loads Scalar's script from jsDelivr.
+  root.get('/docs', Scalar({ url: `${API_BASE}/openapi.json`, pageTitle: 'Replay Crate API' }))
 
   // One chain, so AppType (and the typed client) sees every route. Mounting an OpenAPIHono
   // router with .route() also adds its routes to the spec.

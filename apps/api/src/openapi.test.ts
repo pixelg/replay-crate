@@ -26,12 +26,21 @@ describe('OpenAPI spec', () => {
     // Each middleware on a route is its own entry; ALL entries are app-wide middleware.
     routes = [
       ...new Set(ctx.app.routes.filter((r) => r.method !== 'ALL').map((r) => `${r.method} ${r.path}`)),
-    ].filter((route) => route !== `GET ${API_BASE}/openapi.json`)
+    ].filter((route) => ![`GET ${API_BASE}/openapi.json`, `GET ${API_BASE}/docs`].includes(route))
     operations = Object.entries(spec.paths).flatMap(([path, methods]) =>
       Object.entries(methods).map(([method, op]) => ({ key: `${method.toUpperCase()} ${path}`, path, op })),
     )
   })
   afterAll(() => ctx.close())
+
+  it('serves the Scalar reference for it', async () => {
+    const res = await ctx.app.request(`${API_BASE}/docs`)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toMatch(/text\/html/)
+    const html = await res.text()
+    expect(html).toContain('<title>Replay Crate API</title>')
+    expect(html).toContain(`${API_BASE}/openapi.json`)
+  })
 
   it('is OpenAPI 3.1 with every tag and both ways to sign in', () => {
     expect(spec.openapi).toBe('3.1.0')

@@ -19,6 +19,7 @@
     "@replay-crate/core": "workspace:*",
     "@replay-crate/db": "workspace:*",
     "@replay-crate/spotify": "workspace:*",
+    "@scalar/hono-api-reference": "^0.12.5",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.8",
     "pg": "^8.23.0",

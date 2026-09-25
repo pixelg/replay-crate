@@ -9,7 +9,7 @@ pnpm workspace, tasks run by Turborepo (`turbo.json`). Packages export TypeScrip
 | Path | What |
 |---|---|
 | `apps/web` | Vite SPA: React 19, TanStack Router (file routes in `src/routes`), TanStack Query, Base UI, Tailwind 4, Storybook |
-| `apps/api` | Hono API on Node 24, served under `/api/v1` with its OpenAPI 3.1 spec at `/api/v1/openapi.json`. `createApp()` in `src/app.ts` takes its dependencies as arguments; `src/index.ts` is the server entry |
+| `apps/api` | Hono API on Node 24, served under `/api/v1` with its OpenAPI 3.1 spec at `/api/v1/openapi.json` and a Scalar reference at `/api/v1/docs`. `createApp()` in `src/app.ts` takes its dependencies as arguments; `src/index.ts` is the server entry |
 | `packages/core` | Pure-TS domain logic shared by web, api, and a future React Native app |
 | `packages/spotify` | Spotify Web API client and constants |
 | `packages/db` | Drizzle schema + migrations. `createDb()` uses node-postgres for the local Docker Postgres and Neon's HTTP driver for `*.neon.tech`. `@replay-crate/db/testing` gives an in-process PGlite DB |
