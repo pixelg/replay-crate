@@ -31,3 +31,6 @@ playwright-report
 *.tsbuildinfo
 storybook-static
 coverage
+
+# Turborepo
+.turbo

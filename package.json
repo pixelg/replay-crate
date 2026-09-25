@@ -7,22 +7,23 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "pnpm db:up && pnpm --parallel --filter @replay-crate/web --filter @replay-crate/api dev",
+    "dev": "pnpm db:up && turbo run dev --filter=@replay-crate/web --filter=@replay-crate/api",
     "db:up": "docker compose up --detach --wait",
     "db:down": "docker compose stop",
     "db:migrate": "pnpm --filter @replay-crate/db db:migrate",
     "db:psql": "docker compose exec postgres psql -U replay replay_crate",
-    "build": "pnpm -r build",
+    "build": "turbo run build",
     "lint": "oxlint",
-    "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
     "storybook": "pnpm --filter @replay-crate/web storybook",
-    "build-storybook": "pnpm --filter @replay-crate/web build-storybook",
+    "build-storybook": "turbo run build-storybook",
     "serve": "./scripts/serve.sh",
-    "test:e2e": "pnpm --filter @replay-crate/web test:e2e"
+    "test:e2e": "turbo run test:e2e"
   },
   "devDependencies": {
     "oxlint": "^1.81.0",
+    "turbo": "^2.11.4",
     "typescript": "~6.0.2"
   }
 }
