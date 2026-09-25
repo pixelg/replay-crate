@@ -15,6 +15,22 @@
     "typecheck": {
       "dependsOn": ["transit"]
     },
+    // The API's OpenAPI spec as a file, and the web app's types generated from it (for typed
+    // MSW mocks). Both are committed; web's typecheck regenerates them first, and CI fails if
+    // that leaves a diff.
+    "@replay-crate/api#openapi": {
+      "dependsOn": ["transit"],
+      "inputs": ["$TURBO_DEFAULT$", "!openapi.json"],
+      "outputs": ["openapi.json"]
+    },
+    "@replay-crate/web#api-types": {
+      "dependsOn": ["@replay-crate/api#openapi"],
+      "inputs": ["package.json"],
+      "outputs": ["src/test/api.gen.ts"]
+    },
+    "@replay-crate/web#typecheck": {
+      "dependsOn": ["transit", "api-types"]
+    },
     "test": {
       "dependsOn": ["transit"]
     },

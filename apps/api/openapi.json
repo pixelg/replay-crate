@@ -1,0 +1,3707 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Replay Crate API",
+    "version": "1.0.0",
+    "description": "Records every Spotify play, counts plays per track, manages playlists and serves listening metrics. Every error is JSON `{ error: <code>, ...details }`, and every response carries `X-Request-Id`."
+  },
+  "tags": [
+    {
+      "name": "System",
+      "description": "Health, background jobs and the scheduled poll."
+    },
+    {
+      "name": "Auth",
+      "description": "Spotify sign-in (PKCE) and the session."
+    },
+    {
+      "name": "History",
+      "description": "Recorded plays, syncing them from Spotify, and gaps in the record."
+    },
+    {
+      "name": "Tracks",
+      "description": "Tracks you have played, with their stats."
+    },
+    {
+      "name": "Playlists",
+      "description": "Your Spotify playlists: reading, syncing, creating and editing."
+    },
+    {
+      "name": "Stats",
+      "description": "Listening metrics."
+    },
+    {
+      "name": "Imports",
+      "description": "Backfilling history from the Extended Streaming History export."
+    },
+    {
+      "name": "Player",
+      "description": "Spotify playback: state, controls, queue and devices."
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "rc_session"
+      },
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "InternalError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "internal_error"
+            ]
+          },
+          "requestId": {
+            "type": "string",
+            "description": "Matches X-Request-Id and the server log."
+          }
+        },
+        "required": [
+          "error",
+          "requestId"
+        ]
+      },
+      "UnauthorizedError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "unauthorized"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "CronDisabledError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "cron_disabled"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "description": "CRON_SECRET is not set."
+      },
+      "Me": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Spotify user id.",
+            "example": "pixelg"
+          },
+          "displayName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "needsReauth": {
+            "type": "boolean",
+            "description": "Spotify refused the refresh token; reconnect to keep syncing."
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "imageUrl",
+          "needsReauth"
+        ]
+      },
+      "InvalidRequestError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "invalid_request"
+            ]
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "error",
+          "issues"
+        ]
+      },
+      "RedirectUriMismatchError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "redirect_uri_mismatch"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "description": "The login's redirect URI isn't the one this server is configured with."
+      },
+      "SpotifyAuthFailedError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "spotify_auth_failed"
+            ]
+          },
+          "detail": {
+            "type": "string",
+            "description": "Spotify's OAuth error, e.g. invalid_grant."
+          }
+        },
+        "required": [
+          "error",
+          "detail"
+        ]
+      },
+      "MissingRefreshTokenError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "missing_refresh_token"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "description": "Spotify completed the login without a refresh token."
+      },
+      "ReauthRequiredError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "reauth_required"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "description": "Spotify refused the refresh token; the user must reconnect."
+      },
+      "RateLimitedError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "rate_limited"
+            ]
+          },
+          "retryAfter": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Seconds to wait, when Spotify said."
+          }
+        },
+        "required": [
+          "error",
+          "retryAfter"
+        ]
+      },
+      "HistoryGap": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "after": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          },
+          "before": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          },
+          "detectedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "after",
+          "before",
+          "detectedAt"
+        ]
+      },
+      "PlayItem": {
+        "type": "object",
+        "properties": {
+          "playedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          },
+          "msPlayed": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Known for imported plays; null for polled ones."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "poll",
+              "import"
+            ]
+          },
+          "context": {
+            "$ref": "#/components/schemas/ContextRef"
+          },
+          "track": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Spotify track id."
+              },
+              "name": {
+                "type": "string"
+              },
+              "durationMs": {
+                "type": "integer"
+              },
+              "explicit": {
+                "type": "boolean"
+              },
+              "album": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "thumbUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "thumbUrl"
+                ]
+              },
+              "artists": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ArtistRef"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "durationMs",
+              "explicit",
+              "album",
+              "artists"
+            ]
+          }
+        },
+        "required": [
+          "playedAt",
+          "msPlayed",
+          "source",
+          "context",
+          "track"
+        ]
+      },
+      "ContextRef": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "playlist"
+          },
+          "uri": {
+            "type": "string",
+            "example": "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "uri",
+          "name",
+          "imageUrl"
+        ]
+      },
+      "ArtistRef": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "TrackDetail": {
+        "type": "object",
+        "properties": {
+          "track": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "durationMs": {
+                "type": "integer"
+              },
+              "explicit": {
+                "type": "boolean"
+              },
+              "album": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "imageUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "releaseDate": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Spotify's precision: YYYY, YYYY-MM or YYYY-MM-DD."
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "imageUrl",
+                  "releaseDate"
+                ]
+              },
+              "artists": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ArtistRef"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "durationMs",
+              "explicit",
+              "album",
+              "artists"
+            ]
+          },
+          "stats": {
+            "type": "object",
+            "properties": {
+              "playCount": {
+                "type": "integer"
+              },
+              "firstPlayedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "example": "2026-09-21T12:00:00.000Z"
+              },
+              "lastPlayedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "example": "2026-09-21T12:00:00.000Z"
+              }
+            },
+            "required": [
+              "playCount",
+              "firstPlayedAt",
+              "lastPlayedAt"
+            ]
+          },
+          "playedFrom": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "context": {
+                  "$ref": "#/components/schemas/ContextRef"
+                },
+                "playCount": {
+                  "type": "integer"
+                },
+                "lastPlayedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time",
+                  "example": "2026-09-21T12:00:00.000Z"
+                }
+              },
+              "required": [
+                "context",
+                "playCount",
+                "lastPlayedAt"
+              ]
+            }
+          },
+          "recentPlays": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "playedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "example": "2026-09-21T12:00:00.000Z"
+                },
+                "context": {
+                  "$ref": "#/components/schemas/ContextRef"
+                }
+              },
+              "required": [
+                "playedAt",
+                "context"
+              ]
+            }
+          },
+          "playlists": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "thumbUrl": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "thumbUrl"
+              ]
+            },
+            "description": "The user's playlists holding this track, in their Spotify order."
+          }
+        },
+        "required": [
+          "track",
+          "stats",
+          "playedFrom",
+          "recentPlays",
+          "playlists"
+        ]
+      },
+      "NotFoundError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "not_found"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "ForbiddenError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "forbidden"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "PlaylistSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "thumbUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ownerName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owned": {
+            "type": "boolean"
+          },
+          "collaborative": {
+            "type": "boolean"
+          },
+          "isPublic": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "itemCount": {
+            "type": "integer"
+          },
+          "playsFrom": {
+            "type": "integer",
+            "description": "Plays with this playlist as their context."
+          },
+          "lastPlayedFrom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "thumbUrl",
+          "ownerName",
+          "owned",
+          "collaborative",
+          "isPublic",
+          "itemCount",
+          "playsFrom",
+          "lastPlayedFrom"
+        ]
+      },
+      "PlaylistTrack": {
+        "type": "object",
+        "properties": {
+          "position": {
+            "type": "integer"
+          },
+          "addedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          },
+          "track": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "durationMs": {
+                "type": "integer"
+              },
+              "explicit": {
+                "type": "boolean"
+              },
+              "album": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "thumbUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "thumbUrl"
+                ]
+              },
+              "artists": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ArtistRef"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "durationMs",
+              "explicit",
+              "album",
+              "artists"
+            ]
+          },
+          "playCount": {
+            "type": "integer"
+          },
+          "playsHere": {
+            "type": "integer",
+            "description": "Plays from this playlist."
+          },
+          "lastPlayedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          },
+          "alsoOn": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "position",
+          "addedAt",
+          "track",
+          "playCount",
+          "playsHere",
+          "lastPlayedAt",
+          "alsoOn"
+        ]
+      },
+      "StatsRange": {
+        "type": "string",
+        "enum": [
+          "7d",
+          "30d",
+          "90d",
+          "1y",
+          "all"
+        ],
+        "description": "A rolling window ending now."
+      },
+      "TopItem": {
+        "type": "object",
+        "properties": {
+          "rank": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Artists, for tracks and albums."
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plays": {
+            "type": "integer"
+          },
+          "minutes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rank",
+          "id",
+          "name",
+          "subtitle",
+          "imageUrl",
+          "plays",
+          "minutes"
+        ]
+      },
+      "SpotifyTopItem": {
+        "type": "object",
+        "properties": {
+          "rank": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plays": {
+            "type": "integer",
+            "description": "Plays Replay Crate has recorded."
+          }
+        },
+        "required": [
+          "rank",
+          "id",
+          "name",
+          "subtitle",
+          "imageUrl",
+          "plays"
+        ]
+      },
+      "AlreadyFinishedError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "already_finished"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "description": "The import was already finished; start a new one."
+      },
+      "ImportedPlay": {
+        "type": "object",
+        "properties": {
+          "ts": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z",
+            "description": "When the play ended, from the export."
+          },
+          "ms": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Milliseconds played."
+          },
+          "trackId": {
+            "type": "string",
+            "pattern": "^[0-9A-Za-z]{22}$",
+            "description": "Spotify track id."
+          }
+        },
+        "required": [
+          "ts",
+          "ms",
+          "trackId"
+        ]
+      },
+      "ImportStatus": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "playCount": {
+            "type": "integer"
+          },
+          "earliest": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          },
+          "latest": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          },
+          "unavailable": {
+            "type": "integer",
+            "description": "Plays of tracks Spotify no longer has."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          },
+          "uploadedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          },
+          "waitingPlays": {
+            "type": "integer",
+            "description": "Plays still waiting for their track's details."
+          },
+          "tracksToFetch": {
+            "type": "integer",
+            "description": "Tracks still to look up on Spotify."
+          },
+          "done": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "playCount",
+          "earliest",
+          "latest",
+          "unavailable",
+          "createdAt",
+          "uploadedAt",
+          "waitingPlays",
+          "tracksToFetch",
+          "done"
+        ],
+        "description": "null if there has never been an import."
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/api/v1/system/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "getHealth",
+        "summary": "Liveness check",
+        "responses": {
+          "200": {
+            "description": "The API is up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/jobs": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "getJobs",
+        "summary": "The user's queued Spotify lookups",
+        "description": "Background catalog lookups still queued for this user, e.g. after an import.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Queue counts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pending": {
+                      "type": "integer",
+                      "description": "Jobs waiting to run."
+                    },
+                    "failing": {
+                      "type": "integer",
+                      "description": "Of those, jobs that have failed at least once."
+                    }
+                  },
+                  "required": [
+                    "pending",
+                    "failing"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/cron/poll": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "pollAllUsers",
+        "summary": "Sync every user's recent plays",
+        "description": "Called by a hosted scheduler (GitHub Actions, once deployed). Authenticates with `Authorization: Bearer <CRON_SECRET>`, not a user session.",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One result per connected user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "userId": {
+                                "type": "string"
+                              },
+                              "inserted": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "userId",
+                              "inserted"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "userId": {
+                                "type": "string"
+                              },
+                              "error": {
+                                "type": "string",
+                                "enum": [
+                                  "reauth_required",
+                                  "failed"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "userId",
+                              "error"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "users"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "cron_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CronDisabledError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/callback": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "completeLogin",
+        "summary": "Finish the Spotify login",
+        "description": "Exchanges the PKCE authorization code for tokens, stores them encrypted, and starts a session (sets the `rc_session` cookie).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "codeVerifier": {
+                    "type": "string",
+                    "minLength": 43,
+                    "maxLength": 128
+                  },
+                  "redirectUri": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                },
+                "required": [
+                  "code",
+                  "codeVerifier",
+                  "redirectUri"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request | redirect_uri_mismatch | spotify_auth_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RedirectUriMismatchError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SpotifyAuthFailedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "missing_refresh_token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingRefreshTokenError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "logout",
+        "summary": "Sign out",
+        "description": "Ends the session, if there is one, and clears the cookie.",
+        "responses": {
+          "204": {
+            "description": "Signed out."
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "getMe",
+        "summary": "The signed-in user",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The signed-in user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/history/sync": {
+      "post": {
+        "tags": [
+          "History"
+        ],
+        "operationId": "syncHistory",
+        "summary": "Pull recent plays from Spotify",
+        "description": "Records the user's recently played tracks. Within 30 s of the last sync it returns `skipped` without calling Spotify. `missedPlays` means more than Spotify's last 50 plays happened since the previous sync, so there is a gap (see `/history/gaps`).",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Synced, or skipped because the last sync was moments ago.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "synced",
+                        "skipped"
+                      ]
+                    },
+                    "inserted": {
+                      "type": "integer"
+                    },
+                    "lastSyncedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "example": "2026-09-21T12:00:00.000Z"
+                    },
+                    "missedPlays": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "inserted",
+                    "lastSyncedAt",
+                    "missedPlays"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthRequiredError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/history/gaps": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "operationId": "listGaps",
+        "summary": "Gaps in the history",
+        "description": "Unfilled stretches where plays may be missing, newest first. An import fills them.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Open gaps.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "gaps": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/HistoryGap"
+                      }
+                    }
+                  },
+                  "required": [
+                    "gaps"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/history/plays": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "operationId": "listPlays",
+        "summary": "Play history",
+        "description": "Newest first. Pass `nextCursor` back as `before` for the next page.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-09-21T12:00:00.000Z",
+              "description": "Only plays strictly older than this."
+            },
+            "required": false,
+            "description": "Only plays strictly older than this.",
+            "name": "before",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of plays.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlayItem"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "example": "2026-09-21T12:00:00.000Z",
+                      "description": "null on the last page."
+                    },
+                    "lastSyncedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "example": "2026-09-21T12:00:00.000Z"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor",
+                    "lastSyncedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tracks/{id}": {
+      "get": {
+        "tags": [
+          "Tracks"
+        ],
+        "operationId": "getTrack",
+        "summary": "A track with your play stats",
+        "description": "Where you played it from, recent plays, and which of your playlists hold it.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify track id."
+            },
+            "required": true,
+            "description": "Spotify track id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The track.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/playlists/preview": {
+      "post": {
+        "tags": [
+          "Playlists"
+        ],
+        "operationId": "previewPlaylistRule",
+        "summary": "Tracks a rule would pick",
+        "description": "Lets the user check the tracks before creating anything. Nothing is written.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rule": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "top"
+                            ]
+                          },
+                          "range": {
+                            "type": "string",
+                            "enum": [
+                              "7d",
+                              "30d",
+                              "90d",
+                              "1y",
+                              "all"
+                            ],
+                            "default": "30d"
+                          },
+                          "limit": {
+                            "type": "integer",
+                            "minimum": 5,
+                            "maximum": 200,
+                            "default": 50
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "recent"
+                            ]
+                          },
+                          "range": {
+                            "type": "string",
+                            "enum": [
+                              "7d",
+                              "30d",
+                              "90d",
+                              "1y",
+                              "all"
+                            ],
+                            "default": "7d"
+                          },
+                          "limit": {
+                            "type": "integer",
+                            "minimum": 5,
+                            "maximum": 200,
+                            "default": 50
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "on_repeat"
+                            ]
+                          },
+                          "limit": {
+                            "type": "integer",
+                            "minimum": 5,
+                            "maximum": 200,
+                            "default": 50
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "forgotten"
+                            ]
+                          },
+                          "minPlays": {
+                            "type": "integer",
+                            "minimum": 2,
+                            "maximum": 500,
+                            "default": 5
+                          },
+                          "idleDays": {
+                            "type": "integer",
+                            "minimum": 7,
+                            "maximum": 3650,
+                            "default": 90
+                          },
+                          "limit": {
+                            "type": "integer",
+                            "minimum": 5,
+                            "maximum": 200,
+                            "default": 50
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "rule"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The picked tracks and a suggested name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "suggestedName": {
+                      "type": "string"
+                    },
+                    "tracks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "durationMs": {
+                            "type": "integer"
+                          },
+                          "album": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "thumbUrl": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "thumbUrl"
+                            ]
+                          },
+                          "artists": {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/ArtistRef"
+                            }
+                          },
+                          "playCount": {
+                            "type": "integer"
+                          },
+                          "lastPlayedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time",
+                            "example": "2026-09-21T12:00:00.000Z"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "durationMs",
+                          "album",
+                          "artists",
+                          "playCount",
+                          "lastPlayedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "suggestedName",
+                    "tracks"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/playlists": {
+      "post": {
+        "tags": [
+          "Playlists"
+        ],
+        "operationId": "createPlaylist",
+        "summary": "Create a playlist",
+        "description": "Creates it on Spotify with the given tracks, then records it here.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "trackIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Spotify track id."
+                    },
+                    "maxItems": 500,
+                    "default": []
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new playlist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthRequiredError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Playlists"
+        ],
+        "operationId": "listPlaylists",
+        "summary": "Your playlists",
+        "description": "In your Spotify order, with how often you play from each.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Your playlists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "playlists": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlaylistSummary"
+                      }
+                    },
+                    "syncedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "example": "2026-09-21T12:00:00.000Z"
+                    }
+                  },
+                  "required": [
+                    "playlists",
+                    "syncedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/playlists/{id}/items": {
+      "post": {
+        "tags": [
+          "Playlists"
+        ],
+        "operationId": "addPlaylistItems",
+        "summary": "Add tracks",
+        "description": "Appends, or inserts at `position`. Only playlists the user owns or collaborates on.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify playlist id."
+            },
+            "required": true,
+            "description": "Spotify playlist id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "trackIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Spotify track id."
+                    },
+                    "minItems": 1,
+                    "maxItems": 500
+                  },
+                  "position": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "trackIds"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Added.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthRequiredError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Playlists"
+        ],
+        "operationId": "removePlaylistItems",
+        "summary": "Remove tracks",
+        "description": "Removes every occurrence of each track.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify playlist id."
+            },
+            "required": true,
+            "description": "Spotify playlist id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "trackIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Spotify track id."
+                    },
+                    "minItems": 1,
+                    "maxItems": 500
+                  }
+                },
+                "required": [
+                  "trackIds"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthRequiredError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/playlists/{id}/items/move": {
+      "put": {
+        "tags": [
+          "Playlists"
+        ],
+        "operationId": "movePlaylistItem",
+        "summary": "Move a track",
+        "description": "Moves the track at `from` so it ends up at `to` (0-based positions).",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify playlist id."
+            },
+            "required": true,
+            "description": "Spotify playlist id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "to": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Moved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthRequiredError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/playlists/sync": {
+      "post": {
+        "tags": [
+          "Playlists"
+        ],
+        "operationId": "syncPlaylists",
+        "summary": "Sync playlists from Spotify",
+        "description": "Refreshes every playlist's details, then fetches tracks for playlists that changed, within a time budget. Call again while `remaining > 0`.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer",
+                      "description": "Playlists the user owns or collaborates on."
+                    },
+                    "synced": {
+                      "type": "integer",
+                      "description": "Playlists whose tracks were fetched in this call."
+                    },
+                    "remaining": {
+                      "type": "integer",
+                      "description": "Playlists still waiting for their tracks."
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "synced",
+                    "remaining"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthRequiredError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/playlists/{id}": {
+      "get": {
+        "tags": [
+          "Playlists"
+        ],
+        "operationId": "getPlaylist",
+        "summary": "A playlist and its tracks",
+        "description": "Each track with your play counts and the other playlists that hold it.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify playlist id."
+            },
+            "required": true,
+            "description": "Spotify playlist id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The playlist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "playlist": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "imageUrl": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "ownerName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "owned": {
+                          "type": "boolean"
+                        },
+                        "collaborative": {
+                          "type": "boolean"
+                        },
+                        "isPublic": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ]
+                        },
+                        "itemCount": {
+                          "type": "integer"
+                        },
+                        "playsFrom": {
+                          "type": "integer"
+                        },
+                        "itemsSynced": {
+                          "type": "boolean",
+                          "description": "False until the tracks have been fetched once."
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "description",
+                        "imageUrl",
+                        "ownerName",
+                        "owned",
+                        "collaborative",
+                        "isPublic",
+                        "itemCount",
+                        "playsFrom",
+                        "itemsSynced"
+                      ]
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlaylistTrack"
+                      }
+                    }
+                  },
+                  "required": [
+                    "playlist",
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stats/overview": {
+      "get": {
+        "tags": [
+          "Stats"
+        ],
+        "operationId": "getStatsOverview",
+        "summary": "Totals and listening over time",
+        "description": "Each point splits plays into new tracks (a track's first-ever play) and replays. Ranges over 90 days are bucketed by week, shorter ones by day, in the user's time zone; empty buckets are zeros.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/StatsRange"
+            },
+            "required": false,
+            "description": "A rolling window ending now.",
+            "name": "range",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "default": "UTC",
+              "description": "IANA time zone for day boundaries.",
+              "example": "America/Los_Angeles"
+            },
+            "required": false,
+            "description": "IANA time zone for day boundaries.",
+            "name": "tz",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The overview.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "range": {
+                      "$ref": "#/components/schemas/StatsRange"
+                    },
+                    "tz": {
+                      "type": "string"
+                    },
+                    "bucket": {
+                      "type": "string",
+                      "enum": [
+                        "day",
+                        "week"
+                      ]
+                    },
+                    "totals": {
+                      "type": "object",
+                      "properties": {
+                        "plays": {
+                          "type": "integer"
+                        },
+                        "minutes": {
+                          "type": "integer"
+                        },
+                        "tracks": {
+                          "type": "integer"
+                        },
+                        "artists": {
+                          "type": "integer"
+                        },
+                        "newTracks": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "plays",
+                        "minutes",
+                        "tracks",
+                        "artists",
+                        "newTracks"
+                      ]
+                    },
+                    "series": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "date": {
+                            "type": "string",
+                            "description": "Bucket start, YYYY-MM-DD."
+                          },
+                          "newTracks": {
+                            "type": "integer"
+                          },
+                          "replays": {
+                            "type": "integer"
+                          },
+                          "minutes": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "date",
+                          "newTracks",
+                          "replays",
+                          "minutes"
+                        ]
+                      }
+                    },
+                    "openGaps": {
+                      "type": "integer",
+                      "description": "Unfilled history gaps in the range."
+                    }
+                  },
+                  "required": [
+                    "range",
+                    "tz",
+                    "bucket",
+                    "totals",
+                    "series",
+                    "openGaps"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stats/top": {
+      "get": {
+        "tags": [
+          "Stats"
+        ],
+        "operationId": "getStatsTop",
+        "summary": "Most played tracks, artists or albums",
+        "description": "Ranked by play count or listening time. Plays without a known duration count the track length.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "tracks",
+                "artists",
+                "albums"
+              ],
+              "default": "tracks"
+            },
+            "required": false,
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/StatsRange"
+            },
+            "required": false,
+            "description": "A rolling window ending now.",
+            "name": "range",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "plays",
+                "minutes"
+              ],
+              "default": "plays"
+            },
+            "required": false,
+            "name": "metric",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The ranking, echoing the query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "tracks",
+                        "artists",
+                        "albums"
+                      ],
+                      "default": "tracks"
+                    },
+                    "range": {
+                      "$ref": "#/components/schemas/StatsRange"
+                    },
+                    "metric": {
+                      "type": "string",
+                      "enum": [
+                        "plays",
+                        "minutes"
+                      ],
+                      "default": "plays"
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 50,
+                      "default": 10
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TopItem"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stats/spotify-top": {
+      "get": {
+        "tags": [
+          "Stats"
+        ],
+        "operationId": "getSpotifyTop",
+        "summary": "Spotify's own top tracks or artists",
+        "description": "Spotify's ranking, next to the plays Replay Crate has recorded for each, for comparison.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "tracks",
+                "artists"
+              ],
+              "default": "tracks"
+            },
+            "required": false,
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "short_term",
+                "medium_term",
+                "long_term"
+              ],
+              "default": "short_term",
+              "description": "Spotify's windows: about 4 weeks, 6 months, or a year."
+            },
+            "required": false,
+            "description": "Spotify's windows: about 4 weeks, 6 months, or a year.",
+            "name": "timeRange",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Spotify's ranking, echoing the query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "tracks",
+                        "artists"
+                      ],
+                      "default": "tracks"
+                    },
+                    "timeRange": {
+                      "type": "string",
+                      "enum": [
+                        "short_term",
+                        "medium_term",
+                        "long_term"
+                      ],
+                      "default": "short_term",
+                      "description": "Spotify's windows: about 4 weeks, 6 months, or a year."
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SpotifyTopItem"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthRequiredError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/imports": {
+      "post": {
+        "tags": [
+          "Imports"
+        ],
+        "operationId": "createImport",
+        "summary": "Start an import",
+        "description": "Step 1 of 3. The browser parses the Extended Streaming History export and uploads only timestamp, play time and track id: create, add plays (in chunks), finish.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The new import.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/imports/{id}/plays": {
+      "post": {
+        "tags": [
+          "Imports"
+        ],
+        "operationId": "addImportPlays",
+        "summary": "Upload a chunk of plays",
+        "description": "Step 2 of 3. Up to 5000 plays per request; call as often as needed.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "plays": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ImportedPlay"
+                    },
+                    "minItems": 1,
+                    "maxItems": 5000
+                  }
+                },
+                "required": [
+                  "plays"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Plays staged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "received": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "received"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "already_finished",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlreadyFinishedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/imports/{id}/finish": {
+      "post": {
+        "tags": [
+          "Imports"
+        ],
+        "operationId": "finishImport",
+        "summary": "Finish an import",
+        "description": "Step 3 of 3. Plays of known tracks move into the history now; unknown tracks are queued for lookup and their plays follow. Closes any history gap the import covers.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Finished.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tracksToFetch": {
+                      "type": "integer",
+                      "description": "Tracks queued for a Spotify lookup."
+                    }
+                  },
+                  "required": [
+                    "tracksToFetch"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/imports/latest": {
+      "get": {
+        "tags": [
+          "Imports"
+        ],
+        "operationId": "getLatestImport",
+        "summary": "Progress of the latest import",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The latest import.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "import": {
+                      "$ref": "#/components/schemas/ImportStatus"
+                    }
+                  },
+                  "required": [
+                    "import"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

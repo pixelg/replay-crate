@@ -38,6 +38,9 @@ jobs:
           restore-keys: turbo-${{ runner.os }}-
       - run: pnpm lint
       - run: pnpm typecheck
+      # typecheck regenerates the OpenAPI spec and the web app's types from it; both are committed.
+      - name: Generated API files are up to date
+        run: git diff --exit-code -- apps/api/openapi.json apps/web/src/test/api.gen.ts
       - name: Resolve Playwright version
         id: playwright
         run: echo "version=$(pnpm --filter @replay-crate/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"

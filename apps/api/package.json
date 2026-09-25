@@ -11,7 +11,8 @@
     "start": "varlock run -- node src/index.ts",
     "typecheck": "tsc",
     "test": "vitest run",
-    "e2e:server": "node src/e2e-server.ts"
+    "e2e:server": "node src/e2e-server.ts",
+    "openapi": "node scripts/openapi.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

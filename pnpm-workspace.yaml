@@ -6,3 +6,7 @@ allowBuilds:
   msw: true
 minimumReleaseAgeExclude:
   - cn@0.3.2
+peerDependencyRules:
+  allowedVersions:
+    # Declares typescript ^5 but generates fine under 6.
+    openapi-typescript>typescript: '6'
