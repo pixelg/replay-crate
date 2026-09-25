@@ -8,7 +8,7 @@
     "vitest"
   ],
   "ignorePatterns": [
-    "**/routeTree.gen.ts",
+    "**/*.gen.ts",
     "**/env.d.ts",
     "**/mockServiceWorker.js",
     "**/dist/**",
@@ -22,6 +22,20 @@
       "warn",
       {
         "allowConstantExport": true
+      }
+    ],
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "msw",
+            "importNames": [
+              "http"
+            ],
+            "message": "Use the spec-typed `http` from src/test/handlers.ts."
+          }
+        ]
       }
     ]
   },

@@ -1,6 +1,7 @@
 import preview from '#storybook/preview'
-import { delay, http, HttpResponse } from 'msw'
+import { delay, HttpResponse } from 'msw'
 import { expect } from 'storybook/test'
+import { http } from '../test/handlers.ts'
 import { ApiStatus } from './api-status.tsx'
 
 const meta = preview.meta({
