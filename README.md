@@ -86,6 +86,10 @@ Spotify no longer offers batch lookups, so tracks new to Replay Crate are fetche
 | `pnpm serve` | Built app + API + scheduled sync on http://127.0.0.1:4173 |
 | `pnpm storybook` | Component workshop at http://127.0.0.1:6006 |
 
+## API
+
+The API lives under `/api/v1` and describes itself with an OpenAPI 3.1 spec. With the app running, browse the interactive reference (Scalar) at http://127.0.0.1:5173/api/v1/docs (`pnpm dev`) or http://127.0.0.1:4173/api/v1/docs (`pnpm serve`); the raw spec is at `/api/v1/openapi.json`. Signed in to the app in the same browser, "Test Request" calls the API as you.
+
 The first time you run `pnpm test`, install the test browser with `pnpm --filter @replay-crate/web exec playwright install chromium`.
 
 ## Contributing
