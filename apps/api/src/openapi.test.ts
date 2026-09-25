@@ -3,29 +3,6 @@ import { API_BASE } from './app.ts'
 import { TAGS } from './lib/openapi.ts'
 import { createTestContext } from './testing.ts'
 
-/**
- * Routes still on plain Hono, so not in the spec yet. #63 converts them; each
- * conversion deletes its lines here, and the tests below fail if one is missed.
- */
-const LEGACY_ROUTES = new Set([
-  'GET /api/v1/tracks/:id',
-  'POST /api/v1/playlists/preview',
-  'POST /api/v1/playlists',
-  'POST /api/v1/playlists/:id/items',
-  'DELETE /api/v1/playlists/:id/items',
-  'PUT /api/v1/playlists/:id/items/move',
-  'POST /api/v1/playlists/sync',
-  'GET /api/v1/playlists',
-  'GET /api/v1/playlists/:id',
-  'GET /api/v1/stats/overview',
-  'GET /api/v1/stats/top',
-  'GET /api/v1/stats/spotify-top',
-  'POST /api/v1/imports',
-  'POST /api/v1/imports/:id/plays',
-  'POST /api/v1/imports/:id/finish',
-  'GET /api/v1/imports/latest',
-])
-
 /** `GET /a/:id` → `GET /a/{id}`, as the spec writes it. */
 const toSpecPath = (route: string) => route.replaceAll(/:(\w+)/g, '{$1}')
 
@@ -64,14 +41,7 @@ describe('OpenAPI spec', () => {
 
   it('documents every route', () => {
     const documented = new Set(operations.map((o) => o.key))
-    const undocumented = routes.filter((route) => !documented.has(toSpecPath(route)))
-    expect(undocumented.filter((route) => !LEGACY_ROUTES.has(route))).toEqual([])
-  })
-
-  it('has no stale legacy entries', () => {
-    const documented = new Set(operations.map((o) => o.key))
-    const stale = [...LEGACY_ROUTES].filter((route) => !routes.includes(route) || documented.has(toSpecPath(route)))
-    expect(stale).toEqual([])
+    expect(routes.filter((route) => !documented.has(toSpecPath(route)))).toEqual([])
   })
 
   it('files each operation under one tag, matching its path prefix', () => {

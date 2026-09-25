@@ -1,18 +1,117 @@
-import { Hono } from 'hono'
-import { z } from 'zod'
+import { createRoute, z } from '@hono/zod-openapi'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
-import { validate } from '../lib/validate.ts'
+import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
+import { ArtistRef, IsoDateTime, jsonBody, jsonResponse } from '../lib/schemas.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { addTracks, createPlaylistFor, moveTrack, PlaylistNotEditableError, removeTracks } from './manage.ts'
 import { evaluateRule, playlistRule } from './rules.ts'
 
-const trackIds = z.array(z.string().min(1).max(64)).max(500)
+const trackIds = z.array(z.string().min(1).max(64).openapi({ description: 'Spotify track id.' })).max(500)
+const PlaylistParams = z.object({ id: z.string().min(1).openapi({ description: 'Spotify playlist id.' }) })
+const Ok = z.object({ ok: z.literal(true) })
 
-const createBody = z.object({
-  name: z.string().trim().min(1).max(100),
-  description: z.string().trim().max(300).optional(),
-  trackIds: trackIds.default([]),
+/** Errors of every route that writes to a playlist on Spotify. */
+const writeErrors = errorResponses(
+  'invalid_request',
+  'unauthorized',
+  'forbidden',
+  'not_found',
+  'reauth_required',
+  'rate_limited',
+)
+
+const preview = createRoute({
+  method: 'post',
+  path: '/playlists/preview',
+  tags: ['Playlists'],
+  operationId: 'previewPlaylistRule',
+  summary: 'Tracks a rule would pick',
+  description: 'Lets the user check the tracks before creating anything. Nothing is written.',
+  security: signedIn,
+  request: { body: jsonBody(z.object({ rule: playlistRule })) },
+  responses: {
+    200: jsonResponse(
+      z.object({
+        suggestedName: z.string(),
+        tracks: z.array(
+          z.object({
+            id: z.string(),
+            name: z.string(),
+            durationMs: z.number().int(),
+            album: z.object({ name: z.string(), thumbUrl: z.string().nullable() }),
+            artists: z.array(ArtistRef),
+            playCount: z.number().int(),
+            lastPlayedAt: IsoDateTime.nullable(),
+          }),
+        ),
+      }),
+      'The picked tracks and a suggested name.',
+    ),
+    ...errorResponses('invalid_request', 'unauthorized'),
+  },
+})
+
+const create = createRoute({
+  method: 'post',
+  path: '/playlists',
+  tags: ['Playlists'],
+  operationId: 'createPlaylist',
+  summary: 'Create a playlist',
+  description: 'Creates it on Spotify with the given tracks, then records it here.',
+  security: signedIn,
+  request: {
+    body: jsonBody(
+      z.object({
+        name: z.string().trim().min(1).max(100),
+        description: z.string().trim().max(300).optional(),
+        trackIds: trackIds.default([]),
+      }),
+    ),
+  },
+  responses: { 201: jsonResponse(z.object({ id: z.string() }), 'The new playlist.'), ...writeErrors },
+})
+
+const addItems = createRoute({
+  method: 'post',
+  path: '/playlists/{id}/items',
+  tags: ['Playlists'],
+  operationId: 'addPlaylistItems',
+  summary: 'Add tracks',
+  description: 'Appends, or inserts at `position`. Only playlists the user owns or collaborates on.',
+  security: signedIn,
+  request: {
+    params: PlaylistParams,
+    body: jsonBody(z.object({ trackIds: trackIds.min(1), position: z.number().int().min(0).optional() })),
+  },
+  responses: { 200: jsonResponse(Ok, 'Added.'), ...writeErrors },
+})
+
+const removeItems = createRoute({
+  method: 'delete',
+  path: '/playlists/{id}/items',
+  tags: ['Playlists'],
+  operationId: 'removePlaylistItems',
+  summary: 'Remove tracks',
+  description: 'Removes every occurrence of each track.',
+  security: signedIn,
+  request: { params: PlaylistParams, body: jsonBody(z.object({ trackIds: trackIds.min(1) })) },
+  responses: { 200: jsonResponse(Ok, 'Removed.'), ...writeErrors },
+})
+
+const moveItem = createRoute({
+  method: 'put',
+  path: '/playlists/{id}/items/move',
+  tags: ['Playlists'],
+  operationId: 'movePlaylistItem',
+  summary: 'Move a track',
+  description: 'Moves the track at `from` so it ends up at `to` (0-based positions).',
+  security: signedIn,
+  request: {
+    params: PlaylistParams,
+    body: jsonBody(z.object({ from: z.number().int().min(0), to: z.number().int().min(0) })),
+  },
+  responses: { 200: jsonResponse(Ok, 'Moved.'), ...writeErrors },
 })
 
 /** Creating playlists and changing their tracks. Every route writes to Spotify first. */
@@ -37,45 +136,32 @@ export function playlistManageRoutes(deps: AppDeps) {
     }
   }
 
-  return (
-    new Hono()
-      /** Tracks a rule would pick, so the user can check them before creating anything. */
-      .post('/playlists/preview', auth, validate('json', z.object({ rule: playlistRule })), async (c) => {
-        const { rule } = c.req.valid('json')
-        return c.json(await evaluateRule(deps.db, c.get('user').id, rule, now()), 200)
-      })
+  return createRouter()
+    .openapi({ ...preview, middleware: auth }, async (c) => {
+      const { rule } = c.req.valid('json')
+      return c.json(await evaluateRule(deps.db, c.var.user.id, rule, now()), 200)
+    })
 
-      .post('/playlists', auth, validate('json', createBody), async (c) => {
-        const result = await change(c, () => createPlaylistFor(deps, c.get('user').id, c.req.valid('json')))
-        return result.response ?? c.json({ id: result.value!.id }, 201)
-      })
+    .openapi({ ...create, middleware: auth }, async (c) => {
+      const result = await change(c, () => createPlaylistFor(deps, c.var.user.id, c.req.valid('json')))
+      return result.response ?? c.json({ id: result.value!.id }, 201)
+    })
 
-      .post(
-        '/playlists/:id/items',
-        auth,
-        validate('json', z.object({ trackIds: trackIds.min(1), position: z.number().int().min(0).optional() })),
-        async (c) => {
-          const { trackIds: ids, position } = c.req.valid('json')
-          const result = await change(c, () => addTracks(deps, c.get('user').id, c.req.param('id'), ids, position))
-          return result.response ?? c.json({ ok: true as const }, 200)
-        },
-      )
+    .openapi({ ...addItems, middleware: auth }, async (c) => {
+      const { trackIds: ids, position } = c.req.valid('json')
+      const result = await change(c, () => addTracks(deps, c.var.user.id, c.req.valid('param').id, ids, position))
+      return result.response ?? c.json({ ok: true as const }, 200)
+    })
 
-      .delete('/playlists/:id/items', auth, validate('json', z.object({ trackIds: trackIds.min(1) })), async (c) => {
-        const { trackIds: ids } = c.req.valid('json')
-        const result = await change(c, () => removeTracks(deps, c.get('user').id, c.req.param('id'), ids))
-        return result.response ?? c.json({ ok: true as const }, 200)
-      })
+    .openapi({ ...removeItems, middleware: auth }, async (c) => {
+      const { trackIds: ids } = c.req.valid('json')
+      const result = await change(c, () => removeTracks(deps, c.var.user.id, c.req.valid('param').id, ids))
+      return result.response ?? c.json({ ok: true as const }, 200)
+    })
 
-      .put(
-        '/playlists/:id/items/move',
-        auth,
-        validate('json', z.object({ from: z.number().int().min(0), to: z.number().int().min(0) })),
-        async (c) => {
-          const { from, to } = c.req.valid('json')
-          const result = await change(c, () => moveTrack(deps, c.get('user').id, c.req.param('id'), from, to))
-          return result.response ?? c.json({ ok: true as const }, 200)
-        },
-      )
-  )
+    .openapi({ ...moveItem, middleware: auth }, async (c) => {
+      const { from, to } = c.req.valid('json')
+      const result = await change(c, () => moveTrack(deps, c.var.user.id, c.req.valid('param').id, from, to))
+      return result.response ?? c.json({ ok: true as const }, 200)
+    })
 }

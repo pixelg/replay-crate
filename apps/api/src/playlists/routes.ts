@@ -1,9 +1,11 @@
+import { createRoute, z } from '@hono/zod-openapi'
 import { schema } from '@replay-crate/db'
 import { and, asc, count, eq, inArray, max, ne, sql } from 'drizzle-orm'
-import { Hono } from 'hono'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { loadTrackArtists } from '../history/queries.ts'
+import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
+import { ArtistRef, IsoDateTime, jsonResponse } from '../lib/schemas.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { syncPlaylists } from '../sync/playlists.ts'
 
@@ -11,16 +13,125 @@ const { albums, playlistItems, playlists, plays, tracks, userPlaylists } = schem
 
 const playlistUri = (id: string) => `spotify:playlist:${id}`
 
+const sync = createRoute({
+  method: 'post',
+  path: '/playlists/sync',
+  tags: ['Playlists'],
+  operationId: 'syncPlaylists',
+  summary: 'Sync playlists from Spotify',
+  description:
+    "Refreshes every playlist's details, then fetches tracks for playlists that changed, within a time " +
+    'budget. Call again while `remaining > 0`.',
+  security: signedIn,
+  responses: {
+    200: jsonResponse(
+      z.object({
+        total: z.number().int().openapi({ description: 'Playlists the user owns or collaborates on.' }),
+        synced: z.number().int().openapi({ description: 'Playlists whose tracks were fetched in this call.' }),
+        remaining: z.number().int().openapi({ description: 'Playlists still waiting for their tracks.' }),
+      }),
+      'Progress.',
+    ),
+    ...errorResponses('unauthorized', 'forbidden', 'not_found', 'reauth_required', 'rate_limited'),
+  },
+})
+
+const list = createRoute({
+  method: 'get',
+  path: '/playlists',
+  tags: ['Playlists'],
+  operationId: 'listPlaylists',
+  summary: 'Your playlists',
+  description: 'In your Spotify order, with how often you play from each.',
+  security: signedIn,
+  responses: {
+    200: jsonResponse(
+      z.object({
+        playlists: z.array(
+          z
+            .object({
+              id: z.string(),
+              name: z.string(),
+              thumbUrl: z.string().nullable(),
+              ownerName: z.string().nullable(),
+              owned: z.boolean(),
+              collaborative: z.boolean(),
+              isPublic: z.boolean().nullable(),
+              itemCount: z.number().int(),
+              playsFrom: z.number().int().openapi({ description: 'Plays with this playlist as their context.' }),
+              lastPlayedFrom: IsoDateTime.nullable(),
+            })
+            .openapi('PlaylistSummary'),
+        ),
+        syncedAt: IsoDateTime.nullable(),
+      }),
+      'Your playlists.',
+    ),
+    ...errorResponses('unauthorized'),
+  },
+})
+
+const get = createRoute({
+  method: 'get',
+  path: '/playlists/{id}',
+  tags: ['Playlists'],
+  operationId: 'getPlaylist',
+  summary: 'A playlist and its tracks',
+  description: 'Each track with your play counts and the other playlists that hold it.',
+  security: signedIn,
+  request: { params: z.object({ id: z.string().min(1).openapi({ description: 'Spotify playlist id.' }) }) },
+  responses: {
+    200: jsonResponse(
+      z.object({
+        playlist: z.object({
+          id: z.string(),
+          name: z.string(),
+          description: z.string().nullable(),
+          imageUrl: z.string().nullable(),
+          ownerName: z.string().nullable(),
+          owned: z.boolean(),
+          collaborative: z.boolean(),
+          isPublic: z.boolean().nullable(),
+          itemCount: z.number().int(),
+          playsFrom: z.number().int(),
+          itemsSynced: z.boolean().openapi({ description: 'False until the tracks have been fetched once.' }),
+        }),
+        items: z.array(
+          z
+            .object({
+              position: z.number().int(),
+              addedAt: IsoDateTime.nullable(),
+              track: z.object({
+                id: z.string(),
+                name: z.string(),
+                durationMs: z.number().int(),
+                explicit: z.boolean(),
+                album: z.object({ id: z.string(), name: z.string(), thumbUrl: z.string().nullable() }),
+                artists: z.array(ArtistRef),
+              }),
+              playCount: z.number().int(),
+              playsHere: z.number().int().openapi({ description: 'Plays from this playlist.' }),
+              lastPlayedAt: IsoDateTime.nullable(),
+              alsoOn: z.array(z.object({ id: z.string(), name: z.string() })),
+            })
+            .openapi('PlaylistTrack'),
+        ),
+      }),
+      'The playlist.',
+    ),
+    ...errorResponses('unauthorized', 'not_found'),
+  },
+})
+
 export function playlistRoutes(deps: AppDeps) {
   const { db } = deps
   const auth = requireUser(deps)
 
   return (
-    new Hono()
-      /** Syncs playlists within a time budget; call again while `remaining > 0`. */
-      .post('/playlists/sync', auth, async (c) => {
+    createRouter()
+      .openapi({ ...sync, middleware: auth }, async (c) => {
         try {
-          return c.json(await syncPlaylists(deps, c.get('user').id), 200)
+          return c.json(await syncPlaylists(deps, c.var.user.id), 200)
         } catch (error) {
           const response = spotifyErrorResponse(c, error)
           if (response) return response
@@ -28,9 +139,8 @@ export function playlistRoutes(deps: AppDeps) {
         }
       })
 
-      /** The user's playlists, in their Spotify order, with how often they play from each. */
-      .get('/playlists', auth, async (c) => {
-        const user = c.get('user')
+      .openapi({ ...list, middleware: auth }, async (c) => {
+        const user = c.var.user
 
         const playedFrom = db
           .select({
@@ -82,10 +192,9 @@ export function playlistRoutes(deps: AppDeps) {
         )
       })
 
-      /** A playlist's tracks with the user's play counts and which other playlists hold each one. */
-      .get('/playlists/:id', auth, async (c) => {
-        const user = c.get('user')
-        const playlistId = c.req.param('id')
+      .openapi({ ...get, middleware: auth }, async (c) => {
+        const user = c.var.user
+        const { id: playlistId } = c.req.valid('param')
 
         const [playlist] = await db
           .select()
@@ -177,7 +286,6 @@ export function playlistRoutes(deps: AppDeps) {
               isPublic: meta.isPublic,
               itemCount: meta.itemCount,
               playsFrom: playsFrom?.total ?? 0,
-              /** False until the tracks have been fetched at least once. */
               itemsSynced: meta.itemsSnapshotId != null,
             },
             items: items.map((item) => {
