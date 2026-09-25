@@ -32,7 +32,7 @@ describe('stats', () => {
       ],
       cursors: null,
     })
-    await ctx.app.request('/api/sync', { method: 'POST', headers: { Cookie: cookie, Origin: 'http://127.0.0.1:5173' } })
+    await ctx.app.request('/api/v1/sync', { method: 'POST', headers: { Cookie: cookie, Origin: 'http://127.0.0.1:5173' } })
   })
   afterEach(() => ctx.close())
 
@@ -42,9 +42,9 @@ describe('stats', () => {
     expect(weekStart('2026-09-21')).toBe('2026-09-21')
   })
 
-  describe('GET /api/stats/overview', () => {
+  describe('GET /api/v1/stats/overview', () => {
     it('splits each day into new tracks and replays, filling empty days', async () => {
-      const body = await json(await get('/api/stats/overview?range=7d&tz=UTC'))
+      const body = await json(await get('/api/v1/stats/overview?range=7d&tz=UTC'))
       expect(body.bucket).toBe('day')
       expect(body.series.map((p: { date: string }) => p.date)).toEqual([
         '2026-09-15',
@@ -64,7 +64,7 @@ describe('stats', () => {
     })
 
     it('buckets by the user’s local day', async () => {
-      const body = await json(await get('/api/stats/overview?range=7d&tz=America/Los_Angeles'))
+      const body = await json(await get('/api/v1/stats/overview?range=7d&tz=America/Los_Angeles'))
       const byDate = Object.fromEntries(body.series.map((p: { date: string }) => [p.date, p]))
       // 03:00 UTC on the 21st is still the 20th in Los Angeles.
       expect(byDate['2026-09-20']).toMatchObject({ replays: 1 })
@@ -72,26 +72,26 @@ describe('stats', () => {
     })
 
     it('uses weekly buckets for a year and covers all history for "all"', async () => {
-      const year = await json(await get('/api/stats/overview?range=1y&tz=UTC'))
+      const year = await json(await get('/api/v1/stats/overview?range=1y&tz=UTC'))
       expect(year.bucket).toBe('week')
       expect(year.series.every((p: { date: string }) => weekStart(p.date) === p.date)).toBe(true)
       expect(year.series.at(-1)).toMatchObject({ date: '2026-09-21', newTracks: 1, replays: 2 })
 
-      const all = await json(await get('/api/stats/overview?range=all&tz=UTC'))
+      const all = await json(await get('/api/v1/stats/overview?range=all&tz=UTC'))
       expect(all.series[0].date).toBe(weekStart('2026-06-01'))
       expect(all.totals.plays).toBe(6)
     })
 
     it('rejects an unknown time zone', async () => {
-      const res = await get('/api/stats/overview?tz=Mars/Olympus')
+      const res = await get('/api/v1/stats/overview?tz=Mars/Olympus')
       expect(res.status).toBe(400)
       expect((await json(res)).issues[0].path).toBe('tz')
     })
   })
 
-  describe('GET /api/stats/top', () => {
+  describe('GET /api/v1/stats/top', () => {
     it('ranks tracks by plays', async () => {
-      const body = await json(await get('/api/stats/top?type=tracks&range=30d'))
+      const body = await json(await get('/api/v1/stats/top?type=tracks&range=30d'))
       expect(body.items).toEqual([
         { rank: 1, id: 'loop', name: 'Loop', subtitle: 'Band, Guest', imageUrl: 'https://i.scdn.co/alb-a-64', plays: 4, minutes: 13 },
         { rank: 2, id: 'fresh', name: 'Fresh', subtitle: 'Band', imageUrl: 'https://i.scdn.co/alb-a-64', plays: 1, minutes: 3 },
@@ -99,12 +99,12 @@ describe('stats', () => {
     })
 
     it('credits every artist on a track, and ranks albums with their artist', async () => {
-      const topArtists = await json(await get('/api/stats/top?type=artists&range=30d'))
+      const topArtists = await json(await get('/api/v1/stats/top?type=artists&range=30d'))
       expect(topArtists.items.map((i: { id: string; plays: number; subtitle: string }) => [i.id, i.plays, i.subtitle])).toEqual([
         ['band', 5, '2 tracks'],
         ['guest', 4, '1 track'],
       ])
-      const topAlbums = await json(await get('/api/stats/top?type=albums&range=all'))
+      const topAlbums = await json(await get('/api/v1/stats/top?type=albums&range=all'))
       expect(topAlbums.items.map((i: { id: string; plays: number; subtitle: string }) => [i.id, i.plays, i.subtitle])).toEqual([
         ['alb-a', 5, 'Band'],
         ['alb-b', 1, 'Solo'],
@@ -112,12 +112,12 @@ describe('stats', () => {
     })
 
     it('can rank by minutes instead', async () => {
-      const body = await json(await get('/api/stats/top?type=tracks&range=all&metric=minutes&limit=1'))
+      const body = await json(await get('/api/v1/stats/top?type=tracks&range=all&metric=minutes&limit=1'))
       expect(body.items).toEqual([expect.objectContaining({ id: 'loop', minutes: 13 })])
     })
   })
 
-  describe('GET /api/stats/spotify-top', () => {
+  describe('GET /api/v1/stats/spotify-top', () => {
     beforeEach(() => {
       ctx.spotify.getTopTracks.mockResolvedValue({
         items: [loop, track('never', { name: 'Never played here', artists: [['newcomer', 'Newcomer']] })],
@@ -129,7 +129,7 @@ describe('stats', () => {
     })
 
     it('shows Spotify’s top tracks with our play counts', async () => {
-      const body = await json(await get('/api/stats/spotify-top?type=tracks&timeRange=short_term'))
+      const body = await json(await get('/api/v1/stats/spotify-top?type=tracks&timeRange=short_term'))
       expect(body.items.map((i: { id: string; rank: number; plays: number }) => [i.rank, i.id, i.plays])).toEqual([
         [1, 'loop', 4],
         [2, 'never', 0],
@@ -151,7 +151,7 @@ describe('stats', () => {
         offset: 0,
         limit: 20,
       })
-      const body = await json(await get('/api/stats/spotify-top?type=artists&timeRange=long_term'))
+      const body = await json(await get('/api/v1/stats/spotify-top?type=artists&timeRange=long_term'))
       expect(body.items.map((i: { id: string; plays: number }) => [i.id, i.plays])).toEqual([
         ['band', 5],
         ['guest', 4],

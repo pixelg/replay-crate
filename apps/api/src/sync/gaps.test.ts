@@ -33,7 +33,7 @@ describe('gaps through sync', () => {
   let cookie: string
   // oxlint-disable-next-line typescript/no-explicit-any
   const json = (res: Response): Promise<any> => res.json()
-  const sync = () => ctx.app.request('/api/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })
+  const sync = () => ctx.app.request('/api/v1/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })
 
   beforeEach(async () => {
     ctx = await createTestContext()
@@ -52,7 +52,7 @@ describe('gaps through sync', () => {
     ctx.spotify.getRecentlyPlayed.mockResolvedValueOnce({ items: full, cursors: null })
     expect(await json(await sync())).toMatchObject({ missedPlays: true, inserted: 50 })
 
-    const { gaps } = await json(await ctx.app.request('/api/gaps', { headers: { Cookie: cookie } }))
+    const { gaps } = await json(await ctx.app.request('/api/v1/gaps', { headers: { Cookie: cookie } }))
     expect(gaps).toEqual([
       {
         id: expect.any(Number),
@@ -85,7 +85,7 @@ describe('gaps through sync', () => {
       after: new Date('2026-09-18T10:00:00Z'),
       before: new Date('2026-09-19T10:00:00Z'),
     })
-    const week = await json(await ctx.app.request('/api/stats/overview?range=7d&tz=UTC', { headers: { Cookie: cookie } }))
+    const week = await json(await ctx.app.request('/api/v1/stats/overview?range=7d&tz=UTC', { headers: { Cookie: cookie } }))
     expect(week.openGaps).toBe(1)
   })
 })

@@ -47,16 +47,16 @@ describe('createServer with the built web app', () => {
   })
 
   it('keeps the API as JSON, including unknown routes and errors', async () => {
-    expect(await (await server.request('/api/health')).json()).toEqual({ ok: true })
+    expect(await (await server.request('/api/v1/health')).json()).toEqual({ ok: true })
 
-    const missing = await server.request('/api/nope')
+    const missing = await server.request('/api/v1/nope')
     expect(missing.status).toBe(404)
     expect(await missing.json()).toEqual({ error: 'not_found' })
 
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const { token } = await ctx.login()
     ctx.spotify.getRecentlyPlayed.mockRejectedValueOnce(new Error('boom'))
-    const crashed = await server.request('/api/sync', {
+    const crashed = await server.request('/api/v1/sync', {
       method: 'POST',
       headers: { Cookie: `rc_session=${token}`, Origin: 'http://127.0.0.1:5173' },
     })
@@ -67,6 +67,6 @@ describe('createServer with the built web app', () => {
   it('is just the API when no web app is given', async () => {
     const apiOnly = createServer(ctx.deps)
     expect((await apiOnly.request('/')).status).toBe(404)
-    expect((await apiOnly.request('/api/health')).status).toBe(200)
+    expect((await apiOnly.request('/api/v1/health')).status).toBe(200)
   })
 })

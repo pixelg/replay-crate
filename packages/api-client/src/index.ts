@@ -5,19 +5,20 @@ import { ApiError, expectOk, send } from './errors.ts'
 
 export { ApiError, isApiError } from './errors.ts'
 export type { Me, PlaylistRule }
-export type ApiClient = ReturnType<typeof hc<AppType>>
+/** The typed client, rooted at /api/v1: `api.plays.$get()` fetches /api/v1/plays. */
+export type ApiClient = ReturnType<typeof hc<AppType>>['api']['v1']
 
-export type PlaysPage = InferResponseType<ApiClient['api']['plays']['$get'], 200>
+export type PlaysPage = InferResponseType<ApiClient['plays']['$get'], 200>
 export type PlayItem = PlaysPage['items'][number]
 export type PlayContext = NonNullable<PlayItem['context']>
-export type TrackDetail = InferResponseType<ApiClient['api']['tracks'][':id']['$get'], 200>
-export type SyncResult = InferResponseType<ApiClient['api']['sync']['$post'], 200>
-export type PlaylistsList = InferResponseType<ApiClient['api']['playlists']['$get'], 200>
+export type TrackDetail = InferResponseType<ApiClient['tracks'][':id']['$get'], 200>
+export type SyncResult = InferResponseType<ApiClient['sync']['$post'], 200>
+export type PlaylistsList = InferResponseType<ApiClient['playlists']['$get'], 200>
 export type PlaylistSummary = PlaylistsList['playlists'][number]
-export type PlaylistDetail = InferResponseType<ApiClient['api']['playlists'][':id']['$get'], 200>
+export type PlaylistDetail = InferResponseType<ApiClient['playlists'][':id']['$get'], 200>
 export type PlaylistTrack = PlaylistDetail['items'][number]
-export type PlaylistSyncResult = InferResponseType<ApiClient['api']['playlists']['sync']['$post'], 200>
-export type RulePreview = InferResponseType<ApiClient['api']['playlists']['preview']['$post'], 200>
+export type PlaylistSyncResult = InferResponseType<ApiClient['playlists']['sync']['$post'], 200>
+export type RulePreview = InferResponseType<ApiClient['playlists']['preview']['$post'], 200>
 
 // Every call below either returns data or throws an ApiError.
 
@@ -26,15 +27,15 @@ export type RulePreview = InferResponseType<ApiClient['api']['playlists']['previ
  * Native app would pass the deployed API URL and a Bearer token header.
  */
 export function createApiClient(baseUrl: string, options?: Parameters<typeof hc>[1]): ApiClient {
-  return hc<AppType>(baseUrl, { init: { credentials: 'include' }, ...options })
+  return hc<AppType>(baseUrl, { init: { credentials: 'include' }, ...options }).api.v1
 }
 
 export const healthQueryOptions = (api: ApiClient) =>
   queryOptions({
     queryKey: ['health'],
     queryFn: async () => {
-      const endpoint = 'GET /api/health'
-      return expectOk(await send(endpoint, () => api.api.health.$get()), endpoint)
+      const endpoint = 'GET /api/v1/health'
+      return expectOk(await send(endpoint, () => api.health.$get()), endpoint)
     },
   })
 
@@ -43,8 +44,8 @@ export const meQueryOptions = (api: ApiClient) =>
   queryOptions({
     queryKey: ['me'],
     queryFn: async (): Promise<Me | null> => {
-      const endpoint = 'GET /api/me'
-      const res = await send(endpoint, () => api.api.me.$get())
+      const endpoint = 'GET /api/v1/me'
+      const res = await send(endpoint, () => api.me.$get())
       if (res.status === 401) return null
       return expectOk(res, endpoint)
     },
@@ -56,13 +57,13 @@ export async function completeLogin(
   api: ApiClient,
   body: { code: string; codeVerifier: string; redirectUri: string },
 ): Promise<Me> {
-  const endpoint = 'POST /api/auth/callback'
-  return expectOk(await send(endpoint, () => api.api.auth.callback.$post({ json: body })), endpoint)
+  const endpoint = 'POST /api/v1/auth/callback'
+  return expectOk(await send(endpoint, () => api.auth.callback.$post({ json: body })), endpoint)
 }
 
 export async function logout(api: ApiClient): Promise<void> {
-  const endpoint = 'POST /api/auth/logout'
-  const res = await send(endpoint, () => api.api.auth.logout.$post())
+  const endpoint = 'POST /api/v1/auth/logout'
+  const res = await send(endpoint, () => api.auth.logout.$post())
   if (!res.ok) throw await ApiError.fromResponse(res, endpoint)
 }
 
@@ -71,8 +72,8 @@ export const playsInfiniteQueryOptions = (api: ApiClient) =>
   infiniteQueryOptions({
     queryKey: ['plays'],
     queryFn: async ({ pageParam }): Promise<PlaysPage> => {
-      const endpoint = 'GET /api/plays'
-      const res = await send(endpoint, () => api.api.plays.$get({ query: pageParam ? { before: pageParam } : {} }))
+      const endpoint = 'GET /api/v1/plays'
+      const res = await send(endpoint, () => api.plays.$get({ query: pageParam ? { before: pageParam } : {} }))
       return expectOk(res, endpoint)
     },
     initialPageParam: null as string | null,
@@ -83,23 +84,23 @@ export const trackQueryOptions = (api: ApiClient, trackId: string) =>
   queryOptions({
     queryKey: ['tracks', trackId],
     queryFn: async (): Promise<TrackDetail> => {
-      const endpoint = `GET /api/tracks/${trackId}`
-      return expectOk(await send(endpoint, () => api.api.tracks[':id'].$get({ param: { id: trackId } })), endpoint)
+      const endpoint = `GET /api/v1/tracks/${trackId}`
+      return expectOk(await send(endpoint, () => api.tracks[':id'].$get({ param: { id: trackId } })), endpoint)
     },
   })
 
 /** Pulls the latest plays from Spotify into the user's history. */
 export async function syncNow(api: ApiClient): Promise<SyncResult> {
-  const endpoint = 'POST /api/sync'
-  return expectOk(await send(endpoint, () => api.api.sync.$post()), endpoint)
+  const endpoint = 'POST /api/v1/sync'
+  return expectOk(await send(endpoint, () => api.sync.$post()), endpoint)
 }
 
 export const playlistsQueryOptions = (api: ApiClient) =>
   queryOptions({
     queryKey: ['playlists'],
     queryFn: async (): Promise<PlaylistsList> => {
-      const endpoint = 'GET /api/playlists'
-      return expectOk(await send(endpoint, () => api.api.playlists.$get()), endpoint)
+      const endpoint = 'GET /api/v1/playlists'
+      return expectOk(await send(endpoint, () => api.playlists.$get()), endpoint)
     },
   })
 
@@ -107,8 +108,8 @@ export const playlistQueryOptions = (api: ApiClient, playlistId: string) =>
   queryOptions({
     queryKey: ['playlists', playlistId],
     queryFn: async (): Promise<PlaylistDetail> => {
-      const endpoint = `GET /api/playlists/${playlistId}`
-      const res = await send(endpoint, () => api.api.playlists[':id'].$get({ param: { id: playlistId } }))
+      const endpoint = `GET /api/v1/playlists/${playlistId}`
+      const res = await send(endpoint, () => api.playlists[':id'].$get({ param: { id: playlistId } }))
       return expectOk(res, endpoint)
     },
   })
@@ -121,9 +122,9 @@ export async function syncPlaylists(
   api: ApiClient,
   onProgress?: (result: PlaylistSyncResult) => void,
 ): Promise<PlaylistSyncResult> {
-  const endpoint = 'POST /api/playlists/sync'
+  const endpoint = 'POST /api/v1/playlists/sync'
   for (let round = 0; ; round++) {
-    const result = await expectOk(await send(endpoint, () => api.api.playlists.sync.$post()), endpoint)
+    const result = await expectOk(await send(endpoint, () => api.playlists.sync.$post()), endpoint)
     onProgress?.(result)
     // Stop if a round makes no progress, and after a generous number of rounds.
     if (result.remaining === 0 || result.synced === 0 || round >= 20) return result
@@ -132,46 +133,46 @@ export async function syncPlaylists(
 
 /** Tracks a history rule would put in a new playlist, plus a suggested name. */
 export async function previewRule(api: ApiClient, rule: PlaylistRule): Promise<RulePreview> {
-  const endpoint = 'POST /api/playlists/preview'
-  return expectOk(await send(endpoint, () => api.api.playlists.preview.$post({ json: { rule } })), endpoint)
+  const endpoint = 'POST /api/v1/playlists/preview'
+  return expectOk(await send(endpoint, () => api.playlists.preview.$post({ json: { rule } })), endpoint)
 }
 
 export async function createPlaylist(
   api: ApiClient,
   input: { name: string; description?: string; trackIds: string[] },
 ): Promise<{ id: string }> {
-  const endpoint = 'POST /api/playlists'
-  return expectOk(await send(endpoint, () => api.api.playlists.$post({ json: input })), endpoint)
+  const endpoint = 'POST /api/v1/playlists'
+  return expectOk(await send(endpoint, () => api.playlists.$post({ json: input })), endpoint)
 }
 
 export async function addToPlaylist(api: ApiClient, playlistId: string, trackIds: string[], position?: number) {
-  const endpoint = `POST /api/playlists/${playlistId}/items`
+  const endpoint = `POST /api/v1/playlists/${playlistId}/items`
   const res = await send(endpoint, () =>
-    api.api.playlists[':id'].items.$post({ param: { id: playlistId }, json: { trackIds, position } }),
+    api.playlists[':id'].items.$post({ param: { id: playlistId }, json: { trackIds, position } }),
   )
   await expectOk(res, endpoint)
 }
 
 export async function removeFromPlaylist(api: ApiClient, playlistId: string, trackIds: string[]) {
-  const endpoint = `DELETE /api/playlists/${playlistId}/items`
-  const res = await send(endpoint, () => api.api.playlists[':id'].items.$delete({ param: { id: playlistId }, json: { trackIds } }))
+  const endpoint = `DELETE /api/v1/playlists/${playlistId}/items`
+  const res = await send(endpoint, () => api.playlists[':id'].items.$delete({ param: { id: playlistId }, json: { trackIds } }))
   await expectOk(res, endpoint)
 }
 
 /** Moves the track at position `from` so it ends up at position `to`. */
 export async function moveInPlaylist(api: ApiClient, playlistId: string, from: number, to: number) {
-  const endpoint = `PUT /api/playlists/${playlistId}/items/move`
+  const endpoint = `PUT /api/v1/playlists/${playlistId}/items/move`
   const res = await send(endpoint, () =>
-    api.api.playlists[':id'].items.move.$put({ param: { id: playlistId }, json: { from, to } }),
+    api.playlists[':id'].items.move.$put({ param: { id: playlistId }, json: { from, to } }),
   )
   await expectOk(res, endpoint)
 }
 
 export type StatsRange = '7d' | '30d' | '90d' | '1y' | 'all'
-export type StatsOverview = InferResponseType<ApiClient['api']['stats']['overview']['$get'], 200>
-export type StatsTop = InferResponseType<ApiClient['api']['stats']['top']['$get'], 200>
+export type StatsOverview = InferResponseType<ApiClient['stats']['overview']['$get'], 200>
+export type StatsTop = InferResponseType<ApiClient['stats']['top']['$get'], 200>
 export type StatsTopItem = StatsTop['items'][number]
-export type SpotifyTop = InferResponseType<ApiClient['api']['stats']['spotify-top']['$get'], 200>
+export type SpotifyTop = InferResponseType<ApiClient['stats']['spotify-top']['$get'], 200>
 export type SpotifyTopItem = SpotifyTop['items'][number]
 
 /** Totals + the "listening over time" series, bucketed in the viewer's time zone. */
@@ -179,8 +180,8 @@ export const statsOverviewQueryOptions = (api: ApiClient, range: StatsRange, tz:
   queryOptions({
     queryKey: ['stats', 'overview', range, tz],
     queryFn: async (): Promise<StatsOverview> => {
-      const endpoint = 'GET /api/stats/overview'
-      return expectOk(await send(endpoint, () => api.api.stats.overview.$get({ query: { range, tz } })), endpoint)
+      const endpoint = 'GET /api/v1/stats/overview'
+      return expectOk(await send(endpoint, () => api.stats.overview.$get({ query: { range, tz } })), endpoint)
     },
   })
 
@@ -191,8 +192,8 @@ export const statsTopQueryOptions = (
   queryOptions({
     queryKey: ['stats', 'top', query],
     queryFn: async (): Promise<StatsTop> => {
-      const endpoint = 'GET /api/stats/top'
-      return expectOk(await send(endpoint, () => api.api.stats.top.$get({ query })), endpoint)
+      const endpoint = 'GET /api/v1/stats/top'
+      return expectOk(await send(endpoint, () => api.stats.top.$get({ query })), endpoint)
     },
   })
 
@@ -203,26 +204,26 @@ export const spotifyTopQueryOptions = (
   queryOptions({
     queryKey: ['stats', 'spotify-top', query],
     queryFn: async (): Promise<SpotifyTop> => {
-      const endpoint = 'GET /api/stats/spotify-top'
-      return expectOk(await send(endpoint, () => api.api.stats['spotify-top'].$get({ query })), endpoint)
+      const endpoint = 'GET /api/v1/stats/spotify-top'
+      return expectOk(await send(endpoint, () => api.stats['spotify-top'].$get({ query })), endpoint)
     },
     // Spotify recomputes these about daily; no need to ask again on every visit.
     staleTime: 30 * 60_000,
   })
 
-export type HistoryGap = InferResponseType<ApiClient['api']['gaps']['$get'], 200>['gaps'][number]
+export type HistoryGap = InferResponseType<ApiClient['gaps']['$get'], 200>['gaps'][number]
 
 /** Stretches of history where plays may be missing (open gaps only). */
 export const gapsQueryOptions = (api: ApiClient) =>
   queryOptions({
     queryKey: ['gaps'],
     queryFn: async (): Promise<HistoryGap[]> => {
-      const endpoint = 'GET /api/gaps'
-      return (await expectOk(await send(endpoint, () => api.api.gaps.$get()), endpoint)).gaps
+      const endpoint = 'GET /api/v1/gaps'
+      return (await expectOk(await send(endpoint, () => api.gaps.$get()), endpoint)).gaps
     },
   })
 
-export type ImportStatus = NonNullable<InferResponseType<ApiClient['api']['imports']['latest']['$get'], 200>['import']>
+export type ImportStatus = NonNullable<InferResponseType<ApiClient['imports']['latest']['$get'], 200>['import']>
 /** One play from a streaming history export, as the web app sends it: end time, play time, track id. */
 export type ImportPlay = { ts: string; ms: number; trackId: string }
 
@@ -234,8 +235,8 @@ export const latestImportQueryOptions = (api: ApiClient) =>
   queryOptions({
     queryKey: ['imports', 'latest'],
     queryFn: async (): Promise<ImportStatus | null> => {
-      const endpoint = 'GET /api/imports/latest'
-      return (await expectOk(await send(endpoint, () => api.api.imports.latest.$get()), endpoint)).import
+      const endpoint = 'GET /api/v1/imports/latest'
+      return (await expectOk(await send(endpoint, () => api.imports.latest.$get()), endpoint)).import
     },
     refetchInterval: (query) => (query.state.data && !query.state.data.done ? 5_000 : false),
   })
@@ -250,16 +251,16 @@ export async function uploadImport(
   plays: ImportPlay[],
   onProgress?: (sent: number) => void,
 ): Promise<{ id: number; tracksToFetch: number }> {
-  let endpoint = 'POST /api/imports'
-  const { id } = await expectOk(await send(endpoint, () => api.api.imports.$post()), endpoint)
+  let endpoint = 'POST /api/v1/imports'
+  const { id } = await expectOk(await send(endpoint, () => api.imports.$post()), endpoint)
   const param = { id: String(id) }
-  endpoint = `POST /api/imports/${id}/plays`
+  endpoint = `POST /api/v1/imports/${id}/plays`
   for (let start = 0; start < plays.length; start += IMPORT_CHUNK_SIZE) {
     const chunk = plays.slice(start, start + IMPORT_CHUNK_SIZE)
-    await expectOk(await send(endpoint, () => api.api.imports[':id'].plays.$post({ param, json: { plays: chunk } })), endpoint)
+    await expectOk(await send(endpoint, () => api.imports[':id'].plays.$post({ param, json: { plays: chunk } })), endpoint)
     onProgress?.(start + chunk.length)
   }
-  endpoint = `POST /api/imports/${id}/finish`
-  const { tracksToFetch } = await expectOk(await send(endpoint, () => api.api.imports[':id'].finish.$post({ param })), endpoint)
+  endpoint = `POST /api/v1/imports/${id}/finish`
+  const { tracksToFetch } = await expectOk(await send(endpoint, () => api.imports[':id'].finish.$post({ param })), endpoint)
   return { id, tracksToFetch }
 }

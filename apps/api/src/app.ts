@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { OpenAPIHono } from '@hono/zod-openapi'
 import { csrf } from 'hono/csrf'
 import { HTTPException } from 'hono/http-exception'
 import { requestId } from 'hono/request-id'
@@ -6,10 +6,14 @@ import { authRoutes } from './auth/routes.ts'
 import type { AppDeps } from './deps.ts'
 import { historyRoutes } from './history/routes.ts'
 import { importRoutes } from './imports/routes.ts'
+import { defaultHook, SECURITY_SCHEMES, TAGS } from './lib/openapi.ts'
 import { playlistManageRoutes } from './playlists/manage-routes.ts'
 import { playlistRoutes } from './playlists/routes.ts'
 import { statsRoutes } from './stats/routes.ts'
 import { cronRoutes } from './sync/cron-routes.ts'
+
+/** Every endpoint lives under this prefix; the spec is at `${API_BASE}/openapi.json`. */
+export const API_BASE = '/api/v1'
 
 /**
  * Builds the API. Everything it talks to arrives through `deps`, so tests can
@@ -18,8 +22,26 @@ import { cronRoutes } from './sync/cron-routes.ts'
 export function createApp(deps: AppDeps) {
   const checkOrigin = csrf({ origin: new URL(deps.redirectUri).origin })
 
-  const app = new Hono()
-    .basePath('/api')
+  const root = new OpenAPIHono({ defaultHook }).basePath(API_BASE)
+  // Built from the routes' createRoute() definitions when requested.
+  root.doc31('/openapi.json', {
+    openapi: '3.1.0',
+    info: {
+      title: 'Replay Crate API',
+      version: '1.0.0',
+      description:
+        'Records every Spotify play, counts plays per track, manages playlists and serves listening metrics. ' +
+        'Every error is JSON `{ error: <code>, ...details }`, and every response carries `X-Request-Id`.',
+    },
+    tags: [...TAGS],
+  })
+  for (const [name, scheme] of Object.entries(SECURITY_SCHEMES)) {
+    root.openAPIRegistry.registerComponent('securitySchemes', name, scheme)
+  }
+
+  // One chain, so AppType (and the typed client) sees every route. Mounting an OpenAPIHono
+  // router with .route() also adds its routes to the spec.
+  const app = root
     // Every response carries X-Request-Id; errors log it so a report can be matched to the log.
     .use(requestId())
     // Cookies ride along on cross-site requests, so check Origin on writes. Bearer

@@ -37,24 +37,24 @@ const meta = preview.meta({
   parameters: { layout: 'fullscreen' },
   beforeEach({ msw }) {
     msw.use(
-      http.get('/api/health', () => HttpResponse.json({ ok: true })),
-      http.get('/api/me', () => HttpResponse.json(pixelg)),
-      http.get('/api/plays', () => HttpResponse.json(playsPage)),
-      http.post('/api/sync', () =>
+      http.get('/api/v1/health', () => HttpResponse.json({ ok: true })),
+      http.get('/api/v1/me', () => HttpResponse.json(pixelg)),
+      http.get('/api/v1/plays', () => HttpResponse.json(playsPage)),
+      http.post('/api/v1/sync', () =>
         HttpResponse.json({ status: 'skipped', inserted: 0, lastSyncedAt: playsPage.lastSyncedAt }),
       ),
-      http.get('/api/tracks/:id', () => HttpResponse.json(trackDetail)),
-      http.get('/api/playlists', () => HttpResponse.json(playlistsList)),
-      http.get('/api/playlists/:id', () => HttpResponse.json(playlistDetail)),
-      http.post('/api/playlists/sync', () => HttpResponse.json({ total: 3, synced: 0, remaining: 0 })),
-      http.get('/api/stats/overview', () => HttpResponse.json(statsOverview())),
-      http.get('/api/stats/top', ({ request }) => {
+      http.get('/api/v1/tracks/:id', () => HttpResponse.json(trackDetail)),
+      http.get('/api/v1/playlists', () => HttpResponse.json(playlistsList)),
+      http.get('/api/v1/playlists/:id', () => HttpResponse.json(playlistDetail)),
+      http.post('/api/v1/playlists/sync', () => HttpResponse.json({ total: 3, synced: 0, remaining: 0 })),
+      http.get('/api/v1/stats/overview', () => HttpResponse.json(statsOverview())),
+      http.get('/api/v1/stats/top', ({ request }) => {
         const params = new URL(request.url).searchParams
         return HttpResponse.json({ ...statsTop, type: params.get('type') ?? 'tracks', metric: params.get('metric') ?? 'plays' })
       }),
-      http.get('/api/stats/spotify-top', () => HttpResponse.json(spotifyTop)),
-      http.get('/api/gaps', () => HttpResponse.json({ gaps: [] })),
-      http.get('/api/imports/latest', () => HttpResponse.json({ import: null })),
+      http.get('/api/v1/stats/spotify-top', () => HttpResponse.json(spotifyTop)),
+      http.get('/api/v1/gaps', () => HttpResponse.json({ gaps: [] })),
+      http.get('/api/v1/imports/latest', () => HttpResponse.json({ import: null })),
     )
   },
 })
@@ -70,7 +70,7 @@ export const History = meta.story({
 
 export const HistoryEmpty = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.get('/api/plays', () => HttpResponse.json({ items: [], nextCursor: null, lastSyncedAt: null })))
+    msw.use(http.get('/api/v1/plays', () => HttpResponse.json({ items: [], nextCursor: null, lastSyncedAt: null })))
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByText('No plays yet')).toBeVisible()
@@ -95,7 +95,7 @@ export const TrackMobile = meta.story({
 export const TrackNotFound = meta.story({
   args: { path: '/tracks/unknown' },
   beforeEach({ msw }) {
-    msw.use(http.get('/api/tracks/:id', () => HttpResponse.json({ error: 'not_found' }, { status: 404 })))
+    msw.use(http.get('/api/v1/tracks/:id', () => HttpResponse.json({ error: 'not_found' }, { status: 404 })))
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('heading', { name: 'Track not found' })).toBeVisible()
@@ -127,7 +127,7 @@ export const NavigatesBetweenPages = meta.story({
 
 export const SignedOut = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.get('/api/me', () => HttpResponse.json({ error: 'unauthorized' }, { status: 401 })))
+    msw.use(http.get('/api/v1/me', () => HttpResponse.json({ error: 'unauthorized' }, { status: 401 })))
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('button', { name: 'Connect Spotify' })).toBeVisible()
@@ -136,7 +136,7 @@ export const SignedOut = meta.story({
 
 export const NeedsReauth = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.get('/api/me', () => HttpResponse.json({ ...pixelg, needsReauth: true })))
+    msw.use(http.get('/api/v1/me', () => HttpResponse.json({ ...pixelg, needsReauth: true })))
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('button', { name: 'Reconnect Spotify' })).toBeVisible()
@@ -155,10 +155,10 @@ export const LogsOut = meta.story({
   beforeEach({ msw }) {
     let signedIn = true
     msw.use(
-      http.get('/api/me', () =>
+      http.get('/api/v1/me', () =>
         signedIn ? HttpResponse.json(pixelg) : HttpResponse.json({ error: 'unauthorized' }, { status: 401 }),
       ),
-      http.post('/api/auth/logout', () => {
+      http.post('/api/v1/auth/logout', () => {
         signedIn = false
         return new HttpResponse(null, { status: 204 })
       }),
@@ -185,10 +185,10 @@ export const PlaylistsFirstSync = meta.story({
   beforeEach({ msw }) {
     let synced = false
     msw.use(
-      http.get('/api/playlists', () =>
+      http.get('/api/v1/playlists', () =>
         HttpResponse.json(synced ? playlistsList : { playlists: [], syncedAt: null }),
       ),
-      http.post('/api/playlists/sync', () => {
+      http.post('/api/v1/playlists/sync', () => {
         synced = true
         return HttpResponse.json({ total: 3, synced: 3, remaining: 0 })
       }),
@@ -220,7 +220,7 @@ export const PlaylistMobile = meta.story({
 
 export const ApiDown = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.get('/api/me', () => new HttpResponse(null, { status: 502 })))
+    msw.use(http.get('/api/v1/me', () => new HttpResponse(null, { status: 502 })))
   },
   play: async ({ canvas }) => {
     // The signed-in layout can't load, so the error fills the screen (no shell).
@@ -232,7 +232,7 @@ export const ApiDown = meta.story({
 export const ServerErrorKeepsShell = meta.story({
   beforeEach({ msw }) {
     msw.use(
-      http.get('/api/plays', () =>
+      http.get('/api/v1/plays', () =>
         HttpResponse.json({ error: 'internal_error', requestId: 'req-123' }, { status: 500, headers: { 'X-Request-Id': 'req-123' } }),
       ),
     )
@@ -247,7 +247,7 @@ export const ServerErrorKeepsShell = meta.story({
 
 export const SessionExpired = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.get('/api/plays', () => HttpResponse.json({ error: 'unauthorized' }, { status: 401 })))
+    msw.use(http.get('/api/v1/plays', () => HttpResponse.json({ error: 'unauthorized' }, { status: 401 })))
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('button', { name: 'Sign in again' })).toBeVisible()
@@ -256,7 +256,7 @@ export const SessionExpired = meta.story({
 
 export const SyncFailsInline = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.post('/api/sync', () => new HttpResponse(null, { status: 502 })))
+    msw.use(http.post('/api/v1/sync', () => new HttpResponse(null, { status: 502 })))
   },
   play: async ({ canvas, userEvent }) => {
     // The automatic sync runs once per page load, so press the button explicitly.
@@ -282,12 +282,12 @@ export const PlaylistRemovesTrack = meta.story({
     requests.mockClear()
     let removed = false
     msw.use(
-      http.get('/api/playlists/:id', () =>
+      http.get('/api/v1/playlists/:id', () =>
         HttpResponse.json(
           removed ? { ...playlistDetail, items: playlistDetail.items.filter((item) => item.track.id !== 't2') } : playlistDetail,
         ),
       ),
-      http.delete('/api/playlists/:id/items', async ({ request, params }) => {
+      http.delete('/api/v1/playlists/:id/items', async ({ request, params }) => {
         requests(params.id, await request.json())
         removed = true
         return HttpResponse.json({ ok: true })
@@ -310,7 +310,7 @@ export const PlaylistMovesTrackToTop = meta.story({
   beforeEach({ msw }) {
     requests.mockClear()
     msw.use(
-      http.put('/api/playlists/:id/items/move', async ({ request }) => {
+      http.put('/api/v1/playlists/:id/items/move', async ({ request }) => {
         requests(await request.json())
         return HttpResponse.json({ ok: true })
       }),
@@ -328,7 +328,7 @@ export const TrackAddsToPlaylist = meta.story({
   beforeEach({ msw }) {
     requests.mockClear()
     msw.use(
-      http.post('/api/playlists/:id/items', async ({ request, params }) => {
+      http.post('/api/v1/playlists/:id/items', async ({ request, params }) => {
         requests(params.id, await request.json())
         return HttpResponse.json({ ok: true })
       }),
@@ -351,8 +351,8 @@ export const NewPlaylistFromHistory = meta.story({
   beforeEach({ msw }) {
     requests.mockClear()
     msw.use(
-      http.post('/api/playlists/preview', () => HttpResponse.json(rulePreview)),
-      http.post('/api/playlists', async ({ request }) => {
+      http.post('/api/v1/playlists/preview', () => HttpResponse.json(rulePreview)),
+      http.post('/api/v1/playlists', async ({ request }) => {
         requests(await request.json())
         return HttpResponse.json({ id: 'p1' }, { status: 201 })
       }),
@@ -378,7 +378,7 @@ export const NewPlaylistMobile = meta.story({
   args: { path: '/playlists/new' },
   globals: { viewport: { value: 'mobile2', isRotated: false } },
   beforeEach({ msw }) {
-    msw.use(http.post('/api/playlists/preview', () => HttpResponse.json(rulePreview)))
+    msw.use(http.post('/api/v1/playlists/preview', () => HttpResponse.json(rulePreview)))
   },
 })
 
@@ -413,10 +413,10 @@ export const StatsEmpty = meta.story({
   args: { path: '/stats' },
   beforeEach({ msw }) {
     msw.use(
-      http.get('/api/stats/overview', () =>
+      http.get('/api/v1/stats/overview', () =>
         HttpResponse.json({ ...statsOverview(), totals: { plays: 0, minutes: 0, tracks: 0, artists: 0, newTracks: 0 } }),
       ),
-      http.get('/api/stats/top', () => HttpResponse.json({ ...statsTop, items: [] })),
+      http.get('/api/v1/stats/top', () => HttpResponse.json({ ...statsTop, items: [] })),
     )
   },
   play: async ({ canvas }) => {
@@ -427,7 +427,7 @@ export const StatsEmpty = meta.story({
 
 export const HistoryWithGap = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.get('/api/gaps', () => HttpResponse.json({ gaps })))
+    msw.use(http.get('/api/v1/gaps', () => HttpResponse.json({ gaps })))
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByText(/One stretch of your history may be missing plays/)).toBeVisible()
@@ -439,7 +439,7 @@ export const HistoryWithGap = meta.story({
 export const StatsWithGap = meta.story({
   args: { path: '/stats' },
   beforeEach({ msw }) {
-    msw.use(http.get('/api/stats/overview', () => HttpResponse.json({ ...statsOverview(), openGaps: 2 })))
+    msw.use(http.get('/api/v1/stats/overview', () => HttpResponse.json({ ...statsOverview(), openGaps: 2 })))
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByText(/these are minimums/)).toBeVisible()
@@ -472,14 +472,14 @@ export const ImportHistory = meta.story({
     let latest: unknown = null
     const uploaded: unknown[] = []
     msw.use(
-      http.get('/api/imports/latest', () => HttpResponse.json({ import: latest })),
-      http.post('/api/imports', () => HttpResponse.json({ id: 7 }, { status: 201 })),
-      http.post('/api/imports/7/plays', async ({ request }) => {
+      http.get('/api/v1/imports/latest', () => HttpResponse.json({ import: latest })),
+      http.post('/api/v1/imports', () => HttpResponse.json({ id: 7 }, { status: 201 })),
+      http.post('/api/v1/imports/7/plays', async ({ request }) => {
         const { plays } = (await request.json()) as { plays: unknown[] }
         uploaded.push(...plays)
         return HttpResponse.json({ received: plays.length })
       }),
-      http.post('/api/imports/7/finish', () => {
+      http.post('/api/v1/imports/7/finish', () => {
         latest = { ...importInProgress, id: 7, playCount: uploaded.length, waitingPlays: 1, tracksToFetch: 1, uploaded }
         return HttpResponse.json({ tracksToFetch: 1 })
       }),
@@ -506,14 +506,14 @@ export const ImportSendsOnlyTimeLengthAndTrack = meta.story({
   args: { path: '/import' },
   beforeEach({ msw }) {
     msw.use(
-      http.post('/api/imports', () => HttpResponse.json({ id: 7 }, { status: 201 })),
-      http.post('/api/imports/7/plays', async ({ request }) => {
+      http.post('/api/v1/imports', () => HttpResponse.json({ id: 7 }, { status: 201 })),
+      http.post('/api/v1/imports/7/plays', async ({ request }) => {
         const body = JSON.stringify(await request.json())
         // Nothing else from the export (IP address, country, platform...) may leave the device.
         if (body.includes('203.0.113.7') || body.includes('conn_country')) return HttpResponse.json({ error: 'leak' }, { status: 400 })
         return HttpResponse.json({ received: 3 })
       }),
-      http.post('/api/imports/7/finish', () => HttpResponse.json({ tracksToFetch: 0 })),
+      http.post('/api/v1/imports/7/finish', () => HttpResponse.json({ tracksToFetch: 0 })),
     )
   },
   play: async ({ canvas, userEvent }) => {
@@ -536,7 +536,7 @@ export const ImportRejectsOtherFiles = meta.story({
 export const ImportUploadFails = meta.story({
   args: { path: '/import' },
   beforeEach({ msw }) {
-    msw.use(http.post('/api/imports', () => HttpResponse.json({ error: 'internal_error' }, { status: 500 })))
+    msw.use(http.post('/api/v1/imports', () => HttpResponse.json({ error: 'internal_error' }, { status: 500 })))
   },
   play: async ({ canvas, userEvent }) => {
     await userEvent.upload(await canvas.findByLabelText(/Choose your Spotify data/), [spotifyExport()])
@@ -550,7 +550,7 @@ export const ImportUploadFails = meta.story({
 export const ImportInProgress = meta.story({
   args: { path: '/import' },
   beforeEach({ msw }) {
-    msw.use(http.get('/api/imports/latest', () => HttpResponse.json({ import: importInProgress })))
+    msw.use(http.get('/api/v1/imports/latest', () => HttpResponse.json({ import: importInProgress })))
   },
   play: async ({ canvas }) => {
     const status = await canvas.findByRole('status', { name: 'Last import' })
@@ -562,7 +562,7 @@ export const ImportInProgress = meta.story({
 export const ImportDone = meta.story({
   args: { path: '/import' },
   beforeEach({ msw }) {
-    msw.use(http.get('/api/imports/latest', () => HttpResponse.json({ import: importDone })))
+    msw.use(http.get('/api/v1/imports/latest', () => HttpResponse.json({ import: importDone })))
   },
   play: async ({ canvas }) => {
     const status = await canvas.findByRole('status', { name: 'Last import' })
@@ -576,6 +576,6 @@ export const ImportMobile = meta.story({
   args: { path: '/import' },
   globals: { viewport: { value: 'mobile2', isRotated: false } },
   beforeEach({ msw }) {
-    msw.use(http.get('/api/imports/latest', () => HttpResponse.json({ import: importInProgress })))
+    msw.use(http.get('/api/v1/imports/latest', () => HttpResponse.json({ import: importInProgress })))
   },
 })

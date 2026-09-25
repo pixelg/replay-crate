@@ -16,7 +16,7 @@ export class ApiError extends Error {
   readonly code: string
   /** From the X-Request-Id header; matches the server log. */
   readonly requestId: string | null
-  /** e.g. `GET /api/plays`. */
+  /** e.g. `GET /api/v1/plays`. */
   readonly endpoint: string
   /** Seconds to wait, for rate limits. */
   readonly retryAfter: number | null

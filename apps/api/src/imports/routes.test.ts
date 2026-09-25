@@ -25,12 +25,12 @@ describe('streaming history import', () => {
 
   /** Runs a whole import: create, upload in the given chunks, finish. */
   async function importPlays(...chunks: Array<Array<{ ts: string; ms?: number; trackId: string }>>) {
-    const { id } = await json(await send('POST', '/api/imports'))
+    const { id } = await json(await send('POST', '/api/v1/imports'))
     for (const chunk of chunks) {
-      const res = await send('POST', `/api/imports/${id}/plays`, { plays: chunk.map((p) => ({ ms: 200_000, ...p })) })
+      const res = await send('POST', `/api/v1/imports/${id}/plays`, { plays: chunk.map((p) => ({ ms: 200_000, ...p })) })
       expect(res.status).toBe(200)
     }
-    const finished = await json(await send('POST', `/api/imports/${id}/finish`))
+    const finished = await json(await send('POST', `/api/v1/imports/${id}/finish`))
     return { id, finished }
   }
   const storedPlays = () =>
@@ -49,7 +49,7 @@ describe('streaming history import', () => {
       items: [play(track(KNOWN, { name: 'Known Song' }), '2026-09-20T10:00:00.000Z')],
       cursors: null,
     })
-    await send('POST', '/api/sync')
+    await send('POST', '/api/v1/sync')
   })
   afterEach(() => ctx.close())
 
@@ -79,7 +79,7 @@ describe('streaming history import', () => {
     ])
     expect(finished).toEqual({ tracksToFetch: 1 })
 
-    let status = (await json(await send('GET', '/api/imports/latest'))).import
+    let status = (await json(await send('GET', '/api/v1/imports/latest'))).import
     expect(status).toMatchObject({ id, playCount: 2, waitingPlays: 2, tracksToFetch: 1, done: false })
 
     await runJobs(ctx.deps, { pauseMs: 0 })
@@ -88,7 +88,7 @@ describe('streaming history import', () => {
     expect(song!.name).toBe('Imported Song')
     expect((await storedPlays()).filter((p) => p.trackId === NEW)).toHaveLength(2)
 
-    status = (await json(await send('GET', '/api/imports/latest'))).import
+    status = (await json(await send('GET', '/api/v1/imports/latest'))).import
     expect(status).toMatchObject({
       waitingPlays: 0,
       tracksToFetch: 0,
@@ -105,7 +105,7 @@ describe('streaming history import', () => {
       { ts: '2025-01-03T12:00:00Z', trackId: GONE },
     ])
     await runJobs(ctx.deps, { pauseMs: 0 })
-    const status = (await json(await send('GET', '/api/imports/latest'))).import
+    const status = (await json(await send('GET', '/api/v1/imports/latest'))).import
     expect(status).toMatchObject({ unavailable: 2, waitingPlays: 0, done: true })
   })
 
@@ -118,14 +118,14 @@ describe('streaming history import', () => {
       { ts: '2026-09-01T00:00:00Z', trackId: KNOWN },
       { ts: '2026-09-18T00:00:00Z', trackId: KNOWN },
     ])
-    const { gaps } = await json(await send('GET', '/api/gaps'))
+    const { gaps } = await json(await send('GET', '/api/v1/gaps'))
     // The first is inside the import's range; the second runs past its end.
     expect(gaps.map((g: { after: string }) => g.after)).toEqual(['2026-09-15T00:00:00.000Z'])
   })
 
   it('keeps imports private and validates plays', async () => {
-    const { id } = await json(await send('POST', '/api/imports'))
-    const bad = await send('POST', `/api/imports/${id}/plays`, { plays: [{ ts: 'yesterday', ms: -1, trackId: 'x' }] })
+    const { id } = await json(await send('POST', '/api/v1/imports'))
+    const bad = await send('POST', `/api/v1/imports/${id}/plays`, { plays: [{ ts: 'yesterday', ms: -1, trackId: 'x' }] })
     expect(bad.status).toBe(400)
     expect((await json(bad)).issues.map((i: { path: string }) => i.path).sort()).toEqual([
       'plays.0.ms',
@@ -135,7 +135,7 @@ describe('streaming history import', () => {
 
     ctx.spotify.getCurrentUser.mockResolvedValueOnce({ id: 'someone-else', display_name: null, images: [] })
     const { token } = await ctx.login()
-    const other = await ctx.app.request(`/api/imports/${id}/finish`, {
+    const other = await ctx.app.request(`/api/v1/imports/${id}/finish`, {
       method: 'POST',
       headers: { Cookie: `rc_session=${token}`, Origin: ORIGIN },
     })
@@ -143,6 +143,6 @@ describe('streaming history import', () => {
   })
 
   it('reports no import before the first one', async () => {
-    expect(await json(await send('GET', '/api/imports/latest'))).toEqual({ import: null })
+    expect(await json(await send('GET', '/api/v1/imports/latest'))).toEqual({ import: null })
   })
 })

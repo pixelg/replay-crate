@@ -10,7 +10,7 @@ const meta = preview.meta({
 
 export const Connected = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.get('/api/health', () => HttpResponse.json({ ok: true })))
+    msw.use(http.get('/api/v1/health', () => HttpResponse.json({ ok: true })))
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByText('API connected')).toBeVisible()
@@ -19,7 +19,7 @@ export const Connected = meta.story({
 
 export const Unreachable = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.get('/api/health', () => new HttpResponse(null, { status: 502 })))
+    msw.use(http.get('/api/v1/health', () => new HttpResponse(null, { status: 502 })))
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByText('API unreachable')).toBeVisible()
@@ -29,7 +29,7 @@ export const Unreachable = meta.story({
 export const Checking = meta.story({
   beforeEach({ msw }) {
     msw.use(
-      http.get('/api/health', async () => {
+      http.get('/api/v1/health', async () => {
         await delay('infinite')
         return HttpResponse.json({ ok: true })
       }),

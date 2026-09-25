@@ -58,7 +58,7 @@ export async function createTestContext() {
 
   /** Runs the login callback and returns the session token from the Set-Cookie header. */
   async function login() {
-    const res = await app.request('/api/auth/callback', {
+    const res = await app.request('/api/v1/auth/callback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: 'code-1', codeVerifier: 'v'.repeat(64), redirectUri: REDIRECT_URI }),

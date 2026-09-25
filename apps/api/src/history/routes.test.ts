@@ -20,13 +20,13 @@ describe('history', () => {
   /** Response bodies are untyped JSON in tests. */
   // oxlint-disable-next-line typescript/no-explicit-any
   const json = (res: Response): Promise<any> => res.json()
-  const sync = () => ctx.app.request('/api/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })
+  const sync = () => ctx.app.request('/api/v1/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })
   const get = (path: string) => ctx.app.request(path, { headers: { Cookie: cookie } })
 
   const songA = track('a', { name: 'Song A', album: ['alb-1', 'First Album'], artists: [['art-1', 'Band'], ['art-2', 'Guest']] })
   const songB = track('b', { name: 'Song B', album: ['alb-1', 'First Album'], artists: [['art-1', 'Band']] })
 
-  describe('POST /api/sync', () => {
+  describe('POST /api/v1/sync', () => {
     it('records plays and the catalog, and is idempotent', async () => {
       ctx.spotify.getRecentlyPlayed.mockResolvedValue({
         items: [
@@ -128,12 +128,12 @@ describe('history', () => {
     })
 
     it('requires a session', async () => {
-      const res = await ctx.app.request('/api/sync', { method: 'POST', headers: { Origin: ORIGIN } })
+      const res = await ctx.app.request('/api/v1/sync', { method: 'POST', headers: { Origin: ORIGIN } })
       expect(res.status).toBe(401)
     })
   })
 
-  describe('GET /api/plays', () => {
+  describe('GET /api/v1/plays', () => {
     beforeEach(async () => {
       ctx.spotify.getRecentlyPlayed.mockResolvedValue({
         items: [
@@ -147,7 +147,7 @@ describe('history', () => {
     })
 
     it('returns plays newest first with track, artists and context', async () => {
-      const body = await json(await get('/api/plays'))
+      const body = await json(await get('/api/v1/plays'))
       expect(body.nextCursor).toBeNull()
       expect(body.lastSyncedAt).toBe('2026-09-21T12:00:00.000Z')
       expect(body.items.map((p: { playedAt: string }) => p.playedAt)).toEqual([
@@ -181,11 +181,11 @@ describe('history', () => {
     })
 
     it('paginates with the before cursor', async () => {
-      const first = await json(await get('/api/plays?limit=2'))
+      const first = await json(await get('/api/v1/plays?limit=2'))
       expect(first.items).toHaveLength(2)
       expect(first.nextCursor).toBe('2026-09-21T11:45:00.000Z')
 
-      const second = await json(await get(`/api/plays?limit=2&before=${first.nextCursor}`))
+      const second = await json(await get(`/api/v1/plays?limit=2&before=${first.nextCursor}`))
       expect(second.items.map((p: { playedAt: string }) => p.playedAt)).toEqual(['2026-09-21T11:40:00.000Z'])
       expect(second.nextCursor).toBeNull()
     })
@@ -193,16 +193,16 @@ describe('history', () => {
     it('only returns the signed-in user’s plays', async () => {
       ctx.spotify.getCurrentUser.mockResolvedValueOnce({ id: 'someone-else', display_name: null, images: [] })
       const { token } = await ctx.login()
-      const body = await json(await ctx.app.request('/api/plays', { headers: { Cookie: `rc_session=${token}` } }))
+      const body = await json(await ctx.app.request('/api/v1/plays', { headers: { Cookie: `rc_session=${token}` } }))
       expect(body.items).toEqual([])
     })
 
     it('rejects a malformed cursor', async () => {
-      expect((await get('/api/plays?before=yesterday')).status).toBe(400)
+      expect((await get('/api/v1/plays?before=yesterday')).status).toBe(400)
     })
   })
 
-  describe('GET /api/tracks/:id', () => {
+  describe('GET /api/v1/tracks/:id', () => {
     it('returns play stats and where the track was played from', async () => {
       ctx.spotify.getRecentlyPlayed.mockResolvedValue({
         items: [
@@ -215,7 +215,7 @@ describe('history', () => {
       })
       await sync()
 
-      const body = await json(await get('/api/tracks/a'))
+      const body = await json(await get('/api/v1/tracks/a'))
       expect(body.track).toMatchObject({ id: 'a', name: 'Song A', album: { name: 'First Album', releaseDate: '2024-05-01' } })
       expect(body.stats).toEqual({
         playCount: 3,
@@ -234,7 +234,7 @@ describe('history', () => {
     })
 
     it('is 404 for a track we have never seen', async () => {
-      expect((await get('/api/tracks/nope')).status).toBe(404)
+      expect((await get('/api/v1/tracks/nope')).status).toBe(404)
     })
   })
 })
