@@ -12,7 +12,7 @@ Status and roadmap: [project board](https://github.com/users/pixelg/projects/4) 
 
 ## Stack
 
-React 19 · Vite · TypeScript · Tailwind CSS 4 · TanStack Router + Query · Base UI · Hono · Drizzle + Postgres (Docker locally, Neon when deployed) · varlock · Vitest · Storybook · pnpm workspaces · Node 24
+React 19 · Vite · TypeScript · Tailwind CSS 4 · TanStack Router + Query · Base UI · Hono · Drizzle + Postgres (Docker locally, Neon when deployed) · varlock · Vitest · Storybook · pnpm workspaces + Turborepo · Node 24
 
 ## Getting started
 

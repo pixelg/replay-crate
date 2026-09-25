@@ -1,10 +1,10 @@
 # Replay Crate
 
-Personal Spotify companion: records every play, counts plays per track, tags genres, manages playlists, and shows listening metrics. The work is planned as GitHub milestones M0–M7 on the [project board](https://github.com/users/pixelg/projects/4).
+Personal Spotify companion: records every play, counts plays per track, tags genres, manages playlists, and shows listening metrics. The work is planned as GitHub milestones (M0–M7, then M8–M12 for phase 2) on the [project board](https://github.com/users/pixelg/projects/4).
 
 ## Layout
 
-pnpm workspace. Packages export TypeScript source directly (no build step between packages).
+pnpm workspace, tasks run by Turborepo (`turbo.json`). Packages export TypeScript source directly (no build step between packages).
 
 | Path | What |
 |---|---|
@@ -31,6 +31,8 @@ pnpm test:e2e           # Playwright smoke tests: built app + API, in-memory DB,
 pnpm --filter @replay-crate/db db:generate   # new migration from schema changes
 pnpm db:migrate         # apply migrations to DATABASE_URL
 ```
+
+`typecheck`, `test`, `build`, `build-storybook`, `test:e2e` and `dev` go through `turbo run`, so unchanged packages replay cached results (`.turbo/cache`; add `--force` to rerun). A no-op `transit` task chains each package's hash to its workspace dependencies, since they share source rather than build output. Turbo runs tasks in strict env mode: a new env var a task reads must be added to `turbo.json` (`globalEnv` if it changes output, a pass-through list otherwise). `lint` is plain oxlint from the root.
 
 ## Conventions
 

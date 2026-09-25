@@ -1,0 +1,48 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "ui": "stream",
+  // Every package reads the root env schema, and the web build bakes the public values in.
+  "globalDependencies": [".env.schema", ".env.local", "tsconfig.base.json"],
+  "globalEnv": ["SPOTIFY_CLIENT_ID", "SPOTIFY_REDIRECT_URI"],
+  // Seen by tasks but not part of the cache key.
+  "globalPassThroughEnv": ["CI", "GITHUB_ACTIONS", "STORYBOOK_DISABLE_TELEMETRY", "PLAYWRIGHT_*"],
+  "tasks": {
+    // Packages export TypeScript source with no build step, so a package's checks depend on
+    // its workspace dependencies' source. This no-op task chains their hashes (a "transit node").
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
+    "typecheck": {
+      "dependsOn": ["transit"]
+    },
+    "test": {
+      "dependsOn": ["transit"]
+    },
+    "build": {
+      "dependsOn": ["transit"],
+      "outputs": ["dist/**"]
+    },
+    "build-storybook": {
+      "dependsOn": ["transit"],
+      "outputs": ["storybook-static/**"]
+    },
+    "test:e2e": {
+      "cache": false
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      // Let a value set on the command line override .env.local, as it did before turbo.
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "TOKEN_ENCRYPTION_KEY",
+        "CRON_SECRET",
+        "LASTFM_API_KEY",
+        "API_PORT",
+        "SYNC_INTERVAL_MINUTES",
+        "WEB_DIST_DIR",
+        "MUSICBRAINZ_USER_AGENT"
+      ]
+    }
+  }
+}

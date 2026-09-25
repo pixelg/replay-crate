@@ -29,10 +29,30 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Turbo's local task cache, carried between runs: packages whose inputs haven't changed
+      # replay their typecheck/test/build results instead of running again.
+      - uses: actions/cache@v6
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
       - run: pnpm lint
       - run: pnpm typecheck
-      - name: Install Chromium for Storybook tests
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter @replay-crate/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Chromium for Storybook tests and E2E
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @replay-crate/web exec playwright install --with-deps chromium
+      # The browser comes from the cache; its system libraries don't.
+      - name: Install Chromium's system libraries
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @replay-crate/web exec playwright install-deps chromium
       - run: pnpm test
       - run: pnpm build
       - run: pnpm build-storybook
