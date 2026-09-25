@@ -123,13 +123,24 @@
           "needsReauth": {
             "type": "boolean",
             "description": "Spotify refused the refresh token; reconnect to keep syncing."
+          },
+          "missingScopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Scopes the app now asks for that this user never granted (the app added features since they connected). Reconnecting grants them; what worked before keeps working meanwhile.",
+            "example": [
+              "user-read-playback-state"
+            ]
           }
         },
         "required": [
           "id",
           "displayName",
           "imageUrl",
-          "needsReauth"
+          "needsReauth",
+          "missingScopes"
         ]
       },
       "InvalidRequestError": {

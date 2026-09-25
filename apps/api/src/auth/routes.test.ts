@@ -26,6 +26,7 @@ describe('auth', () => {
         displayName: 'Pixel G',
         imageUrl: 'https://i.scdn.co/image/large',
         needsReauth: false,
+        missingScopes: [],
       })
       expect(ctx.spotify.exchangeCode).toHaveBeenCalledWith({
         code: 'code-1',
@@ -111,6 +112,22 @@ describe('auth', () => {
         expect(res.status).toBe(200)
         expect(await res.json()).toMatchObject({ id: 'pixelg', needsReauth: false })
       }
+    })
+
+    it('lists the scopes the user granted before the app asked for them', async () => {
+      // Connected before the player existed.
+      ctx.spotify.exchangeCode.mockResolvedValueOnce(
+        tokens({ scope: 'user-read-recently-played user-top-read playlist-read-private playlist-read-collaborative playlist-modify-private playlist-modify-public' }),
+      )
+      const { token } = await ctx.login()
+      expect(await (await me({ Cookie: `rc_session=${token}` })).json()).toMatchObject({
+        needsReauth: false,
+        missingScopes: ['user-read-playback-state', 'user-read-currently-playing', 'user-modify-playback-state'],
+      })
+
+      // Reconnecting grants everything the app asks for now.
+      const again = await ctx.login()
+      expect(await (await me({ Cookie: `rc_session=${again.token}` })).json()).toMatchObject({ missingScopes: [] })
     })
 
     it('rejects expired sessions', async () => {

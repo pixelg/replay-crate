@@ -25,12 +25,14 @@ function AppLayout() {
   const logout = useLogout()
   useSyncOnOpen(Boolean(me && !me.needsReauth))
   if (!me) return null
+  // Expired access matters more: nothing records until the user reconnects.
+  const reconnect = me.needsReauth ? 'expired' : me.missingScopes.length ? 'permissions' : null
 
   return (
     <AppShell
       user={me}
       onLogout={logout}
-      banner={me.needsReauth && <ReauthBanner onReconnect={startSpotifyLogin} />}
+      banner={reconnect && <ReauthBanner reason={reconnect} onReconnect={startSpotifyLogin} />}
     >
       <Outlet />
     </AppShell>

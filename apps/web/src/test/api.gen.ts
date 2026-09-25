@@ -492,6 +492,13 @@ export interface components {
             imageUrl: string | null;
             /** @description Spotify refused the refresh token; reconnect to keep syncing. */
             needsReauth: boolean;
+            /**
+             * @description Scopes the app now asks for that this user never granted (the app added features since they connected). Reconnecting grants them; what worked before keeps working meanwhile.
+             * @example [
+             *       "user-read-playback-state"
+             *     ]
+             */
+            missingScopes: string[];
         };
         InvalidRequestError: {
             /** @enum {string} */
