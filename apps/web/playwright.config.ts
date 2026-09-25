@@ -17,7 +17,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'pnpm e2e:server',
-    url: `${baseURL}/api/health`,
+    url: `${baseURL}/api/v1/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

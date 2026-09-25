@@ -21,7 +21,7 @@ describe('playlists', () => {
   const json = (res: Response): Promise<any> => res.json()
   const get = (path: string) => ctx.app.request(path, { headers: { Cookie: cookie } })
   const sync = () =>
-    ctx.app.request('/api/playlists/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })
+    ctx.app.request('/api/v1/playlists/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })
 
   const songA = track('a', { name: 'Song A' })
   const songB = track('b', { name: 'Song B' })
@@ -84,7 +84,7 @@ describe('playlists', () => {
         return paged<SpotifyPlaylistItem>([])(offset)
       })
       expect(await json(await sync())).toEqual({ total: 1, synced: 1, remaining: 0 })
-      expect((await json(await get('/api/playlists'))).playlists.map((p: { id: string }) => p.id)).toEqual(['road'])
+      expect((await json(await get('/api/v1/playlists'))).playlists.map((p: { id: string }) => p.id)).toEqual(['road'])
     })
 
     it('stops when out of time and picks up where it left off', async () => {
@@ -98,7 +98,7 @@ describe('playlists', () => {
       await sync()
       serve([playlist('two')], {})
       await sync()
-      expect((await json(await get('/api/playlists'))).playlists.map((p: { id: string }) => p.id)).toEqual(['two'])
+      expect((await json(await get('/api/v1/playlists'))).playlists.map((p: { id: string }) => p.id)).toEqual(['two'])
     })
   })
 
@@ -118,11 +118,11 @@ describe('playlists', () => {
         ],
         cursors: null,
       })
-      await ctx.app.request('/api/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })
+      await ctx.app.request('/api/v1/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })
     })
 
     it('lists playlists in library order with plays from each', async () => {
-      const body = await json(await get('/api/playlists'))
+      const body = await json(await get('/api/v1/playlists'))
       expect(body.syncedAt).toBe('2026-09-21T12:00:00.000Z')
       expect(body.playlists).toEqual([
         {
@@ -142,7 +142,7 @@ describe('playlists', () => {
     })
 
     it('shows play counts per track and the other playlists each track is on', async () => {
-      const body = await json(await get('/api/playlists/road'))
+      const body = await json(await get('/api/v1/playlists/road'))
       expect(body.playlist).toMatchObject({ id: 'road', name: 'Road Trip', owned: true, playsFrom: 3, itemsSynced: true })
       expect(body.items).toEqual([
         expect.objectContaining({
@@ -165,7 +165,7 @@ describe('playlists', () => {
     })
 
     it('lists the playlists a track is on, on the track page', async () => {
-      const body = await json(await get('/api/tracks/a'))
+      const body = await json(await get('/api/v1/tracks/a'))
       expect(body.playlists).toEqual([
         { id: 'road', name: 'Road Trip', thumbUrl: 'https://i.scdn.co/road-300' },
         { id: 'chill', name: 'Chill', thumbUrl: 'https://i.scdn.co/chill-300' },
@@ -173,7 +173,7 @@ describe('playlists', () => {
     })
 
     it('is 404 for a playlist that is not in the library', async () => {
-      expect((await get('/api/playlists/someone-elses')).status).toBe(404)
+      expect((await get('/api/v1/playlists/someone-elses')).status).toBe(404)
     })
   })
 })

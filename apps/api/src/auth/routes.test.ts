@@ -14,9 +14,9 @@ describe('auth', () => {
   })
   afterEach(() => ctx.close())
 
-  const me = (headers: Record<string, string> = {}) => ctx.app.request('/api/me', { headers })
+  const me = (headers: Record<string, string> = {}) => ctx.app.request('/api/v1/me', { headers })
 
-  describe('POST /api/auth/callback', () => {
+  describe('POST /api/v1/auth/callback', () => {
     it('stores encrypted tokens, hashes the session, and sets an httpOnly cookie', async () => {
       const { res, token } = await ctx.login()
 
@@ -49,7 +49,7 @@ describe('auth', () => {
     })
 
     it('rejects a redirect URI other than the configured one', async () => {
-      const res = await ctx.app.request('/api/auth/callback', {
+      const res = await ctx.app.request('/api/v1/auth/callback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: 'c', codeVerifier: 'v'.repeat(64), redirectUri: 'https://evil.example/cb' }),
@@ -79,7 +79,7 @@ describe('auth', () => {
     })
 
     it('rejects cross-site form posts', async () => {
-      const res = await ctx.app.request('/api/auth/logout', {
+      const res = await ctx.app.request('/api/v1/auth/logout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: 'https://evil.example' },
         body: '',
@@ -88,7 +88,7 @@ describe('auth', () => {
     })
   })
 
-  describe('GET /api/me', () => {
+  describe('GET /api/v1/me', () => {
     it('is 401 without a session', async () => {
       const res = await me()
       expect(res.status).toBe(401)
@@ -126,10 +126,10 @@ describe('auth', () => {
     })
   })
 
-  describe('POST /api/auth/logout', () => {
+  describe('POST /api/v1/auth/logout', () => {
     it('deletes the session and clears the cookie', async () => {
       const { token } = await ctx.login()
-      const res = await ctx.app.request('/api/auth/logout', {
+      const res = await ctx.app.request('/api/v1/auth/logout', {
         method: 'POST',
         headers: { Cookie: `rc_session=${token}`, Origin: 'http://127.0.0.1:5173' },
       })
