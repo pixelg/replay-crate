@@ -15,7 +15,7 @@ import type {
 
 // Fictional data for stories. Images are null so tests never hit the network.
 
-export const pixelg: Me = { id: 'pixelg', displayName: 'Pixel G', imageUrl: null, needsReauth: false }
+export const pixelg: Me = { id: 'pixelg', displayName: 'Pixel G', imageUrl: null, needsReauth: false, missingScopes: [] }
 
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString()
 

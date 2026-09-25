@@ -1,4 +1,4 @@
-import { SpotifyApiError } from '@replay-crate/spotify'
+import { SPOTIFY_SCOPES, SpotifyApiError } from '@replay-crate/spotify'
 import type {
   Paging,
   PlayHistoryItem,
@@ -18,7 +18,7 @@ export const tokens = (overrides: Partial<TokenResponse> = {}): TokenResponse =>
   accessToken: 'access-1',
   refreshToken: 'refresh-1',
   expiresIn: 3600,
-  scope: 'user-read-recently-played user-top-read',
+  scope: SPOTIFY_SCOPES.join(' '),
   ...overrides,
 })
 

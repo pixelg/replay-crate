@@ -117,7 +117,40 @@ export const SignedOut = meta.story({
 
 export const NeedsReauth = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.get('/api/v1/auth/me', () => HttpResponse.json({ ...pixelg, needsReauth: true })))
+    // Expired access wins over missing permissions: nothing records until the user reconnects.
+    msw.use(
+      http.get('/api/v1/auth/me', () =>
+        HttpResponse.json({ ...pixelg, needsReauth: true, missingScopes: ['user-modify-playback-state'] }),
+      ),
+    )
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText(/Spotify access has expired/)).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Reconnect Spotify' })).toBeVisible()
+  },
+})
+
+const connectedBeforeThePlayer = {
+  ...pixelg,
+  missingScopes: ['user-read-playback-state', 'user-read-currently-playing', 'user-modify-playback-state'],
+}
+
+export const NeedsPermissions = meta.story({
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/auth/me', () => HttpResponse.json(connectedBeforeThePlayer)))
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText(/needs new Spotify permissions to show and control playback/)).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Reconnect Spotify' })).toBeVisible()
+    // History still loads and syncs: the old grant covers it.
+    await expect(await canvas.findByRole('heading', { name: 'Today' })).toBeVisible()
+  },
+})
+
+export const NeedsPermissionsMobile = meta.story({
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/auth/me', () => HttpResponse.json(connectedBeforeThePlayer)))
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('button', { name: 'Reconnect Spotify' })).toBeVisible()
