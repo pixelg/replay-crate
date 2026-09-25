@@ -44,7 +44,7 @@ export type AppDeps = {
   spotify: SpotifyGateway
   /** The redirect URI registered with Spotify. Its origin is the web app's origin. */
   redirectUri: string
-  /** Bearer token for POST /api/v1/cron/poll. The endpoint is disabled when unset. */
+  /** Bearer token for POST /api/v1/system/cron/poll. The endpoint is disabled when unset. */
   cronSecret?: string
   now?: () => Date
 }

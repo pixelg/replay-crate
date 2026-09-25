@@ -49,7 +49,7 @@ describe('streaming history import', () => {
       items: [play(track(KNOWN, { name: 'Known Song' }), '2026-09-20T10:00:00.000Z')],
       cursors: null,
     })
-    await send('POST', '/api/v1/sync')
+    await send('POST', '/api/v1/history/sync')
   })
   afterEach(() => ctx.close())
 
@@ -118,7 +118,7 @@ describe('streaming history import', () => {
       { ts: '2026-09-01T00:00:00Z', trackId: KNOWN },
       { ts: '2026-09-18T00:00:00Z', trackId: KNOWN },
     ])
-    const { gaps } = await json(await send('GET', '/api/v1/gaps'))
+    const { gaps } = await json(await send('GET', '/api/v1/history/gaps'))
     // The first is inside the import's range; the second runs past its end.
     expect(gaps.map((g: { after: string }) => g.after)).toEqual(['2026-09-15T00:00:00.000Z'])
   })

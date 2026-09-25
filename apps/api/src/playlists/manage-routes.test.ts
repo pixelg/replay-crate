@@ -144,7 +144,7 @@ describe('playlist management', () => {
         ],
         cursors: null,
       })
-      await send('POST', '/api/v1/sync')
+      await send('POST', '/api/v1/history/sync')
     })
 
     const preview = async (rule: Record<string, unknown>) => json(await send('POST', '/api/v1/playlists/preview', { rule }))

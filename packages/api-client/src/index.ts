@@ -5,14 +5,14 @@ import { ApiError, expectOk, send } from './errors.ts'
 
 export { ApiError, isApiError } from './errors.ts'
 export type { Me, PlaylistRule }
-/** The typed client, rooted at /api/v1: `api.plays.$get()` fetches /api/v1/plays. */
+/** The typed client, rooted at /api/v1: `api.history.plays.$get()` fetches /api/v1/history/plays. */
 export type ApiClient = ReturnType<typeof hc<AppType>>['api']['v1']
 
-export type PlaysPage = InferResponseType<ApiClient['plays']['$get'], 200>
+export type PlaysPage = InferResponseType<ApiClient['history']['plays']['$get'], 200>
 export type PlayItem = PlaysPage['items'][number]
 export type PlayContext = NonNullable<PlayItem['context']>
 export type TrackDetail = InferResponseType<ApiClient['tracks'][':id']['$get'], 200>
-export type SyncResult = InferResponseType<ApiClient['sync']['$post'], 200>
+export type SyncResult = InferResponseType<ApiClient['history']['sync']['$post'], 200>
 export type PlaylistsList = InferResponseType<ApiClient['playlists']['$get'], 200>
 export type PlaylistSummary = PlaylistsList['playlists'][number]
 export type PlaylistDetail = InferResponseType<ApiClient['playlists'][':id']['$get'], 200>
@@ -34,8 +34,8 @@ export const healthQueryOptions = (api: ApiClient) =>
   queryOptions({
     queryKey: ['health'],
     queryFn: async () => {
-      const endpoint = 'GET /api/v1/health'
-      return expectOk(await send(endpoint, () => api.health.$get()), endpoint)
+      const endpoint = 'GET /api/v1/system/health'
+      return expectOk(await send(endpoint, () => api.system.health.$get()), endpoint)
     },
   })
 
@@ -44,8 +44,8 @@ export const meQueryOptions = (api: ApiClient) =>
   queryOptions({
     queryKey: ['me'],
     queryFn: async (): Promise<Me | null> => {
-      const endpoint = 'GET /api/v1/me'
-      const res = await send(endpoint, () => api.me.$get())
+      const endpoint = 'GET /api/v1/auth/me'
+      const res = await send(endpoint, () => api.auth.me.$get())
       if (res.status === 401) return null
       return expectOk(res, endpoint)
     },
@@ -72,8 +72,8 @@ export const playsInfiniteQueryOptions = (api: ApiClient) =>
   infiniteQueryOptions({
     queryKey: ['plays'],
     queryFn: async ({ pageParam }): Promise<PlaysPage> => {
-      const endpoint = 'GET /api/v1/plays'
-      const res = await send(endpoint, () => api.plays.$get({ query: pageParam ? { before: pageParam } : {} }))
+      const endpoint = 'GET /api/v1/history/plays'
+      const res = await send(endpoint, () => api.history.plays.$get({ query: pageParam ? { before: pageParam } : {} }))
       return expectOk(res, endpoint)
     },
     initialPageParam: null as string | null,
@@ -91,8 +91,8 @@ export const trackQueryOptions = (api: ApiClient, trackId: string) =>
 
 /** Pulls the latest plays from Spotify into the user's history. */
 export async function syncNow(api: ApiClient): Promise<SyncResult> {
-  const endpoint = 'POST /api/v1/sync'
-  return expectOk(await send(endpoint, () => api.sync.$post()), endpoint)
+  const endpoint = 'POST /api/v1/history/sync'
+  return expectOk(await send(endpoint, () => api.history.sync.$post()), endpoint)
 }
 
 export const playlistsQueryOptions = (api: ApiClient) =>
@@ -211,15 +211,15 @@ export const spotifyTopQueryOptions = (
     staleTime: 30 * 60_000,
   })
 
-export type HistoryGap = InferResponseType<ApiClient['gaps']['$get'], 200>['gaps'][number]
+export type HistoryGap = InferResponseType<ApiClient['history']['gaps']['$get'], 200>['gaps'][number]
 
 /** Stretches of history where plays may be missing (open gaps only). */
 export const gapsQueryOptions = (api: ApiClient) =>
   queryOptions({
     queryKey: ['gaps'],
     queryFn: async (): Promise<HistoryGap[]> => {
-      const endpoint = 'GET /api/v1/gaps'
-      return (await expectOk(await send(endpoint, () => api.gaps.$get()), endpoint)).gaps
+      const endpoint = 'GET /api/v1/history/gaps'
+      return (await expectOk(await send(endpoint, () => api.history.gaps.$get()), endpoint)).gaps
     },
   })
 

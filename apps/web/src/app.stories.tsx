@@ -37,10 +37,10 @@ const meta = preview.meta({
   parameters: { layout: 'fullscreen' },
   beforeEach({ msw }) {
     msw.use(
-      http.get('/api/v1/health', () => HttpResponse.json({ ok: true })),
-      http.get('/api/v1/me', () => HttpResponse.json(pixelg)),
-      http.get('/api/v1/plays', () => HttpResponse.json(playsPage)),
-      http.post('/api/v1/sync', () =>
+      http.get('/api/v1/system/health', () => HttpResponse.json({ ok: true })),
+      http.get('/api/v1/auth/me', () => HttpResponse.json(pixelg)),
+      http.get('/api/v1/history/plays', () => HttpResponse.json(playsPage)),
+      http.post('/api/v1/history/sync', () =>
         HttpResponse.json({ status: 'skipped', inserted: 0, lastSyncedAt: playsPage.lastSyncedAt }),
       ),
       http.get('/api/v1/tracks/:id', () => HttpResponse.json(trackDetail)),
@@ -53,7 +53,7 @@ const meta = preview.meta({
         return HttpResponse.json({ ...statsTop, type: params.get('type') ?? 'tracks', metric: params.get('metric') ?? 'plays' })
       }),
       http.get('/api/v1/stats/spotify-top', () => HttpResponse.json(spotifyTop)),
-      http.get('/api/v1/gaps', () => HttpResponse.json({ gaps: [] })),
+      http.get('/api/v1/history/gaps', () => HttpResponse.json({ gaps: [] })),
       http.get('/api/v1/imports/latest', () => HttpResponse.json({ import: null })),
     )
   },
@@ -70,7 +70,7 @@ export const History = meta.story({
 
 export const HistoryEmpty = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.get('/api/v1/plays', () => HttpResponse.json({ items: [], nextCursor: null, lastSyncedAt: null })))
+    msw.use(http.get('/api/v1/history/plays', () => HttpResponse.json({ items: [], nextCursor: null, lastSyncedAt: null })))
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByText('No plays yet')).toBeVisible()
@@ -127,7 +127,7 @@ export const NavigatesBetweenPages = meta.story({
 
 export const SignedOut = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.get('/api/v1/me', () => HttpResponse.json({ error: 'unauthorized' }, { status: 401 })))
+    msw.use(http.get('/api/v1/auth/me', () => HttpResponse.json({ error: 'unauthorized' }, { status: 401 })))
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('button', { name: 'Connect Spotify' })).toBeVisible()
@@ -136,7 +136,7 @@ export const SignedOut = meta.story({
 
 export const NeedsReauth = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.get('/api/v1/me', () => HttpResponse.json({ ...pixelg, needsReauth: true })))
+    msw.use(http.get('/api/v1/auth/me', () => HttpResponse.json({ ...pixelg, needsReauth: true })))
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('button', { name: 'Reconnect Spotify' })).toBeVisible()
@@ -155,7 +155,7 @@ export const LogsOut = meta.story({
   beforeEach({ msw }) {
     let signedIn = true
     msw.use(
-      http.get('/api/v1/me', () =>
+      http.get('/api/v1/auth/me', () =>
         signedIn ? HttpResponse.json(pixelg) : HttpResponse.json({ error: 'unauthorized' }, { status: 401 }),
       ),
       http.post('/api/v1/auth/logout', () => {
@@ -220,7 +220,7 @@ export const PlaylistMobile = meta.story({
 
 export const ApiDown = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.get('/api/v1/me', () => new HttpResponse(null, { status: 502 })))
+    msw.use(http.get('/api/v1/auth/me', () => new HttpResponse(null, { status: 502 })))
   },
   play: async ({ canvas }) => {
     // The signed-in layout can't load, so the error fills the screen (no shell).
@@ -232,7 +232,7 @@ export const ApiDown = meta.story({
 export const ServerErrorKeepsShell = meta.story({
   beforeEach({ msw }) {
     msw.use(
-      http.get('/api/v1/plays', () =>
+      http.get('/api/v1/history/plays', () =>
         HttpResponse.json({ error: 'internal_error', requestId: 'req-123' }, { status: 500, headers: { 'X-Request-Id': 'req-123' } }),
       ),
     )
@@ -247,7 +247,7 @@ export const ServerErrorKeepsShell = meta.story({
 
 export const SessionExpired = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.get('/api/v1/plays', () => HttpResponse.json({ error: 'unauthorized' }, { status: 401 })))
+    msw.use(http.get('/api/v1/history/plays', () => HttpResponse.json({ error: 'unauthorized' }, { status: 401 })))
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByRole('button', { name: 'Sign in again' })).toBeVisible()
@@ -256,7 +256,7 @@ export const SessionExpired = meta.story({
 
 export const SyncFailsInline = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.post('/api/v1/sync', () => new HttpResponse(null, { status: 502 })))
+    msw.use(http.post('/api/v1/history/sync', () => new HttpResponse(null, { status: 502 })))
   },
   play: async ({ canvas, userEvent }) => {
     // The automatic sync runs once per page load, so press the button explicitly.
@@ -427,7 +427,7 @@ export const StatsEmpty = meta.story({
 
 export const HistoryWithGap = meta.story({
   beforeEach({ msw }) {
-    msw.use(http.get('/api/v1/gaps', () => HttpResponse.json({ gaps })))
+    msw.use(http.get('/api/v1/history/gaps', () => HttpResponse.json({ gaps })))
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByText(/One stretch of your history may be missing plays/)).toBeVisible()

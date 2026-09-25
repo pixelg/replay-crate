@@ -16,7 +16,7 @@ export const Route = createFileRoute('/_app')({
     if (!me) throw redirect({ to: '/connect' })
   },
   component: AppLayout,
-  // If the layout itself can't load (e.g. /api/v1/me fails) there's no shell to show.
+  // If the layout itself can't load (e.g. /api/v1/auth/me fails) there's no shell to show.
   errorComponent: FullScreenRouteErrorPage,
 })
 

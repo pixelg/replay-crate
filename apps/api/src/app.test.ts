@@ -8,15 +8,15 @@ describe('app', () => {
   })
   afterEach(() => ctx.close())
 
-  it('GET /api/v1/health returns ok', async () => {
-    const res = await ctx.app.request('/api/v1/health')
+  it('GET /api/v1/system/health returns ok', async () => {
+    const res = await ctx.app.request('/api/v1/system/health')
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true })
   })
 
   describe('error responses', () => {
     it('tags every response with a request id', async () => {
-      const res = await ctx.app.request('/api/v1/health')
+      const res = await ctx.app.request('/api/v1/system/health')
       expect(res.headers.get('X-Request-Id')).toMatch(/.+/)
     })
 
@@ -28,7 +28,7 @@ describe('app', () => {
 
     it('returns invalid_request with the failing fields', async () => {
       const { token } = await ctx.login()
-      const res = await ctx.app.request('/api/v1/plays?before=yesterday', { headers: { Cookie: `rc_session=${token}` } })
+      const res = await ctx.app.request('/api/v1/history/plays?before=yesterday', { headers: { Cookie: `rc_session=${token}` } })
       expect(res.status).toBe(400)
       expect(await res.json()).toEqual({
         error: 'invalid_request',
@@ -41,14 +41,14 @@ describe('app', () => {
       const { token } = await ctx.login()
       ctx.spotify.getRecentlyPlayed.mockRejectedValueOnce(new Error('boom'))
 
-      const res = await ctx.app.request('/api/v1/sync', {
+      const res = await ctx.app.request('/api/v1/history/sync', {
         method: 'POST',
         headers: { Cookie: `rc_session=${token}`, Origin: 'http://127.0.0.1:5173' },
       })
       const requestId = res.headers.get('X-Request-Id')
       expect(res.status).toBe(500)
       expect(await res.json()).toEqual({ error: 'internal_error', requestId })
-      expect(log).toHaveBeenCalledWith(expect.stringContaining(`[${requestId}] POST /api/v1/sync`), expect.any(Error))
+      expect(log).toHaveBeenCalledWith(expect.stringContaining(`[${requestId}] POST /api/v1/history/sync`), expect.any(Error))
       log.mockRestore()
     })
 

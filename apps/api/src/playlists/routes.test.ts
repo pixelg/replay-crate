@@ -118,7 +118,7 @@ describe('playlists', () => {
         ],
         cursors: null,
       })
-      await ctx.app.request('/api/v1/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })
+      await ctx.app.request('/api/v1/history/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })
     })
 
     it('lists playlists in library order with plays from each', async () => {
