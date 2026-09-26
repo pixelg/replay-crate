@@ -1,10 +1,13 @@
 import { createOpenApiHttp } from 'openapi-msw'
 import type { paths } from './api.gen.ts'
 import {
+  devices,
   pixelg,
+  playback,
   playlistDetail,
   playlistsList,
   playsPage,
+  queue,
   spotifyTop,
   statsOverview,
   statsTop,
@@ -53,6 +56,18 @@ export const handlers = {
     http.get('/api/v1/stats/spotify-top', ({ response }) => response(200).json(spotifyTop)),
   ],
   imports: [http.get('/api/v1/imports/latest', ({ response }) => response(200).json({ import: null }))],
+  // Something is playing on the laptop; every command is accepted.
+  player: [
+    http.get('/api/v1/player', ({ response }) => response(200).json({ playback })),
+    http.get('/api/v1/player/queue', ({ response }) => response(200).json(queue)),
+    http.get('/api/v1/player/devices', ({ response }) => response(200).json({ devices })),
+    ...(['/api/v1/player/play', '/api/v1/player/pause', '/api/v1/player/seek', '/api/v1/player/shuffle', '/api/v1/player/repeat', '/api/v1/player/volume', '/api/v1/player/device'] as const).map((path) =>
+      http.put(path, ({ response }) => response(204).empty()),
+    ),
+    ...(['/api/v1/player/next', '/api/v1/player/previous', '/api/v1/player/queue'] as const).map((path) =>
+      http.post(path, ({ response }) => response(204).empty()),
+    ),
+  ],
 }
 
 export const defaultHandlers = Object.values(handlers).flat()

@@ -10,6 +10,9 @@ export type ErrorKind =
   | 'reauth'
   | 'not_found'
   | 'login'
+  | 'no_device'
+  | 'premium'
+  | 'refused'
   | 'app'
 
 /** What the error page's main button does. */
@@ -26,6 +29,26 @@ export type ErrorDescription = {
   reference: string | null
   /** Technical detail, shown in development builds only. */
   details: string | null
+}
+
+/** Why the player refused, in words, from Spotify's reason code. */
+function refusal(reason: string | null): string {
+  switch (reason) {
+    case 'VOLUME_CONTROL_DISALLOW':
+      return "This device doesn't let apps change its volume."
+    case 'NO_SPECIFIC_TRACK':
+    case 'NOT_PLAYING_TRACK':
+      return 'Nothing is loaded to play. Start something in Spotify first.'
+    case 'NO_PREV_TRACK':
+      return "There's nothing before this."
+    case 'NO_NEXT_TRACK':
+      return "There's nothing after this."
+    case 'DEVICE_NOT_CONTROLLABLE':
+    case 'REMOTE_CONTROL_DISALLOW':
+      return "This device can't be controlled from here."
+    default:
+      return "The device didn't accept that right now. Try again in a moment."
+  }
 }
 
 /** Turns anything thrown into what the UI should say and offer. */
@@ -70,6 +93,18 @@ export function describeError(error: unknown): ErrorDescription {
     }
     if (error.code === 'reauth_required') {
       return api('reauth', 'Spotify access expired', 'Reconnect Spotify so Replay Crate can keep recording your plays.', 'reconnect')
+    }
+    if (error.code === 'missing_scopes') {
+      return api('reauth', 'Reconnect Spotify for playback', 'Replay Crate needs new Spotify permissions to show and control playback.', 'reconnect')
+    }
+    if (error.code === 'no_active_device') {
+      return api('no_device', 'No Spotify device is active', 'Start playing on a phone, speaker or computer with Spotify, or pick a device.', 'retry')
+    }
+    if (error.code === 'premium_required') {
+      return api('premium', 'Spotify Premium needed', 'Spotify only lets apps control playback on Premium accounts.', 'home')
+    }
+    if (error.code === 'command_refused') {
+      return api('refused', "Spotify couldn't do that", refusal(error.reason), 'retry')
     }
     if (error.status === 429 || error.code === 'rate_limited') {
       const wait = error.retryAfter ? `in ${error.retryAfter} seconds` : 'in a minute'
