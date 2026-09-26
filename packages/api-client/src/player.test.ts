@@ -37,6 +37,7 @@ const playback = (overrides: Partial<Playback> = {}): Playback => ({
     explicit: false,
     album: { id: 'a1', name: 'Album', imageUrl: null, thumbUrl: null },
     artists: [],
+    rating: null,
   },
   disallows: [],
   ...overrides,

@@ -198,6 +198,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tracks/{id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Rate a track
+         * @description 1 to 5 stars, replacing any earlier rating. A track the app hasn't seen yet is fetched from Spotify first.
+         */
+        put: operations["rateTrack"];
+        post?: never;
+        /**
+         * Clear a rating
+         * @description Back to unrated. Clearing an unrated track is fine too.
+         */
+        delete: operations["clearTrackRating"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tracks/{id}": {
         parameters: {
             query?: never;
@@ -813,6 +837,7 @@ export interface components {
                     thumbUrl: string | null;
                 };
                 artists: components["schemas"]["ArtistRef"][];
+                rating: components["schemas"]["Rating"];
             };
         };
         ContextRef: {
@@ -827,6 +852,8 @@ export interface components {
             id: string;
             name: string;
         };
+        /** @example 4 */
+        Rating: number | null;
         LibraryTrack: {
             track: {
                 id: string;
@@ -839,6 +866,7 @@ export interface components {
                     thumbUrl: string | null;
                 };
                 artists: components["schemas"]["ArtistRef"][];
+                rating: components["schemas"]["Rating"];
             };
             playCount: number;
             /**
@@ -851,6 +879,15 @@ export interface components {
              * @example 2026-09-21T12:00:00.000Z
              */
             lastPlayedAt: string;
+        };
+        ForbiddenError: {
+            /** @enum {string} */
+            error: "forbidden";
+            message?: string;
+        };
+        NotFoundError: {
+            /** @enum {string} */
+            error: "not_found";
         };
         TrackDetail: {
             track: {
@@ -866,6 +903,7 @@ export interface components {
                     releaseDate: string | null;
                 };
                 artists: components["schemas"]["ArtistRef"][];
+                rating: components["schemas"]["Rating"];
             };
             stats: {
                 playCount: number;
@@ -904,15 +942,6 @@ export interface components {
                 thumbUrl: string | null;
             }[];
         };
-        NotFoundError: {
-            /** @enum {string} */
-            error: "not_found";
-        };
-        ForbiddenError: {
-            /** @enum {string} */
-            error: "forbidden";
-            message?: string;
-        };
         PlaylistSummary: {
             id: string;
             name: string;
@@ -948,6 +977,7 @@ export interface components {
                     thumbUrl: string | null;
                 };
                 artists: components["schemas"]["ArtistRef"][];
+                rating: components["schemas"]["Rating"];
             };
             playCount: number;
             /** @description Plays from this playlist. */
@@ -976,6 +1006,7 @@ export interface components {
             imageUrl: string | null;
             plays: number;
             minutes: number;
+            rating: components["schemas"]["Rating"] & unknown;
         };
         SpotifyTopItem: {
             rank: number;
@@ -1085,6 +1116,7 @@ export interface components {
                 thumbUrl: string | null;
             };
             artists: components["schemas"]["ArtistRef"][];
+            rating: components["schemas"]["Rating"];
         };
         PlayerEpisode: {
             /** @enum {string} */
@@ -1589,6 +1621,148 @@ export interface operations {
                         total: number;
                     };
                 };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    rateTrack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Spotify track id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    rating: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Rated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        rating: number;
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+            /** @description reauth_required */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthRequiredError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+            /** @description rate_limited */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedError"];
+                };
+            };
+        };
+    };
+    clearTrackRating: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Spotify track id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unrated. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description invalid_request */
             400: {

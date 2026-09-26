@@ -175,6 +175,7 @@ describe('history', () => {
             { id: 'art-1', name: 'Band' },
             { id: 'art-2', name: 'Guest' },
           ],
+          rating: null,
         },
       })
       expect(body.items[1].context).toBeNull()

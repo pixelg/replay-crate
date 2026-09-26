@@ -5,7 +5,8 @@ import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { loadTrackArtists } from '../history/queries.ts'
 import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
-import { ArtistRef, IsoDateTime, jsonResponse } from '../lib/schemas.ts'
+import { ArtistRef, IsoDateTime, jsonResponse, Rating } from '../lib/schemas.ts'
+import { loadRatings } from '../tracks/ratings.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { syncPlaylists } from '../sync/playlists.ts'
 
@@ -108,6 +109,7 @@ const get = createRoute({
                 explicit: z.boolean(),
                 album: z.object({ id: z.string(), name: z.string(), thumbUrl: z.string().nullable() }),
                 artists: z.array(ArtistRef),
+                rating: Rating,
               }),
               playCount: z.number().int(),
               playsHere: z.number().int().openapi({ description: 'Plays from this playlist.' }),
@@ -268,6 +270,11 @@ export function playlistRoutes(deps: AppDeps) {
           db,
           items.map((item) => item.trackId),
         )
+        const ratings = await loadRatings(
+          db,
+          user.id,
+          items.map((item) => item.trackId),
+        )
         const [playsFrom] = await db
           .select({ total: count() })
           .from(plays)
@@ -300,6 +307,7 @@ export function playlistRoutes(deps: AppDeps) {
                   explicit: item.explicit,
                   album: { id: item.albumId, name: item.albumName, thumbUrl: item.albumThumbUrl },
                   artists: artistsByTrack.get(item.trackId) ?? [],
+                  rating: ratings.get(item.trackId) ?? null,
                 },
                 playCount: trackStats?.playCount ?? 0,
                 playsHere: trackStats?.playsHere ?? 0,

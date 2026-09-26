@@ -93,8 +93,8 @@ describe('stats', () => {
     it('ranks tracks by plays', async () => {
       const body = await json(await get('/api/v1/stats/top?type=tracks&range=30d'))
       expect(body.items).toEqual([
-        { rank: 1, id: 'loop', name: 'Loop', subtitle: 'Band, Guest', imageUrl: 'https://i.scdn.co/alb-a-64', plays: 4, minutes: 13 },
-        { rank: 2, id: 'fresh', name: 'Fresh', subtitle: 'Band', imageUrl: 'https://i.scdn.co/alb-a-64', plays: 1, minutes: 3 },
+        { rank: 1, id: 'loop', name: 'Loop', subtitle: 'Band, Guest', imageUrl: 'https://i.scdn.co/alb-a-64', plays: 4, minutes: 13, rating: null },
+        { rank: 2, id: 'fresh', name: 'Fresh', subtitle: 'Band', imageUrl: 'https://i.scdn.co/alb-a-64', plays: 1, minutes: 3, rating: null },
       ])
     })
 

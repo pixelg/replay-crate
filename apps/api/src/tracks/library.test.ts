@@ -58,6 +58,7 @@ describe('GET /api/v1/tracks', () => {
         explicit: false,
         album: { id: expect.any(String), name: expect.any(String), thumbUrl: expect.any(String) },
         artists: [expect.objectContaining({ name: expect.any(String) })],
+        rating: null,
       },
       playCount: 3,
       firstPlayedAt: '2026-09-19T08:00:00.000Z',

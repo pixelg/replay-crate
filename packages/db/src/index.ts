@@ -12,5 +12,6 @@ export type {
   Session,
   SyncGap,
   Track,
+  TrackRating,
   User,
 } from './schema/index.ts'

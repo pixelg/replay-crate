@@ -11,7 +11,7 @@ import { jsonBody, jsonResponse } from '../lib/schemas.ts'
 import { getAccessToken } from '../spotify/access-token.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
-import { Device, Playback, Queue, toDevice, toItem, toPlayback } from './present.ts'
+import { Device, Playback, Queue, ratingsFor, toDevice, toItem, toPlayback } from './present.ts'
 
 /** Scopes the player needs; users who connected before it existed lack them. */
 const PLAYER_SCOPES = ['user-read-playback-state', 'user-read-currently-playing', 'user-modify-playback-state']
@@ -179,14 +179,21 @@ export function playerRoutes(deps: AppDeps) {
           const [known] = await db.select({ id: schema.tracks.id }).from(schema.tracks).where(eq(schema.tracks.id, item.id))
           if (!known) await upsertCatalog(db, [item])
         }
-        return c.json({ playback: await toPlayback(db, state) }, 200)
+        return c.json({ playback: await toPlayback(db, c.var.user.id, state) }, 200)
       })
 
       .openapi({ ...getQueue, middleware: auth }, async (c) => {
         const result = await withSpotify(c, (token) => spotify.getQueue(token))
         if (result.response) return result.response
         const { currently_playing, queue } = result.value
-        return c.json({ currentlyPlaying: currently_playing ? toItem(currently_playing) : null, queue: queue.map(toItem) }, 200)
+        const ratings = await ratingsFor(db, c.var.user.id, [...(currently_playing ? [currently_playing] : []), ...queue])
+        return c.json(
+          {
+            currentlyPlaying: currently_playing ? toItem(currently_playing, ratings) : null,
+            queue: queue.map((item) => toItem(item, ratings)),
+          },
+          200,
+        )
       })
 
       .openapi({ ...getDevices, middleware: auth }, async (c) => {

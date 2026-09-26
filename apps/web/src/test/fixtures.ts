@@ -40,7 +40,12 @@ const today = (minutes: number) =>
 /** `hour`:00 local time, `daysAgo` days back. */
 const dayAt = (daysAgo: number, hour: number) => new Date(startOfDay(daysAgo) + hour * 3_600_000).toISOString()
 
+/** The user's star ratings of the fictional tracks; the rest are unrated. */
+const ratings: Record<string, number> = { t1: 4, t3: 2 }
+const ratingOf = (id: string) => ratings[id] ?? null
+
 const track = (id: string, name: string, artists: string[], album: string): PlayItem['track'] => ({
+  rating: ratingOf(id),
   id,
   name,
   durationMs: 213_000,
@@ -91,6 +96,7 @@ export const playsPage: PlaysPage = { items: plays, nextCursor: null, lastSynced
 
 export const trackDetail: TrackDetail = {
   track: {
+    rating: ratingOf('t1'),
     id: 't1',
     name: 'Brass Monkey Business',
     durationMs: 213_000,
@@ -257,10 +263,10 @@ export const statsTop: StatsTop = {
   metric: 'plays',
   limit: 10,
   items: [
-    { rank: 1, id: 't1', name: 'Brass Monkey Business', subtitle: 'The Loop Collective', imageUrl: null, plays: 27, minutes: 96 },
-    { rank: 2, id: 't4', name: 'Searched And Played', subtitle: 'Direct Hit', imageUrl: null, plays: 18, minutes: 64 },
-    { rank: 3, id: 't2', name: 'Sunday Morning Static', subtitle: 'Paper Kites Club', imageUrl: null, plays: 9, minutes: 31 },
-    { rank: 4, id: 't3', name: 'A Very Long Track Title That Needs To Truncate Gracefully', subtitle: 'Somebody', imageUrl: null, plays: 1, minutes: 4 },
+    { rank: 1, id: 't1', name: 'Brass Monkey Business', subtitle: 'The Loop Collective', imageUrl: null, plays: 27, minutes: 96, rating: ratingOf('t1') },
+    { rank: 2, id: 't4', name: 'Searched And Played', subtitle: 'Direct Hit', imageUrl: null, plays: 18, minutes: 64, rating: ratingOf('t4') },
+    { rank: 3, id: 't2', name: 'Sunday Morning Static', subtitle: 'Paper Kites Club', imageUrl: null, plays: 9, minutes: 31, rating: ratingOf('t2') },
+    { rank: 4, id: 't3', name: 'A Very Long Track Title That Needs To Truncate Gracefully', subtitle: 'Somebody', imageUrl: null, plays: 1, minutes: 4, rating: ratingOf('t3') },
   ],
 }
 
@@ -342,6 +348,7 @@ export const devices: Device[] = [
 
 const playerTrack = (id: string, name: string, artists: string[], album: string): PlayerItem => ({
   type: 'track',
+  rating: ratingOf(id),
   id,
   uri: `spotify:track:${id}`,
   name,

@@ -16,6 +16,9 @@ export const ContextRef = z
   })
   .openapi('ContextRef')
 
+/** The user's 1–5 star rating of a track; null when unrated. */
+export const Rating = z.number().int().min(1).max(5).nullable().openapi('Rating', { example: 4 })
+
 /** `{ json: schema }` for a route's request body. */
 export const jsonBody = <T extends z.ZodType>(schema: T) => ({
   required: true,
