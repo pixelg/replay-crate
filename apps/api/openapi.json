@@ -1009,6 +1009,365 @@
           "done"
         ],
         "description": "null if there has never been an import."
+      },
+      "Playback": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "device": {
+            "$ref": "#/components/schemas/Device"
+          },
+          "isPlaying": {
+            "type": "boolean"
+          },
+          "progressMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Position in the item when Spotify answered."
+          },
+          "shuffle": {
+            "type": "boolean"
+          },
+          "repeat": {
+            "type": "string",
+            "enum": [
+              "off",
+              "track",
+              "context"
+            ]
+          },
+          "context": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ContextRef"
+              },
+              {
+                "description": "What the item plays from; named when the app knows it."
+              }
+            ]
+          },
+          "item": {
+            "$ref": "#/components/schemas/PlayerItem"
+          },
+          "disallows": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Controls Spotify won't allow right now, e.g. skipping_prev on a context's first track.",
+            "example": [
+              "skipping_prev"
+            ]
+          }
+        },
+        "required": [
+          "device",
+          "isPlaying",
+          "progressMs",
+          "shuffle",
+          "repeat",
+          "context",
+          "item",
+          "disallows"
+        ],
+        "description": "Null when no device is active."
+      },
+      "Device": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null for devices Spotify cannot address directly."
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "example": "Computer"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "isRestricted": {
+            "type": "boolean",
+            "description": "No remote control at all; commands to it fail."
+          },
+          "isPrivateSession": {
+            "type": "boolean"
+          },
+          "volumePercent": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "supportsVolume": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "isActive",
+          "isRestricted",
+          "isPrivateSession",
+          "volumePercent",
+          "supportsVolume"
+        ]
+      },
+      "PlayerItem": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/PlayerTrack"
+          },
+          {
+            "$ref": "#/components/schemas/PlayerEpisode"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Null for ads, and when nothing is loaded."
+      },
+      "PlayerTrack": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "track"
+            ]
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null for local files."
+          },
+          "uri": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "explicit": {
+            "type": "boolean"
+          },
+          "album": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "imageUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "thumbUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "imageUrl",
+              "thumbUrl"
+            ]
+          },
+          "artists": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArtistRef"
+            }
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "uri",
+          "name",
+          "durationMs",
+          "explicit",
+          "album",
+          "artists"
+        ]
+      },
+      "PlayerEpisode": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "episode"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "uri": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "explicit": {
+            "type": "boolean"
+          },
+          "show": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thumbUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "uri",
+          "name",
+          "durationMs",
+          "explicit",
+          "show",
+          "imageUrl",
+          "thumbUrl"
+        ]
+      },
+      "PremiumRequiredError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "premium_required"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "description": "The Spotify account isn't Premium, which every player call needs."
+      },
+      "MissingScopesError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "missing_scopes"
+            ]
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What reconnecting Spotify would grant."
+          }
+        },
+        "required": [
+          "error",
+          "scopes"
+        ],
+        "description": "The user connected before the app asked for these scopes."
+      },
+      "CommandRefusedError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "command_refused"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Spotify's reason, e.g. VOLUME_CONTROL_DISALLOW, NO_SPECIFIC_TRACK, DEVICE_NOT_CONTROLLABLE."
+          }
+        },
+        "required": [
+          "error",
+          "reason"
+        ],
+        "description": "Spotify refused the command for the current device or item."
+      },
+      "NoActiveDeviceError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "no_active_device"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "description": "No Spotify device is active. Open Spotify somewhere, or pass a `deviceId`."
+      },
+      "PlayerQueue": {
+        "type": "object",
+        "properties": {
+          "currentlyPlaying": {
+            "$ref": "#/components/schemas/PlayerItem"
+          },
+          "queue": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerItem"
+            },
+            "description": "Up next: the user's queue, then the rest of the context."
+          }
+        },
+        "required": [
+          "currentlyPlaying",
+          "queue"
+        ]
       }
     },
     "parameters": {}
@@ -3706,6 +4065,1735 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/player": {
+      "get": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "getPlayback",
+        "summary": "What is playing",
+        "description": "The active device, the item and how far in, shuffle and repeat. The item's track is added to the catalog, so it can be linked and rated.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What is playing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "playback": {
+                      "$ref": "#/components/schemas/Playback"
+                    }
+                  },
+                  "required": [
+                    "playback"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden | premium_required | missing_scopes | command_refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForbiddenError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PremiumRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MissingScopesError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandRefusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | no_active_device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoActiveDeviceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/player/queue": {
+      "get": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "getPlayerQueue",
+        "summary": "Up next",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Up next",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerQueue"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden | premium_required | missing_scopes | command_refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForbiddenError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PremiumRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MissingScopesError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandRefusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | no_active_device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoActiveDeviceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "addToQueue",
+        "summary": "Add to the queue",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The device to act on. Defaults to the active one."
+                  },
+                  "uri": {
+                    "type": "string",
+                    "description": "A spotify:track: or spotify:episode: URI."
+                  }
+                },
+                "required": [
+                  "uri"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Sent to the device."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden | premium_required | missing_scopes | command_refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForbiddenError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PremiumRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MissingScopesError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandRefusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | no_active_device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoActiveDeviceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/player/devices": {
+      "get": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "getPlayerDevices",
+        "summary": "Devices you can play on",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Devices you can play on",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "devices": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Device"
+                      }
+                    }
+                  },
+                  "required": [
+                    "devices"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden | premium_required | missing_scopes | command_refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForbiddenError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PremiumRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MissingScopesError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandRefusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | no_active_device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoActiveDeviceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/player/play": {
+      "put": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "play",
+        "summary": "Play or resume",
+        "description": "With `uris` or `contextUri`, starts playing them; with neither, resumes what was paused.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The device to act on. Defaults to the active one."
+                  },
+                  "uris": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "description": "Tracks to play, as spotify:track: URIs."
+                  },
+                  "contextUri": {
+                    "type": "string",
+                    "description": "An album, playlist or artist to play.",
+                    "example": "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"
+                  },
+                  "offset": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "position": {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        },
+                        "required": [
+                          "position"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "uri": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "uri"
+                        ]
+                      }
+                    ],
+                    "description": "Where in `uris` or the context to start."
+                  },
+                  "positionMs": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Sent to the device."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden | premium_required | missing_scopes | command_refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForbiddenError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PremiumRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MissingScopesError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandRefusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | no_active_device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoActiveDeviceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/player/pause": {
+      "put": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "pause",
+        "summary": "Pause",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The device to act on. Defaults to the active one."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Sent to the device."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden | premium_required | missing_scopes | command_refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForbiddenError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PremiumRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MissingScopesError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandRefusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | no_active_device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoActiveDeviceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/player/next": {
+      "post": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "skipToNext",
+        "summary": "Skip to the next item",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The device to act on. Defaults to the active one."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Sent to the device."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden | premium_required | missing_scopes | command_refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForbiddenError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PremiumRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MissingScopesError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandRefusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | no_active_device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoActiveDeviceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/player/previous": {
+      "post": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "skipToPrevious",
+        "summary": "Go back",
+        "description": "To the previous item, or to the start of this one once a few seconds in.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The device to act on. Defaults to the active one."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Sent to the device."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden | premium_required | missing_scopes | command_refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForbiddenError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PremiumRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MissingScopesError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandRefusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | no_active_device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoActiveDeviceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/player/seek": {
+      "put": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "seek",
+        "summary": "Seek",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The device to act on. Defaults to the active one."
+                  },
+                  "positionMs": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "positionMs"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Sent to the device."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden | premium_required | missing_scopes | command_refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForbiddenError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PremiumRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MissingScopesError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandRefusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | no_active_device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoActiveDeviceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/player/repeat": {
+      "put": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "setRepeat",
+        "summary": "Set repeat",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The device to act on. Defaults to the active one."
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "off",
+                      "track",
+                      "context"
+                    ]
+                  }
+                },
+                "required": [
+                  "state"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Sent to the device."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden | premium_required | missing_scopes | command_refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForbiddenError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PremiumRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MissingScopesError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandRefusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | no_active_device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoActiveDeviceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/player/shuffle": {
+      "put": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "setShuffle",
+        "summary": "Turn shuffle on or off",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The device to act on. Defaults to the active one."
+                  },
+                  "on": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "on"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Sent to the device."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden | premium_required | missing_scopes | command_refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForbiddenError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PremiumRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MissingScopesError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandRefusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | no_active_device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoActiveDeviceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/player/volume": {
+      "put": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "setVolume",
+        "summary": "Set the volume",
+        "description": "Devices with `supportsVolume: false` refuse (command_refused, VOLUME_CONTROL_DISALLOW).",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The device to act on. Defaults to the active one."
+                  },
+                  "percent": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  }
+                },
+                "required": [
+                  "percent"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Sent to the device."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden | premium_required | missing_scopes | command_refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForbiddenError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PremiumRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MissingScopesError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandRefusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | no_active_device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoActiveDeviceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/player/device": {
+      "put": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "transferPlayback",
+        "summary": "Move playback to a device",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "play": {
+                    "type": "boolean",
+                    "description": "Start playing there; otherwise keep the current state."
+                  }
+                },
+                "required": [
+                  "deviceId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Sent to the device."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden | premium_required | missing_scopes | command_refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForbiddenError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PremiumRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MissingScopesError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandRefusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | no_active_device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoActiveDeviceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
                 }
               }
             }

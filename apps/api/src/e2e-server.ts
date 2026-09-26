@@ -25,15 +25,19 @@ library.remember([
   track('4uLU6hMCjMI75M1A2tKUQC', { name: 'Imported Oldie', album: ['vault', 'From The Vault'], artists: [['keepers', 'Vault Keepers']] }),
 ])
 
-// Plays relative to server start, so "Today" / "Yesterday" headings always make sense.
+// Plays pinned to calendar days from server start, so "Today" / "Yesterday" headings hold at any
+// time of day (hour offsets cross midnight early in the morning).
 const startedAt = Date.now()
-const ago = (minutes: number) => new Date(startedAt - minutes * 60_000).toISOString()
+const midnight = new Date(startedAt).setHours(0, 0, 0, 0)
+/** `minutes` before start, but never before today's midnight (then seconds after it, keeping order). */
+const today = (minutes: number) => new Date(Math.max(startedAt - minutes * 60_000, midnight + (60 - minutes) * 1_000)).toISOString()
+const yesterdayAt = (hour: number) => new Date(midnight - (24 - hour) * 3_600_000).toISOString()
 const recentlyPlayed = () => [
-  play(brass, ago(5), playlistContext('late-night')),
-  play(sunday, ago(9), playlistContext('late-night')),
-  play(brass, ago(40), { type: 'album', uri: 'spotify:album:dusty' }),
-  play(searched, ago(60 * 26), null),
-  play(brass, ago(60 * 27), playlistContext('late-night')),
+  play(brass, today(5), playlistContext('late-night')),
+  play(sunday, today(9), playlistContext('late-night')),
+  play(brass, today(40), { type: 'album', uri: 'spotify:album:dusty' }),
+  play(searched, yesterdayAt(22), null),
+  play(brass, yesterdayAt(21), playlistContext('late-night')),
 ]
 
 const { db } = await createTestDb()
