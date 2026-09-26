@@ -11,6 +11,26 @@ export {
   parsePageSize,
   type PageSize,
 } from './pagination.ts'
+export {
+  ENTITY_TYPES,
+  NUMBER_FIELDS,
+  TEXT_FIELDS,
+  addFilter,
+  describeFilter,
+  formatFilter,
+  formatSearchQuery,
+  parseSearchQuery,
+  removeSpan,
+  type EntityType,
+  type NewFilter,
+  type NumberField,
+  type NumberRange,
+  type QueryIssue,
+  type SearchFilter,
+  type SearchQuery,
+  type Span,
+  type TextField,
+} from './search-query.ts'
 export { parseSpotifyUri, type SpotifyUri } from './spotify-uri.ts'
 export {
   isStreamingHistoryFile,
