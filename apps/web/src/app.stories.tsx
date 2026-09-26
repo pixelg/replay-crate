@@ -794,6 +794,8 @@ export const Player = meta.story({
     const panel = within(await main.findByRole('region', { name: 'Brass Monkey Business' }))
     await expect(panel.getByText('Playing from Late Night Crate')).toBeVisible()
     await expect(panel.getByRole('slider', { name: 'Seek' })).toHaveAttribute('aria-valuetext', expect.stringMatching(/^1:2\d of 3:33$/))
+    // The position counts up; the length beside it stays put.
+    await expect(panel.getByText('3:33')).toBeVisible()
     await expect(panel.getByRole('slider', { name: 'Volume' })).toHaveAttribute('aria-valuetext', '70%')
     // Up next and the devices, the active one first.
     await expect(await main.findByText('The History of the Breakbeat')).toBeVisible()

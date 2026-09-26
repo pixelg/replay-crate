@@ -36,7 +36,8 @@ export function MiniPlayer({ className }: { className?: string }) {
         <p className="hidden shrink-0 text-xs text-muted-foreground tabular-nums lg:block">
           {formatDuration(progressMs)}
           <span aria-hidden> / </span>
-          <span className="sr-only">, remaining </span>-{formatDuration(Math.max(0, item.durationMs - progressMs))}
+          <span className="sr-only"> of </span>
+          {formatDuration(item.durationMs)}
         </p>
       )}
       {upNext && <UpNext item={upNext} />}
