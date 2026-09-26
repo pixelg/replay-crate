@@ -7,6 +7,8 @@ import {
   queueQueryOptions,
   sendPlayerCommand,
   type Playback,
+  type PlayContext,
+  type PlayerItem,
   type PlayerCommand,
 } from '@replay-crate/api-client'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -56,6 +58,20 @@ export function usePlayingTrackId() {
     useQuery({
       ...playbackQueryOptions(api),
       select: (playback) => (playback?.isPlaying && playback.item?.type === 'track' ? playback.item.id : null),
+    }).data ?? null
+  )
+}
+
+/**
+ * What's playing right now (not paused) and where from, or null. Re-renders only when that
+ * changes, not as the position ticks.
+ */
+export function useNowPlaying(): { item: PlayerItem; context: PlayContext | null } | null {
+  return (
+    useQuery({
+      ...playbackQueryOptions(api),
+      select: (playback) =>
+        playback?.isPlaying && playback.item ? { item: playback.item, context: playback.context } : null,
     }).data ?? null
   )
 }

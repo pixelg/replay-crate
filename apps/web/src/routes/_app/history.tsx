@@ -5,14 +5,14 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { CircleDashed, History, ListChecks, RefreshCw } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { EmptyState } from '../../components/empty-state.tsx'
-import { HistoryList } from '../../components/history-list.tsx'
+import { HistoryList, NowPlayingSection } from '../../components/history-list.tsx'
 import { InlineError } from '../../components/inline-error.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
 import { SelectionBar } from '../../components/selection-bar.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { api } from '../../lib/api.ts'
 import { cn } from 'cn'
-import { usePlayingTrackId } from '../../lib/use-player.ts'
+import { useNowPlaying, usePlayingTrackId } from '../../lib/use-player.ts'
 import { useSync } from '../../lib/use-sync.ts'
 
 export const Route = createFileRoute('/_app/history')({
@@ -27,6 +27,7 @@ function HistoryPage() {
   const { sync, isSyncing, error: syncError } = useSync()
   const { data: gaps = [] } = useQuery(gapsQueryOptions(api))
   const playingTrackId = usePlayingTrackId()
+  const nowPlaying = useNowPlaying()
   const plays = data.pages.flatMap((page) => page.items)
   const lastSyncedAt = data.pages[0]?.lastSyncedAt
 
@@ -79,6 +80,8 @@ function HistoryPage() {
           </span>
         </p>
       )}
+
+      {nowPlaying && <NowPlayingSection {...nowPlaying} selecting={selected !== null} />}
 
       {plays.length ? (
         <>
