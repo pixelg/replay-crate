@@ -1,10 +1,13 @@
 import {
+  Ban,
   Bug,
   CircleHelp,
   CloudOff,
+  Crown,
   Hourglass,
   KeyRound,
   LogIn,
+  MonitorSpeaker,
   ServerCrash,
   TriangleAlert,
   type LucideIcon,
@@ -22,6 +25,9 @@ const icons: Record<ErrorKind, LucideIcon> = {
   reauth: KeyRound,
   not_found: CircleHelp,
   login: TriangleAlert,
+  no_device: MonitorSpeaker,
+  premium: Crown,
+  refused: Ban,
   app: Bug,
 }
 

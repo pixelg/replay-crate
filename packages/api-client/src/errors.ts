@@ -20,6 +20,8 @@ export class ApiError extends Error {
   readonly endpoint: string
   /** Seconds to wait, for rate limits. */
   readonly retryAfter: number | null
+  /** Spotify's reason when the player refused a command (`command_refused`), e.g. VOLUME_CONTROL_DISALLOW. */
+  readonly reason: string | null
 
   constructor(init: {
     status: number
@@ -27,6 +29,7 @@ export class ApiError extends Error {
     endpoint: string
     requestId?: string | null
     retryAfter?: number | null
+    reason?: string | null
     cause?: unknown
   }) {
     super(`${init.endpoint} failed: ${init.status || 'no response'} ${init.code}`, { cause: init.cause })
@@ -36,17 +39,24 @@ export class ApiError extends Error {
     this.endpoint = init.endpoint
     this.requestId = init.requestId ?? null
     this.retryAfter = init.retryAfter ?? null
+    this.reason = init.reason ?? null
   }
 
   /** Builds an ApiError from an error response's JSON body (`{ error, retryAfter?, requestId? }`). */
   static async fromResponse(res: ResponseLike, endpoint: string): Promise<ApiError> {
-    const body = (await res.json().catch(() => ({}))) as { error?: unknown; retryAfter?: unknown; requestId?: unknown }
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: unknown
+      retryAfter?: unknown
+      requestId?: unknown
+      reason?: unknown
+    }
     return new ApiError({
       status: res.status,
       code: typeof body.error === 'string' ? body.error : `http_${res.status}`,
       endpoint,
       requestId: res.headers.get('X-Request-Id') ?? (typeof body.requestId === 'string' ? body.requestId : null),
       retryAfter: typeof body.retryAfter === 'number' ? body.retryAfter : null,
+      reason: typeof body.reason === 'string' ? body.reason : null,
     })
   }
 }

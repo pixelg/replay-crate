@@ -53,6 +53,29 @@ export const SpotifyAccessExpired = meta.story({
   play: expectPage('Spotify access expired', 'Reconnect Spotify', 'api'),
 })
 
+export const NoActiveDevice = meta.story({
+  args: { error: apiError(409, 'no_active_device', { endpoint: 'PUT /api/v1/player/play' }) },
+  play: expectPage('No Spotify device is active', 'Try again', 'api'),
+})
+
+export const PremiumRequired = meta.story({
+  args: { error: apiError(403, 'premium_required', { endpoint: 'GET /api/v1/player' }) },
+  play: expectPage('Spotify Premium needed', 'Go to History', 'api'),
+})
+
+export const PlayerNeedsPermissions = meta.story({
+  args: { error: apiError(403, 'missing_scopes', { endpoint: 'GET /api/v1/player' }) },
+  play: expectPage('Reconnect Spotify for playback', 'Reconnect Spotify', 'api'),
+})
+
+export const CommandRefused = meta.story({
+  args: { error: apiError(403, 'command_refused', { endpoint: 'PUT /api/v1/player/volume', reason: 'VOLUME_CONTROL_DISALLOW' }) },
+  play: async (context) => {
+    await expectPage("Spotify couldn't do that", 'Try again', 'api')(context)
+    await expect(context.canvas.getByText("This device doesn't let apps change its volume.")).toBeVisible()
+  },
+})
+
 export const LoginFailed = meta.story({
   args: { error: new LoginProblem('You cancelled the Spotify login.') },
   play: expectPage("Couldn't connect Spotify", 'Reconnect Spotify', 'app'),

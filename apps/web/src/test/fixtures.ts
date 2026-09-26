@@ -1,8 +1,12 @@
 import type {
+  Device,
   HistoryGap,
   ImportStatus,
   Me,
   PlaylistDetail,
+  Playback,
+  PlayerItem,
+  PlayerQueue,
   PlaylistsList,
   PlayItem,
   PlaysPage,
@@ -298,4 +302,84 @@ export const importDone: ImportStatus = {
   waitingPlays: 0,
   tracksToFetch: 0,
   done: true,
+}
+
+// Player. The laptop is playing "Brass Monkey Business" from Late Night Crate, 1:21 in.
+
+export const devices: Device[] = [
+  {
+    id: 'laptop',
+    name: 'Studio Laptop',
+    type: 'Computer',
+    isActive: true,
+    isRestricted: false,
+    isPrivateSession: false,
+    volumePercent: 70,
+    supportsVolume: true,
+  },
+  {
+    id: 'phone',
+    name: 'Pixel Phone',
+    type: 'Smartphone',
+    isActive: false,
+    isRestricted: false,
+    isPrivateSession: false,
+    volumePercent: 100,
+    supportsVolume: false,
+  },
+  {
+    id: 'kitchen',
+    name: 'Kitchen Speaker',
+    type: 'Speaker',
+    isActive: false,
+    isRestricted: false,
+    isPrivateSession: false,
+    volumePercent: 35,
+    supportsVolume: true,
+  },
+]
+
+const playerTrack = (id: string, name: string, artists: string[], album: string): PlayerItem => ({
+  type: 'track',
+  id,
+  uri: `spotify:track:${id}`,
+  name,
+  durationMs: 213_000,
+  explicit: false,
+  album: { id: `album-${id}`, name: album, imageUrl: null, thumbUrl: null },
+  artists: artists.map((artist, i) => ({ id: `${id}-artist-${i}`, name: artist })),
+})
+
+export const nowPlaying = playerTrack('t1', 'Brass Monkey Business', ['The Loop Collective', 'MC Vinyl'], 'Dusty Grooves')
+
+export const playback: Playback = {
+  device: devices[0]!,
+  isPlaying: true,
+  progressMs: 81_000,
+  shuffle: false,
+  repeat: 'off',
+  context: { type: 'playlist', uri: 'spotify:playlist:p1', name: 'Late Night Crate', imageUrl: null },
+  item: nowPlaying,
+  disallows: ['resuming'],
+}
+
+export const pausedPlayback: Playback = { ...playback, isPlaying: false, disallows: ['pausing'] }
+
+export const queue: PlayerQueue = {
+  currentlyPlaying: nowPlaying,
+  queue: [
+    playerTrack('t2', 'Sunday Morning Static', ['Paper Kites Club'], 'Sunday Sessions'),
+    playerTrack('t5', 'Crate Digger', ['Needle Drop'], 'Wax Poetics'),
+    {
+      type: 'episode',
+      id: 'e1',
+      uri: 'spotify:episode:e1',
+      name: 'The History of the Breakbeat',
+      durationMs: 2_700_000,
+      explicit: false,
+      show: { id: 's1', name: 'Sample Science' },
+      imageUrl: null,
+      thumbUrl: null,
+    },
+  ],
 }
