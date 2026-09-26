@@ -176,3 +176,18 @@ test('rates a track, and the rating stays', async ({ page }) => {
   await page.reload()
   await expect(rating.getByRole('radio', { name: '4 stars' })).toHaveAttribute('aria-checked', 'false')
 })
+
+test('keeps the chosen theme across reloads, applied before the app renders', async ({ page }) => {
+  await signIn(page)
+  const toggle = page.getByRole('button', { name: /^Switch to (dark|light) theme$/ }).filter({ visible: true })
+  const before = await page.locator('html').getAttribute('data-theme')
+  await toggle.click()
+  const after = before === 'dark' ? 'light' : 'dark'
+  await expect(page.locator('html')).toHaveAttribute('data-theme', after)
+
+  // The inline script in index.html sets it before the app's code even loads.
+  await page.route('**/assets/*.js', (route) => route.abort())
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', after)
+  await page.unroute('**/assets/*.js')
+})

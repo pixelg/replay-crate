@@ -4,6 +4,7 @@ import { ChevronsUpDown, Disc3, ExternalLink, LogOut, Radio } from 'lucide-react
 import type { ReactNode } from 'react'
 import { cn } from 'cn'
 import { useIsPlaying } from '../lib/use-player.ts'
+import { ThemeToggle } from './theme-toggle.tsx'
 import { MiniPlayer, MiniPlayerBar } from './mini-player.tsx'
 import { Toaster } from './ui/sonner.tsx'
 import { navItems } from './nav-items.ts'
@@ -34,8 +35,11 @@ export function AppShell({
       <aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-r border-border bg-muted p-4 md:flex">
         <Brand />
         <SidebarNav />
-        <div className="mt-auto border-t border-border pt-4">
-          <AccountMenu user={user} onLogout={onLogout} placement="sidebar" />
+        <div className="mt-auto flex items-center gap-1 border-t border-border pt-4">
+          <div className="min-w-0 flex-1">
+            <AccountMenu user={user} onLogout={onLogout} placement="sidebar" />
+          </div>
+          <ThemeToggle />
         </div>
       </aside>
 
@@ -53,7 +57,8 @@ export function AppShell({
             >
               <Radio aria-hidden className="size-5" />
             </Link>
-            {/* The sidebar holds the account menu from `md` up. */}
+            {/* The sidebar holds these from `md` up. */}
+            <ThemeToggle className="hover:bg-muted md:hidden" />
             <div className="md:hidden">
               <AccountMenu user={user} onLogout={onLogout} placement="header" />
             </div>

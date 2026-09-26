@@ -5,9 +5,11 @@ import { ApiStatus } from '../../components/api-status.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { buttonClasses } from '../../components/ui/button-classes.ts'
+import { Segmented } from '../../components/ui/segmented.tsx'
 import { UserAvatar } from '../../components/user-avatar.tsx'
 import { api } from '../../lib/api.ts'
 import { useLogout } from '../../lib/use-logout.ts'
+import { type ThemePreference, useTheme } from '../../lib/theme.ts'
 
 export const Route = createFileRoute('/_app/settings')({
   // Start the health check during navigation without blocking the page on it.
@@ -17,9 +19,16 @@ export const Route = createFileRoute('/_app/settings')({
   component: SettingsPage,
 })
 
+const themeOptions = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+] as const
+
 function SettingsPage() {
   const { data: me } = useSuspenseQuery(meQueryOptions(api))
   const logout = useLogout()
+  const { preference, setPreference } = useTheme()
 
   return (
     <>
@@ -40,6 +49,20 @@ function SettingsPage() {
             </div>
           </section>
         )}
+        <section className="rounded-lg border border-border bg-card p-4">
+          <h2 className="font-medium">Appearance</h2>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+              System follows your device's light or dark setting.
+            </p>
+            <Segmented<ThemePreference>
+              label="Theme"
+              value={preference}
+              onChange={setPreference}
+              options={themeOptions}
+            />
+          </div>
+        </section>
         <section className="rounded-lg border border-border bg-card p-4">
           <h2 className="font-medium">Import history</h2>
           <div className="mt-2 flex flex-wrap items-center gap-3">

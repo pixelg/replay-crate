@@ -11,9 +11,12 @@
  *   primary                   the brand orange: primary buttons, active tab, icons
  *   destructive               genuine errors (app bugs, destructive actions)
  *   chart-1..5                chart series
- * Dark mode follows the OS (prefers-color-scheme), so Tailwind's `dark:` works as-is.
+ * The dark tokens apply under <html data-theme="dark">, which src/lib/theme.ts (and the inline
+ * script in index.html) sets from the user's choice or the OS; Tailwind's `dark:` follows it too.
  * Keep tokens here so a future NativeWind app can share them.
  */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -53,7 +56,7 @@
 }
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --radius: 0.5rem;
 
   --background: oklch(0.985 0.003 80);
@@ -83,33 +86,32 @@
   --chart-5: oklch(0.55 0.03 60);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: oklch(0.17 0.005 60);
-    --foreground: oklch(0.95 0.005 80);
-    --card: oklch(0.22 0.006 60);
-    --card-foreground: oklch(0.95 0.005 80);
-    --popover: oklch(0.22 0.006 60);
-    --popover-foreground: oklch(0.95 0.005 80);
-    --primary: oklch(0.74 0.15 55);
-    --primary-foreground: oklch(0.2 0.02 50);
-    --secondary: oklch(0.14 0.005 60);
-    --secondary-foreground: oklch(0.95 0.005 80);
-    --muted: oklch(0.14 0.005 60);
-    --muted-foreground: oklch(0.72 0.01 70);
-    --accent: oklch(0.26 0.007 60);
-    --accent-foreground: oklch(0.95 0.005 80);
-    --destructive: oklch(0.72 0.17 25);
-    --border: oklch(0.3 0.008 60);
-    --input: oklch(0.34 0.008 60);
-    --ring: oklch(0.74 0.15 55);
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --background: oklch(0.17 0.005 60);
+  --foreground: oklch(0.95 0.005 80);
+  --card: oklch(0.22 0.006 60);
+  --card-foreground: oklch(0.95 0.005 80);
+  --popover: oklch(0.22 0.006 60);
+  --popover-foreground: oklch(0.95 0.005 80);
+  --primary: oklch(0.74 0.15 55);
+  --primary-foreground: oklch(0.2 0.02 50);
+  --secondary: oklch(0.14 0.005 60);
+  --secondary-foreground: oklch(0.95 0.005 80);
+  --muted: oklch(0.14 0.005 60);
+  --muted-foreground: oklch(0.72 0.01 70);
+  --accent: oklch(0.26 0.007 60);
+  --accent-foreground: oklch(0.95 0.005 80);
+  --destructive: oklch(0.72 0.17 25);
+  --border: oklch(0.3 0.008 60);
+  --input: oklch(0.34 0.008 60);
+  --ring: oklch(0.74 0.15 55);
 
-    --chart-1: oklch(0.74 0.15 55);
-    --chart-2: oklch(0.72 0.1 190);
-    --chart-3: oklch(0.82 0.13 85);
-    --chart-4: oklch(0.72 0.12 320);
-    --chart-5: oklch(0.68 0.03 60);
-  }
+  --chart-1: oklch(0.74 0.15 55);
+  --chart-2: oklch(0.72 0.1 190);
+  --chart-3: oklch(0.82 0.13 85);
+  --chart-4: oklch(0.72 0.12 320);
+  --chart-5: oklch(0.68 0.03 60);
 }
 
 @layer base {

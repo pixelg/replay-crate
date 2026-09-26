@@ -130,6 +130,42 @@ export const Settings = meta.story({
   },
 })
 
+export const TogglesThemeFromSidebar = meta.story({
+  args: { path: '/settings' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  play: async ({ canvas, userEvent }) => {
+    const sidebar = await canvas.findByRole('complementary')
+    const theme = await canvas.findByRole('group', { name: 'Theme' })
+    await expect(within(theme).getByRole('button', { name: 'System' })).toHaveAttribute('aria-pressed', 'true')
+
+    await userEvent.click(within(sidebar).getByRole('button', { name: 'Switch to dark theme' }))
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'))
+    // The sun/moon choice sticks, so Settings no longer says System.
+    await expect(within(theme).getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'true')
+
+    await userEvent.click(within(theme).getByRole('button', { name: 'Light' }))
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('light'))
+    await expect(within(sidebar).getByRole('button', { name: 'Switch to dark theme' })).toBeVisible()
+  },
+})
+
+export const HistoryDark = meta.story({
+  globals: { theme: 'dark', viewport: { value: 'desktop', isRotated: false } },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { name: 'Today' })).toBeVisible()
+    await expect(getComputedStyle(document.body).colorScheme).toBe('dark')
+  },
+})
+
+export const SettingsDarkOnPhone = meta.story({
+  args: { path: '/settings' },
+  globals: { theme: 'dark', viewport: { value: 'mobile2', isRotated: false } },
+  play: async ({ canvas }) => {
+    // Phones have no sidebar; the toggle sits in the top bar.
+    await expect(within(await canvas.findByRole('banner')).getByRole('button', { name: 'Switch to light theme' })).toBeVisible()
+  },
+})
+
 export const NavigatesBetweenPages = meta.story({
   play: async ({ canvas, userEvent }) => {
     const nav = await canvas.findByRole('navigation', { name: 'Main' })
