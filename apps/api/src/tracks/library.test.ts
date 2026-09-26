@@ -95,6 +95,36 @@ describe('GET /api/v1/tracks', () => {
     expect(await json(res)).toMatchObject({ error: 'invalid_request', issues: [{ path: 'cursor' }] })
   })
 
+  describe('by rating', () => {
+    const rate = (id: string, rating: number) =>
+      ctx.app.request(`/api/v1/tracks/${id}/rating`, {
+        method: 'PUT',
+        headers: { Cookie: cookie, Origin: 'http://127.0.0.1:5173', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating }),
+      })
+    beforeEach(async () => {
+      await rate('t-zebra', 5)
+      await rate('t-aria', 3)
+      await rate('t-deep', 5)
+    })
+
+    it('sorts highest first, ties by id, unrated last', async () => {
+      expect(await all('rating', 50)).toEqual(['Deep Cut', 'zebra', 'Aria', 'banger'])
+      expect(await all('rating', 1)).toEqual(await all('rating', 50))
+    })
+
+    it('keeps only tracks rated at least minRating, and counts just those', async () => {
+      const page = await json(await get('?sort=rating&minRating=4'))
+      expect(page.items.map((item: { track: { name: string; rating: number } }) => [item.track.name, item.track.rating])).toEqual([
+        ['Deep Cut', 5],
+        ['zebra', 5],
+      ])
+      expect(page.total).toBe(2)
+      expect((await json(await get('?minRating=1'))).total).toBe(3)
+      expect((await get('?minRating=6')).status).toBe(400)
+    })
+  })
+
   it("only lists the user's own plays", async () => {
     ctx.spotify.getCurrentUser.mockResolvedValueOnce({ id: 'someone-else', display_name: 'Other', images: [] })
     ctx.spotify.getRecentlyPlayed.mockResolvedValueOnce({ items: [], cursors: null })

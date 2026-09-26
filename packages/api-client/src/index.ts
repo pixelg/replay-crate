@@ -15,7 +15,7 @@ export type PlayContext = NonNullable<PlayItem['context']>
 export type TrackDetail = InferResponseType<ApiClient['tracks'][':id']['$get'], 200>
 export type LibraryPage = InferResponseType<ApiClient['tracks']['$get'], 200>
 export type LibraryTrack = LibraryPage['items'][number]
-export type TrackSort = 'plays' | 'last_played' | 'name'
+export type TrackSort = 'plays' | 'last_played' | 'name' | 'rating'
 export type SyncResult = InferResponseType<ApiClient['history']['sync']['$post'], 200>
 export type PlaylistsList = InferResponseType<ApiClient['playlists']['$get'], 200>
 export type PlaylistSummary = PlaylistsList['playlists'][number]
@@ -96,13 +96,21 @@ export async function setTrackRating(api: ApiClient, trackId: string, rating: nu
   await expectOk(await send(endpoint, () => api.tracks[':id'].rating.$put({ param: { id: trackId }, json: { rating } })), endpoint)
 }
 
-/** Every track played, one page at a time; each page's `nextCursor` fetches the next. */
-export const tracksInfiniteQueryOptions = (api: ApiClient, sort: TrackSort) =>
+/**
+ * Every track played (or only those rated at least `minRating`), one page at a time; each
+ * page's `nextCursor` fetches the next.
+ */
+export const tracksInfiniteQueryOptions = (api: ApiClient, sort: TrackSort, minRating?: number) =>
   infiniteQueryOptions({
-    queryKey: ['tracks', 'library', sort],
+    queryKey: ['tracks', 'library', sort, minRating ?? null],
     queryFn: async ({ pageParam }): Promise<LibraryPage> => {
       const endpoint = 'GET /api/v1/tracks'
-      const res = await send(endpoint, () => api.tracks.$get({ query: { sort, ...(pageParam && { cursor: pageParam }) } }))
+      const query = {
+        sort,
+        ...(minRating && { minRating: String(minRating) }),
+        ...(pageParam && { cursor: pageParam }),
+      }
+      const res = await send(endpoint, () => api.tracks.$get({ query }))
       return expectOk(res, endpoint)
     },
     initialPageParam: null as string | null,

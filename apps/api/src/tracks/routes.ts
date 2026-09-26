@@ -67,13 +67,15 @@ const listLibrary = createRoute({
   operationId: 'listTracks',
   summary: 'Every track you have played',
   description:
-    'With play counts and last plays. `plays` and `last_played` sort highest and newest first, `name` A–Z. ' +
-    'Pass `nextCursor` back as `cursor` for the next page (with the same `sort`).',
+    'With play counts, last plays and ratings. `plays`, `last_played` and `rating` sort highest and newest first ' +
+    '(unrated tracks last), `name` A–Z. `minRating` keeps only tracks rated that many stars or more. ' +
+    'Pass `nextCursor` back as `cursor` for the next page (with the same `sort` and `minRating`).',
   security: signedIn,
   request: {
     query: z.object({
       sort: z.enum(TRACK_SORTS).default('plays'),
       limit: z.coerce.number().int().min(1).max(100).default(50),
+      minRating: z.coerce.number().int().min(1).max(5).optional().openapi({ description: 'Only tracks rated at least this.' }),
       cursor: z
         .string()
         .optional()
@@ -91,7 +93,7 @@ const listLibrary = createRoute({
       z.object({
         items: z.array(LibraryTrack),
         nextCursor: z.string().nullable().openapi({ description: 'null on the last page.' }),
-        total: z.number().int().openapi({ description: 'Distinct tracks played, across all pages.' }),
+        total: z.number().int().openapi({ description: 'Tracks across all pages (matching `minRating`, if given).' }),
       }),
       'A page of tracks.',
     ),
@@ -147,8 +149,8 @@ export function trackRoutes(deps: AppDeps) {
 
   return createRouter()
     .openapi({ ...listLibrary, middleware: auth }, async (c) => {
-      const { sort, limit, cursor } = c.req.valid('query')
-      return c.json(await listTracks(db, c.var.user.id, { sort, limit, cursor }), 200)
+      const { sort, limit, cursor, minRating } = c.req.valid('query')
+      return c.json(await listTracks(db, c.var.user.id, { sort, limit, cursor, minRating }), 200)
     })
     .openapi({ ...rate, middleware: auth }, async (c) => {
       const { id } = c.req.valid('param')

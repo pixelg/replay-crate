@@ -2144,7 +2144,7 @@
         ],
         "operationId": "listTracks",
         "summary": "Every track you have played",
-        "description": "With play counts and last plays. `plays` and `last_played` sort highest and newest first, `name` A–Z. Pass `nextCursor` back as `cursor` for the next page (with the same `sort`).",
+        "description": "With play counts, last plays and ratings. `plays`, `last_played` and `rating` sort highest and newest first (unrated tracks last), `name` A–Z. `minRating` keeps only tracks rated that many stars or more. Pass `nextCursor` back as `cursor` for the next page (with the same `sort` and `minRating`).",
         "security": [
           {
             "session": []
@@ -2160,7 +2160,8 @@
               "enum": [
                 "plays",
                 "last_played",
-                "name"
+                "name",
+                "rating"
               ],
               "default": "plays"
             },
@@ -2177,6 +2178,18 @@
             },
             "required": false,
             "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5,
+              "description": "Only tracks rated at least this."
+            },
+            "required": false,
+            "description": "Only tracks rated at least this.",
+            "name": "minRating",
             "in": "query"
           },
           {
@@ -2213,7 +2226,7 @@
                     },
                     "total": {
                       "type": "integer",
-                      "description": "Distinct tracks played, across all pages."
+                      "description": "Tracks across all pages (matching `minRating`, if given)."
                     }
                   },
                   "required": [
@@ -2665,6 +2678,32 @@
                             "minimum": 7,
                             "maximum": 3650,
                             "default": 90
+                          },
+                          "limit": {
+                            "type": "integer",
+                            "minimum": 5,
+                            "maximum": 200,
+                            "default": 50
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "top_rated"
+                            ]
+                          },
+                          "minRating": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 5,
+                            "default": 4
                           },
                           "limit": {
                             "type": "integer",

@@ -3,7 +3,7 @@ import { and, count, desc, eq, gte, inArray, lt, max, sql } from 'drizzle-orm'
 import { z } from '@hono/zod-openapi'
 import { loadTrackArtists } from '../history/queries.ts'
 
-const { albums, plays, tracks } = schema
+const { albums, plays, trackRatings, tracks } = schema
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -34,6 +34,8 @@ export const playlistRule = z.discriminatedUnion('kind', [
     idleDays: z.number().int().min(7).max(3650).default(90),
     limit,
   }),
+  /** Rated at least `minRating` stars, best first. */
+  z.object({ kind: z.literal('top_rated'), minRating: z.number().int().min(1).max(5).default(4), limit }),
 ])
 export type PlaylistRule = z.infer<typeof playlistRule>
 
@@ -78,6 +80,19 @@ export async function evaluateRule(db: Db, userId: string, rule: PlaylistRule, n
           )
           .orderBy(desc(playCount))
           .limit(rule.limit)
+      case 'top_rated': {
+        // From the ratings, so a track rated while it played for the first time counts too.
+        const ratedPlays = count(plays.trackId)
+        const ratedLast = max(plays.playedAt)
+        return db
+          .select({ trackId: trackRatings.trackId, playCount: ratedPlays, lastPlayedAt: ratedLast })
+          .from(trackRatings)
+          .leftJoin(plays, and(eq(plays.trackId, trackRatings.trackId), mine))
+          .where(and(eq(trackRatings.userId, userId), gte(trackRatings.rating, rule.minRating)))
+          .groupBy(trackRatings.trackId, trackRatings.rating)
+          .orderBy(desc(trackRatings.rating), desc(ratedPlays), desc(ratedLast))
+          .limit(rule.limit)
+      }
     }
   })()
 
@@ -122,6 +137,8 @@ function suggestName(rule: PlaylistRule): string {
       return 'On repeat'
     case 'forgotten':
       return 'Forgotten favourites'
+    case 'top_rated':
+      return rule.minRating === 5 ? 'Rated 5 stars' : `Rated ${rule.minRating} stars and up`
   }
 }
 
