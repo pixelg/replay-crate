@@ -10,8 +10,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# The local database (compose.yaml). Already running is fine.
-docker compose up --detach --wait
+# The local database (compose.yaml), plus Elasticsearch when search uses it (ELASTICSEARCH_URL
+# in .env.local). Kibana stays on `pnpm search:up`. Already running is fine.
+services=(postgres)
+if [ -n "$(cd apps/api && node_modules/.bin/varlock printenv ELASTICSEARCH_URL)" ]; then
+  services+=(elasticsearch)
+fi
+docker compose up --detach --wait "${services[@]}"
 
 export API_PORT=4173
 origin="${REPLAY_CRATE_ORIGIN:-http://127.0.0.1:4173}"
