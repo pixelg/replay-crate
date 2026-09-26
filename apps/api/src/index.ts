@@ -7,7 +7,7 @@ import { createSpotifyGateway } from './spotify/gateway.ts'
 import { startJobRunner } from './jobs/runner.ts'
 import { startSyncScheduler } from './sync/scheduler.ts'
 import { enqueueEverything, startSearchIndexer } from './search/indexer.ts'
-import { createSearchIndex, isElastic } from './search/engine.ts'
+import { createAnalytics, createSearchIndex, isElastic } from './search/engine.ts'
 
 const db = createDb(ENV.DATABASE_URL)
 const deps = {
@@ -17,6 +17,7 @@ const deps = {
   redirectUri: ENV.SPOTIFY_REDIRECT_URI,
   cronSecret: ENV.CRON_SECRET,
   search: createSearchIndex(db, { elasticsearchUrl: ENV.ELASTICSEARCH_URL }),
+  analytics: createAnalytics({ elasticsearchUrl: ENV.ELASTICSEARCH_URL }),
 }
 
 const server = createServer(deps, { webDistDir: ENV.WEB_DIST_DIR })
@@ -37,8 +38,11 @@ startJobRunner(deps)
 if (isElastic(deps.search)) {
   try {
     const { created, stale } = await deps.search.ensureIndex()
+    const { playsCreated } = (await deps.analytics?.ensureIndices()) ?? { playsCreated: false }
     // A brand-new index starts empty: queue the whole library for the indexer.
-    if (created) console.log(`Search: created ${deps.search.readAlias}; indexing ${await enqueueEverything(deps)} documents`)
+    if (created || playsCreated) {
+      console.log(`Search: new Elasticsearch indices; indexing ${await enqueueEverything(deps)} documents`)
+    }
     if (stale) console.warn('Search: the Elasticsearch index layout changed; run `pnpm search:reindex` to rebuild it')
   } catch (error) {
     console.error(`Search: Elasticsearch at ${ENV.ELASTICSEARCH_URL} isn't answering (\`pnpm search:up\`?)`, error)

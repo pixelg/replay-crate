@@ -136,6 +136,13 @@ pnpm search:up
 
 That starts Elasticsearch 9 and Kibana on 127.0.0.1 (the `search` profile in `compose.yaml`; `pnpm db:up` alone doesn't). Then add `ELASTICSEARCH_URL=http://127.0.0.1:9200` to `.env.local` and restart `pnpm dev` or `pnpm serve`. On first start the API creates the index and indexes your whole library in the background. `pnpm search:reindex` rebuilds it any time; `pnpm search:down` stops the containers. Without Elasticsearch, search works the same on Postgres.
 
+### Dashboards (Kibana)
+
+With Elasticsearch, the API also keeps two indices of events for Kibana: `rc-plays` (every play, with its minutes and the hour and weekday it happened) and `rc-search-queries` (searches that led somewhere: what was asked, how much came back, which result was picked and from how far down). `pnpm kibana:load` imports two dashboards, defined as code in `infra/kibana/objects.ts`:
+
+- **Listening** (http://127.0.0.1:5601/app/dashboards#/view/rc-listening): plays, hours and different tracks; plays over time; an hour × weekday heatmap of when you listen; minutes by where you played from; top artists and tracks.
+- **Search** (http://127.0.0.1:5601/app/dashboards#/view/rc-search): searches over time; the share that found nothing; the average rank of what gets picked; top searches and the ones that came up empty; what types get picked; which filters get used.
+
 ## Scripts
 
 | Command | What it does |
@@ -149,6 +156,7 @@ That starts Elasticsearch 9 and Kibana on 127.0.0.1 (the `search` profile in `co
 | `pnpm storybook` | Component workshop at http://127.0.0.1:6006 |
 | `pnpm search:up` / `search:down` | Elasticsearch + Kibana in Docker (optional; see [Search](#search)) |
 | `pnpm search:reindex` | Rebuild the search index from Postgres |
+| `pnpm kibana:load` | Import the Kibana dashboards (`infra/kibana`) |
 
 ## API
 

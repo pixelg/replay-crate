@@ -133,6 +133,8 @@ describe('responses match the spec', () => {
     await call('GET', '/search?q=song&types=song')
     await call('GET', '/search/spotify?q=song')
     await call('GET', '/search/spotify?q=rating:5')
+    await call('POST', '/search/events', {}, { q: 'song', total: 1, source: 'palette', picked: { type: 'track', id: 'b', rank: 1 } })
+    await call('POST', '/search/events', {}, { q: 'song', total: -1, source: 'palette' })
     await call('POST', '/player/next', {}, {})
     await call('POST', '/player/previous', {}, {})
     await call('PUT', '/player/seek', {}, { positionMs: 1_000 })

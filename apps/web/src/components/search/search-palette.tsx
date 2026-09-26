@@ -1,6 +1,7 @@
 import { Autocomplete } from '@base-ui/react/autocomplete'
 import { Dialog } from '@base-ui/react/dialog'
 import {
+  recordSearchEvent,
   searchQueryOptions,
   spotifySearchQueryOptions,
   type SearchHit,
@@ -132,7 +133,19 @@ function PaletteBody({ initialQuery, onDone }: { initialQuery: string; onDone: (
   const stale = q.trim() !== settled.trim() || results.isPlaceholderData
   const groups = groupsFor(q, data, q.trim() ? spotify.data?.tracks : undefined)
 
+  /** For the search dashboards: what was searched, and which result (by position) was picked. */
+  const record = (picked?: SearchHit) => {
+    const shown = groups.flatMap((group) => group.items).filter((entry) => entry.kind === 'hit')
+    const rank = picked ? shown.findIndex((entry) => entry.hit === picked) + 1 : 0
+    recordSearchEvent(api, {
+      q,
+      total: data?.total ?? 0,
+      source: 'palette',
+      ...(picked && rank > 0 && { picked: { type: picked.type, id: picked.id, rank } }),
+    })
+  }
   const openAll = (query: string) => {
+    record()
     rememberSearch(query)
     onDone()
     void navigate({ to: '/search', search: { q: query } })
@@ -140,6 +153,7 @@ function PaletteBody({ initialQuery, onDone }: { initialQuery: string; onDone: (
   const choose = (entry: Entry) => {
     switch (entry.kind) {
       case 'hit':
+        record(entry.hit)
         rememberSearch(q)
         onDone()
         void navigate(hitLink(entry.hit))
@@ -171,9 +185,11 @@ function PaletteBody({ initialQuery, onDone }: { initialQuery: string; onDone: (
     event.preventBaseUIHandler?.()
     if ((event.metaKey || event.ctrlKey) && q.trim()) openAll(q)
     else if (entry?.kind === 'hit' && event.shiftKey) {
+      record(entry.hit)
       rememberSearch(q)
       actions.play(entry.hit)
     } else if (entry?.kind === 'hit' && event.altKey && actions.canQueue(entry.hit)) {
+      record(entry.hit)
       rememberSearch(q)
       actions.queue(entry.hit)
     } else if (entry?.kind === 'spotify' && event.shiftKey) actions.playTrack(entry.track)

@@ -13,6 +13,7 @@
     "search:up": "docker compose --profile search up --detach --wait",
     "search:down": "docker compose --profile search stop elasticsearch kibana",
     "search:reindex": "pnpm --filter @replay-crate/api search:reindex",
+    "kibana:load": "node infra/kibana/load.ts",
     "db:migrate": "pnpm --filter @replay-crate/db db:migrate",
     "db:psql": "docker compose exec postgres psql -U replay replay_crate",
     "build": "turbo run build",

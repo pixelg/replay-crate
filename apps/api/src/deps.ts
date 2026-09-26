@@ -18,6 +18,7 @@ import type {
   TopTimeRange,
 } from '@replay-crate/spotify'
 import type { TokenCipher } from './lib/crypto.ts'
+import type { Analytics } from './search/analytics.ts'
 import type { SearchIndex } from './search/types.ts'
 
 /** The Spotify calls the API makes, already bound to our client id. Tests pass a fake. */
@@ -71,5 +72,7 @@ export type AppDeps = {
   cronSecret?: string
   /** Library search: Elasticsearch when configured, Postgres otherwise. Kept in step by the search indexer. */
   search: SearchIndex
+  /** Listening and search events for Kibana; only with Elasticsearch. */
+  analytics?: Analytics
   now?: () => Date
 }
