@@ -50,6 +50,16 @@ export function useIsPlaying() {
   return useQuery({ ...playbackQueryOptions(api), select: (playback) => Boolean(playback?.isPlaying) }).data ?? false
 }
 
+/** The id of the track playing right now (not paused), or null; re-renders only when it changes. */
+export function usePlayingTrackId() {
+  return (
+    useQuery({
+      ...playbackQueryOptions(api),
+      select: (playback) => (playback?.isPlaying && playback.item?.type === 'track' ? playback.item.id : null),
+    }).data ?? null
+  )
+}
+
 /** Up next, fetched again whenever the playing item changes. */
 export function useQueue(currentUri: string | null, { enabled = true } = {}) {
   return useQuery({ ...queueQueryOptions(api, currentUri), enabled: enabled && currentUri !== null })

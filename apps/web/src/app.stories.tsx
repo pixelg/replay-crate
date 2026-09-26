@@ -924,3 +924,18 @@ export const HistorySelectOnPhone = meta.story({
     await expect(toolbar.getBoundingClientRect().bottom).toBeLessThanOrEqual(player.getBoundingClientRect().top)
   },
 })
+
+export const HistoryMarksNowPlaying = meta.story({
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    // The fixture plays Brass Monkey Business, which is in History twice.
+    await waitFor(() => expect(main.getAllByText('Now playing')).toHaveLength(2))
+
+    // Paused isn't "currently playing".
+    const player = within(await within(canvas.getByRole('banner')).findByRole('region', { name: 'Now playing' }))
+    await userEvent.click(player.getByRole('button', { name: 'Pause' }))
+    await waitFor(() => expect(main.queryAllByText('Now playing')).toHaveLength(0))
+    await expect(main.getAllByText('Brass Monkey Business')[0]!.closest('[aria-current]')).toBeNull()
+  },
+})

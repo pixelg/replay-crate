@@ -1,7 +1,8 @@
 import type { HistoryGap, PlayItem } from '@replay-crate/api-client'
 import { formatDayLabel, groupByDay } from '@replay-crate/core'
 import { Link } from '@tanstack/react-router'
-import { CircleDashed } from 'lucide-react'
+import { AudioLines, CircleDashed } from 'lucide-react'
+import { cn } from 'cn'
 import { AlbumArt } from './album-art.tsx'
 import { TrackActions } from './track-actions.tsx'
 import { ContextChip } from './context-chip.tsx'
@@ -41,12 +42,15 @@ export function HistoryList({
   gaps = [],
   now = new Date(),
   selection,
+  playingTrackId = null,
 }: {
   plays: PlayItem[]
   gaps?: HistoryGap[]
   now?: Date
   /** When set, rows get checkboxes instead of their menus. */
   selection?: PlaySelection
+  /** Rows of the track Spotify is playing right now are marked. */
+  playingTrackId?: string | null
 }) {
   const days = groupByDay(withGaps(plays, gaps), (entry) => new Date(entry.at))
 
@@ -64,7 +68,7 @@ export function HistoryList({
             {group.items.map((entry) =>
               entry.kind === 'play' ? (
                 <li key={entry.play.playedAt}>
-                  <PlayRow play={entry.play} selection={selection} />
+                  <PlayRow play={entry.play} selection={selection} playing={entry.play.track.id === playingTrackId} />
                 </li>
               ) : (
                 <li key={`gap-${entry.gap.id}`}>
@@ -95,11 +99,14 @@ function GapMarker({ gap }: { gap: HistoryGap }) {
   )
 }
 
-function PlayRow({ play, selection }: { play: PlayItem; selection?: PlaySelection }) {
+function PlayRow({ play, selection, playing }: { play: PlayItem; selection?: PlaySelection; playing: boolean }) {
   const { track } = play
   const time = timeFormat.format(new Date(play.playedAt))
   return (
-    <div className="flex items-center gap-3 py-2">
+    <div
+      aria-current={playing || undefined}
+      className={cn('flex items-center gap-3 py-2', playing && '-mx-2 rounded-lg bg-accent px-2')}
+    >
       {selection && (
         <input
           type="checkbox"
@@ -114,13 +121,19 @@ function PlayRow({ play, selection }: { play: PlayItem; selection?: PlaySelectio
         <Link
           to="/tracks/$trackId"
           params={{ trackId: track.id }}
-          className="block truncate font-medium hover:underline focus-visible:underline"
+          className={cn('block truncate font-medium hover:underline focus-visible:underline', playing && 'text-primary')}
         >
           {track.name}
         </Link>
         <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
         {play.context && <ContextChip context={play.context} className="mt-1" />}
       </div>
+      {playing && (
+        <span className="flex shrink-0 items-center gap-1 self-start pt-0.5 text-xs text-primary">
+          <AudioLines aria-hidden className="size-4 motion-safe:animate-pulse" />
+          <span className="sr-only md:not-sr-only">Now playing</span>
+        </span>
+      )}
       <time dateTime={play.playedAt} className="shrink-0 self-start pt-0.5 text-xs text-muted-foreground tabular-nums">
         {time}
       </time>
