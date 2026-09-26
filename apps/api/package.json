@@ -12,6 +12,7 @@
     "typecheck": "tsc",
     "test": "vitest run",
     "e2e:server": "node src/e2e-server.ts",
+    "search:reindex": "varlock run -- node src/search/reindex.ts",
     "openapi": "node scripts/openapi.ts"
   },
   "dependencies": {

@@ -37,6 +37,10 @@
     {
       "name": "Player",
       "description": "Spotify playback: state, controls, queue and devices."
+    },
+    {
+      "name": "Search",
+      "description": "Searching your library: tracks, artists, albums, playlists and plays."
     }
   ],
   "components": {
@@ -1484,6 +1488,397 @@
         "required": [
           "currentlyPlaying",
           "queue"
+        ]
+      },
+      "SearchResponse": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string",
+                "description": "The free text, without filters."
+              },
+              "filters": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string",
+                      "example": "rating:>=4",
+                      "description": "As it would be typed."
+                    },
+                    "label": {
+                      "type": "string",
+                      "example": "Rating: 4★ or more",
+                      "description": "In words, for a chip."
+                    },
+                    "start": {
+                      "type": "integer",
+                      "description": "Where it sits in `q`, so a chip can remove it."
+                    },
+                    "end": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "token",
+                    "label",
+                    "start",
+                    "end"
+                  ]
+                }
+              },
+              "issues": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "unknown-field",
+                        "bad-value",
+                        "unclosed-quote"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "start": {
+                      "type": "integer"
+                    },
+                    "end": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "message",
+                    "start",
+                    "end"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "text",
+              "filters",
+              "issues"
+            ]
+          },
+          "engine": {
+            "type": "string",
+            "enum": [
+              "elasticsearch",
+              "postgres"
+            ]
+          },
+          "tookMs": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "$ref": "#/components/schemas/SearchType"
+                },
+                "total": {
+                  "type": "integer"
+                },
+                "hits": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SearchHit"
+                  }
+                }
+              },
+              "required": [
+                "type",
+                "total",
+                "hits"
+              ]
+            }
+          },
+          "facets": {
+            "type": "object",
+            "properties": {
+              "types": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "$ref": "#/components/schemas/SearchType"
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "count"
+                  ]
+                }
+              },
+              "decades": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "integer"
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "count"
+                  ]
+                },
+                "description": "By first year: 1990 is the 90s."
+              },
+              "ratings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "integer"
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "count"
+                  ]
+                }
+              },
+              "artists": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "count"
+                  ]
+                }
+              },
+              "contexts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "count"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "types",
+              "decades",
+              "ratings",
+              "artists",
+              "contexts"
+            ],
+            "description": "With `facets=true`. Types count everything; the rest the tracks (or the one type asked for)."
+          },
+          "suggestion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When nothing matched: something close in your library."
+          }
+        },
+        "required": [
+          "query",
+          "engine",
+          "tookMs",
+          "total",
+          "groups",
+          "suggestion"
+        ]
+      },
+      "SearchType": {
+        "type": "string",
+        "enum": [
+          "track",
+          "artist",
+          "album",
+          "playlist",
+          "play"
+        ]
+      },
+      "SearchHit": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/SearchType"
+          },
+          "id": {
+            "type": "string",
+            "description": "Spotify id; for a play, its id in the history."
+          },
+          "name": {
+            "type": "string",
+            "description": "The track's, artist's, album's or playlist's name; a play's track name."
+          },
+          "artists": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "A track's, album's or play's artists; a playlist's owner."
+          },
+          "album": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "playCount": {
+            "type": "integer",
+            "description": "Your plays: of the track, the artist, the album, or from the playlist."
+          },
+          "rating": {
+            "$ref": "#/components/schemas/Rating"
+          },
+          "lastPlayedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          },
+          "playedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z",
+            "description": "When the play happened (plays only)."
+          },
+          "context": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where the play was played from (plays only)."
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "trackId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The track a play is of."
+          },
+          "score": {
+            "type": "number",
+            "description": "How well it matched. Comparable within one response, not across engines."
+          },
+          "highlights": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ],
+                  "description": "[start, end) character offsets."
+                }
+              },
+              "artists": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "integer"
+                      }
+                    ],
+                    "description": "[start, end) character offsets."
+                  }
+                },
+                "description": "Per entry of `artists`."
+              }
+            },
+            "required": [
+              "name",
+              "artists"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "name",
+          "artists",
+          "album",
+          "year",
+          "playCount",
+          "rating",
+          "lastPlayedAt",
+          "playedAt",
+          "context",
+          "imageUrl",
+          "trackId",
+          "score",
+          "highlights"
         ]
       }
     },
@@ -6319,6 +6714,132 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "operationId": "search",
+        "summary": "Search your library",
+        "description": "Tracks, artists, albums, playlists and plays in your library, grouped by type, as you type. `q` is free text (typo-tolerant, matched at word starts) plus filters: `artist:` `album:` `in:` (playlist) `from:` (played from) `rating:` `plays:` `year:` `type:`, with comparisons (`rating:>=4`), ranges (`year:1990..1995`), decades (`year:90s`), quotes, and `-` to exclude. Ranked by match, then your plays and ratings.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "example": "pete rock rating:>=4"
+            },
+            "required": true,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^(track|artist|album|playlist|play)(,(track|artist|album|playlist|play))*$",
+              "example": "track,artist",
+              "description": "Comma-separated: track, artist, album, playlist, play. Default: all."
+            },
+            "required": false,
+            "description": "Comma-separated: track, artist, album, playlist, play. Default: all.",
+            "name": "types",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 5,
+              "description": "Hits per group."
+            },
+            "required": false,
+            "description": "Hits per group.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 10000,
+              "default": 0,
+              "description": "Hits to skip in each group."
+            },
+            "required": false,
+            "description": "Hits to skip in each group.",
+            "name": "offset",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "required": false,
+            "name": "facets",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matches, grouped by type.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
                 }
               }
             }

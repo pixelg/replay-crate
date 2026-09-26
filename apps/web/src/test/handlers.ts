@@ -9,6 +9,7 @@ import {
   playlistsList,
   playsPage,
   queue,
+  searchResponse,
   spotifyTop,
   statsOverview,
   statsTop,
@@ -79,6 +80,13 @@ export const handlers = {
     http.get('/api/v1/stats/spotify-top', ({ response }) => response(200).json(spotifyTop)),
   ],
   imports: [http.get('/api/v1/imports/latest', ({ response }) => response(200).json({ import: null }))],
+  // Whatever is typed, the "pete" results (facets only when asked for).
+  search: [
+    http.get('/api/v1/search', ({ query, response }) => {
+      const { facets, ...rest } = searchResponse
+      return response(200).json({ ...rest, query: { ...rest.query, text: query.get('q') ?? '' }, ...(query.get('facets') === 'true' && { facets }) })
+    }),
+  ],
   // Something is playing on the laptop; every command is accepted.
   player: [
     http.get('/api/v1/player', ({ response }) => response(200).json({ playback })),

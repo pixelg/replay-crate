@@ -6,13 +6,17 @@ import { createServer } from './server.ts'
 import { createSpotifyGateway } from './spotify/gateway.ts'
 import { startJobRunner } from './jobs/runner.ts'
 import { startSyncScheduler } from './sync/scheduler.ts'
+import { startSearchIndexer } from './search/indexer.ts'
+import { createSearchIndex } from './search/engine.ts'
 
+const db = createDb(ENV.DATABASE_URL)
 const deps = {
-  db: createDb(ENV.DATABASE_URL),
+  db,
   cipher: await createTokenCipher(ENV.TOKEN_ENCRYPTION_KEY),
   spotify: createSpotifyGateway(ENV.SPOTIFY_CLIENT_ID),
   redirectUri: ENV.SPOTIFY_REDIRECT_URI,
   cronSecret: ENV.CRON_SECRET,
+  search: createSearchIndex(db),
 }
 
 const server = createServer(deps, { webDistDir: ENV.WEB_DIST_DIR })
@@ -29,3 +33,5 @@ if (ENV.SYNC_INTERVAL_MINUTES > 0) {
 
 // Background Spotify lookups (e.g. tracks named in an import), one at a time.
 startJobRunner(deps)
+// Keeps the search index in step with what syncs and imports write.
+startSearchIndexer(deps)

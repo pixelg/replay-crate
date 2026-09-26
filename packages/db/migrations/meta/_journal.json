@@ -57,6 +57,27 @@
       "when": 1790396143828,
       "tag": "0007_ratings",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790437822835,
+      "tag": "0008_search_extensions",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790437823409,
+      "tag": "0009_search_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790437823899,
+      "tag": "0010_search_triggers",
+      "breakpoints": true
     }
   ]
 }

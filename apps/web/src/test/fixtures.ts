@@ -12,6 +12,8 @@ import type {
   PlayItem,
   PlaysPage,
   RulePreview,
+  SearchHit,
+  SearchResponse,
   SpotifyTop,
   StatsOverview,
   StatsTop,
@@ -425,3 +427,114 @@ export const manyTracks = (count: number): LibraryPage['items'] =>
     firstPlayedAt: play.playedAt,
     lastPlayedAt: play.playedAt,
   }))
+// Search: what "pete" finds in the fixture library.
+const hit = (partial: Partial<SearchHit> & Pick<SearchHit, 'type' | 'id' | 'name'>): SearchHit => ({
+  artists: [],
+  album: null,
+  year: null,
+  playCount: 0,
+  rating: null,
+  lastPlayedAt: null,
+  playedAt: null,
+  context: null,
+  imageUrl: null,
+  trackId: null,
+  score: 1,
+  highlights: { name: [], artists: [] },
+  ...partial,
+})
+
+export const searchResponse: SearchResponse = {
+  query: { text: 'pete', filters: [], issues: [] },
+  engine: 'postgres',
+  tookMs: 4,
+  total: 5,
+  groups: [
+    {
+      type: 'track',
+      total: 2,
+      hits: [
+        hit({
+          type: 'track',
+          id: 'troy',
+          name: 'T.R.O.Y. (They Reminisce Over You)',
+          artists: ['Pete Rock', 'C.L. Smooth'],
+          album: 'Mecca and the Soul Brother',
+          year: 1992,
+          playCount: 30,
+          rating: 5,
+          lastPlayedAt: hoursAgo(2),
+          score: 3.1,
+          highlights: { name: [], artists: [[[0, 4]], []] },
+        }),
+        hit({
+          type: 'track',
+          id: 'soul',
+          name: 'Straighten It Out',
+          artists: ['Pete Rock', 'C.L. Smooth'],
+          album: 'Mecca and the Soul Brother',
+          year: 1992,
+          playCount: 6,
+          score: 2.4,
+          highlights: { name: [], artists: [[[0, 4]], []] },
+        }),
+      ],
+    },
+    {
+      type: 'artist',
+      total: 1,
+      hits: [hit({ type: 'artist', id: 'pete', name: 'Pete Rock', playCount: 36, score: 4.2, highlights: { name: [[0, 4]], artists: [] } })],
+    },
+    {
+      type: 'album',
+      total: 1,
+      hits: [
+        hit({
+          type: 'album',
+          id: 'mecca',
+          name: 'Mecca and the Soul Brother',
+          artists: ['Pete Rock', 'C.L. Smooth'],
+          year: 1992,
+          playCount: 36,
+          score: 1.9,
+          highlights: { name: [], artists: [[[0, 4]], []] },
+        }),
+      ],
+    },
+    {
+      type: 'play',
+      total: 1,
+      hits: [
+        hit({
+          type: 'play',
+          id: '101',
+          name: 'T.R.O.Y. (They Reminisce Over You)',
+          artists: ['Pete Rock', 'C.L. Smooth'],
+          album: 'Mecca and the Soul Brother',
+          playedAt: hoursAgo(2),
+          context: 'Road Trip',
+          trackId: 'troy',
+          rating: 5,
+          score: 1.5,
+          highlights: { name: [], artists: [[[0, 4]], []] },
+        }),
+      ],
+    },
+  ],
+  facets: {
+    types: [
+      { value: 'track', count: 2 },
+      { value: 'artist', count: 1 },
+      { value: 'album', count: 1 },
+      { value: 'play', count: 1 },
+    ],
+    decades: [{ value: 1990, count: 2 }],
+    ratings: [{ value: 5, count: 1 }],
+    artists: [
+      { value: 'Pete Rock', count: 2 },
+      { value: 'C.L. Smooth', count: 2 },
+    ],
+    contexts: [{ value: 'Road Trip', count: 1 }],
+  },
+  suggestion: null,
+}

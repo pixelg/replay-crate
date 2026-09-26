@@ -724,6 +724,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search your library
+         * @description Tracks, artists, albums, playlists and plays in your library, grouped by type, as you type. `q` is free text (typo-tolerant, matched at word starts) plus filters: `artist:` `album:` `in:` (playlist) `from:` (played from) `rating:` `plays:` `year:` `type:`, with comparisons (`rating:>=4`), ranges (`year:1990..1995`), decades (`year:90s`), quotes, and `-` to exclude. Ranked by match, then your plays and ratings.
+         */
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1161,6 +1181,114 @@ export interface components {
             currentlyPlaying: components["schemas"]["PlayerItem"];
             /** @description Up next: the user's queue, then the rest of the context. */
             queue: components["schemas"]["PlayerItem"][];
+        };
+        SearchResponse: {
+            query: {
+                /** @description The free text, without filters. */
+                text: string;
+                filters: {
+                    /**
+                     * @description As it would be typed.
+                     * @example rating:>=4
+                     */
+                    token: string;
+                    /**
+                     * @description In words, for a chip.
+                     * @example Rating: 4★ or more
+                     */
+                    label: string;
+                    /** @description Where it sits in `q`, so a chip can remove it. */
+                    start: number;
+                    end: number;
+                }[];
+                issues: {
+                    /** @enum {string} */
+                    kind: "unknown-field" | "bad-value" | "unclosed-quote";
+                    message: string;
+                    start: number;
+                    end: number;
+                }[];
+            };
+            /** @enum {string} */
+            engine: "elasticsearch" | "postgres";
+            tookMs: number;
+            total: number;
+            groups: {
+                type: components["schemas"]["SearchType"];
+                total: number;
+                hits: components["schemas"]["SearchHit"][];
+            }[];
+            /** @description With `facets=true`. Types count everything; the rest the tracks (or the one type asked for). */
+            facets?: {
+                types: {
+                    value: components["schemas"]["SearchType"];
+                    count: number;
+                }[];
+                /** @description By first year: 1990 is the 90s. */
+                decades: {
+                    value: number;
+                    count: number;
+                }[];
+                ratings: {
+                    value: number;
+                    count: number;
+                }[];
+                artists: {
+                    value: string;
+                    count: number;
+                }[];
+                contexts: {
+                    value: string;
+                    count: number;
+                }[];
+            };
+            /** @description When nothing matched: something close in your library. */
+            suggestion: string | null;
+        };
+        /** @enum {string} */
+        SearchType: "track" | "artist" | "album" | "playlist" | "play";
+        SearchHit: {
+            type: components["schemas"]["SearchType"];
+            /** @description Spotify id; for a play, its id in the history. */
+            id: string;
+            /** @description The track's, artist's, album's or playlist's name; a play's track name. */
+            name: string;
+            /** @description A track's, album's or play's artists; a playlist's owner. */
+            artists: string[];
+            album: string | null;
+            year: number | null;
+            /** @description Your plays: of the track, the artist, the album, or from the playlist. */
+            playCount: number;
+            rating: components["schemas"]["Rating"];
+            /**
+             * Format: date-time
+             * @example 2026-09-21T12:00:00.000Z
+             */
+            lastPlayedAt: string | null;
+            /**
+             * Format: date-time
+             * @description When the play happened (plays only).
+             * @example 2026-09-21T12:00:00.000Z
+             */
+            playedAt: string | null;
+            /** @description Where the play was played from (plays only). */
+            context: string | null;
+            imageUrl: string | null;
+            /** @description The track a play is of. */
+            trackId: string | null;
+            /** @description How well it matched. Comparable within one response, not across engines. */
+            score: number;
+            highlights: {
+                name: [
+                    number,
+                    number
+                ][];
+                /** @description Per entry of `artists`. */
+                artists: [
+                    number,
+                    number
+                ][][];
+            };
         };
     };
     responses: never;
@@ -4123,6 +4251,62 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedError"];
+                };
+            };
+        };
+    };
+    search: {
+        parameters: {
+            query: {
+                q: string;
+                /** @description Comma-separated: track, artist, album, playlist, play. Default: all. */
+                types?: string;
+                /** @description Hits per group. */
+                limit?: number;
+                /** @description Hits to skip in each group. */
+                offset?: number | null;
+                facets?: "true" | "false";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Matches, grouped by type. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResponse"];
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
                 };
             };
         };

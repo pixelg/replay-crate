@@ -23,6 +23,9 @@ export type PlaylistDetail = InferResponseType<ApiClient['playlists'][':id']['$g
 export type PlaylistTrack = PlaylistDetail['items'][number]
 export type PlaylistSyncResult = InferResponseType<ApiClient['playlists']['sync']['$post'], 200>
 export type RulePreview = InferResponseType<ApiClient['playlists']['preview']['$post'], 200>
+export type SearchResponse = InferResponseType<ApiClient['search']['$get'], 200>
+export type SearchHit = SearchResponse['groups'][number]['hits'][number]
+export type SearchType = SearchHit['type']
 
 // Every call below either returns data or throws an ApiError.
 
@@ -339,3 +342,30 @@ export async function uploadImport(
   const { tracksToFetch } = await expectOk(await send(endpoint, () => api.imports[':id'].finish.$post({ param })), endpoint)
   return { id, tracksToFetch }
 }
+
+/**
+ * Library search, as you type. `q` is the raw box (text and filters; the API parses it). Keeps
+ * the previous results on screen while the next ones load, so the list doesn't flash.
+ */
+export const searchQueryOptions = (
+  api: ApiClient,
+  { q, types, limit = 5, offset = 0, facets = false }: { q: string; types?: SearchType[]; limit?: number; offset?: number; facets?: boolean },
+) =>
+  queryOptions({
+    queryKey: ['search', { q, types: types ?? null, limit, offset, facets }],
+    queryFn: async ({ signal }): Promise<SearchResponse> => {
+      const endpoint = 'GET /api/v1/search'
+      const query = {
+        q,
+        limit: String(limit),
+        offset: String(offset),
+        facets: facets ? ('true' as const) : ('false' as const),
+        ...(types?.length && { types: types.join(',') }),
+      }
+      return expectOk(await send(endpoint, () => api.search.$get({ query }, { init: { signal } })), endpoint)
+    },
+    enabled: q.trim().length > 0,
+    placeholderData: keepPreviousData,
+    // The index changes behind the scenes; a few seconds of reuse is plenty while typing.
+    staleTime: 10_000,
+  })

@@ -124,6 +124,13 @@ describe('responses match the spec', () => {
     await call('GET', '/player')
     await call('GET', '/player/queue')
     await call('GET', '/player/devices')
+    // Search, once the indexer has caught up with everything above.
+    await ctx.indexSearch()
+    await call('GET', '/search?q=song')
+    await call('GET', '/search?q=song rating:>=4 -type:play title:x artist:"unclosed&facets=true')
+    await call('GET', '/search?q=zzzzzz')
+    await call('GET', '/search?q=song&types=track&limit=1&offset=1')
+    await call('GET', '/search?q=song&types=song')
     await call('POST', '/player/next', {}, {})
     await call('POST', '/player/previous', {}, {})
     await call('PUT', '/player/seek', {}, { positionMs: 1_000 })

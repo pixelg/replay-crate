@@ -11,6 +11,7 @@ export {
   parsePageSize,
   type PageSize,
 } from './pagination.ts'
+export { allowedEdits, foldText, highlightRanges, type TextRange } from './search-highlight.ts'
 export {
   ENTITY_TYPES,
   NUMBER_FIELDS,
