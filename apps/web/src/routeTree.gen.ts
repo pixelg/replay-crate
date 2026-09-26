@@ -21,6 +21,7 @@ import { Route as AppStatsRouteImport } from './routes/_app/stats'
 import { Route as AppPlaylistsIndexRouteImport } from './routes/_app/playlists.index'
 import { Route as AppPlaylistsPlaylistIdRouteImport } from './routes/_app/playlists.$playlistId'
 import { Route as AppPlaylistsNewRouteImport } from './routes/_app/playlists.new'
+import { Route as AppTracksIndexRouteImport } from './routes/_app/tracks/index'
 import { Route as AppTracksTrackIdRouteImport } from './routes/_app/tracks/$trackId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -82,6 +83,11 @@ const AppPlaylistsNewRoute = AppPlaylistsNewRouteImport.update({
   path: '/playlists/new',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTracksIndexRoute = AppTracksIndexRouteImport.update({
+  id: '/tracks/',
+  path: '/tracks/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTracksTrackIdRoute = AppTracksTrackIdRouteImport.update({
   id: '/tracks/$trackId',
   path: '/tracks/$trackId',
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/playlists/new': typeof AppPlaylistsNewRoute
   '/tracks/$trackId': typeof AppTracksTrackIdRoute
   '/playlists/': typeof AppPlaylistsIndexRoute
+  '/tracks/': typeof AppTracksIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/playlists/new': typeof AppPlaylistsNewRoute
   '/tracks/$trackId': typeof AppTracksTrackIdRoute
   '/playlists': typeof AppPlaylistsIndexRoute
+  '/tracks': typeof AppTracksIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/_app/playlists/new': typeof AppPlaylistsNewRoute
   '/_app/tracks/$trackId': typeof AppTracksTrackIdRoute
   '/_app/playlists/': typeof AppPlaylistsIndexRoute
+  '/_app/tracks/': typeof AppTracksIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/playlists/new'
     | '/tracks/$trackId'
     | '/playlists/'
+    | '/tracks/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/playlists/new'
     | '/tracks/$trackId'
     | '/playlists'
+    | '/tracks'
   id:
     | '__root__'
     | '/'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/_app/playlists/new'
     | '/_app/tracks/$trackId'
     | '/_app/playlists/'
+    | '/_app/tracks/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -271,6 +283,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPlaylistsNewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/tracks/': {
+      id: '/_app/tracks/'
+      path: '/tracks'
+      fullPath: '/tracks/'
+      preLoaderRoute: typeof AppTracksIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/tracks/$trackId': {
       id: '/_app/tracks/$trackId'
       path: '/tracks/$trackId'
@@ -291,6 +310,7 @@ interface AppRouteChildren {
   AppPlaylistsNewRoute: typeof AppPlaylistsNewRoute
   AppTracksTrackIdRoute: typeof AppTracksTrackIdRoute
   AppPlaylistsIndexRoute: typeof AppPlaylistsIndexRoute
+  AppTracksIndexRoute: typeof AppTracksIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -303,6 +323,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppPlaylistsNewRoute: AppPlaylistsNewRoute,
   AppTracksTrackIdRoute: AppTracksTrackIdRoute,
   AppPlaylistsIndexRoute: AppPlaylistsIndexRoute,
+  AppTracksIndexRoute: AppTracksIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

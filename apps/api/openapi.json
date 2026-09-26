@@ -428,6 +428,83 @@
           "name"
         ]
       },
+      "LibraryTrack": {
+        "type": "object",
+        "properties": {
+          "track": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "durationMs": {
+                "type": "integer"
+              },
+              "explicit": {
+                "type": "boolean"
+              },
+              "album": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "thumbUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "thumbUrl"
+                ]
+              },
+              "artists": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ArtistRef"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "durationMs",
+              "explicit",
+              "album",
+              "artists"
+            ]
+          },
+          "playCount": {
+            "type": "integer"
+          },
+          "firstPlayedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          },
+          "lastPlayedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          }
+        },
+        "required": [
+          "track",
+          "playCount",
+          "firstPlayedAt",
+          "lastPlayedAt"
+        ]
+      },
       "TrackDetail": {
         "type": "object",
         "properties": {
@@ -1982,6 +2059,127 @@
                     "items",
                     "nextCursor",
                     "lastSyncedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tracks": {
+      "get": {
+        "tags": [
+          "Tracks"
+        ],
+        "operationId": "listTracks",
+        "summary": "Every track you have played",
+        "description": "With play counts and last plays. `plays` and `last_played` sort highest and newest first, `name` A–Z. Pass `nextCursor` back as `cursor` for the next page (with the same `sort`).",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "plays",
+                "last_played",
+                "name"
+              ],
+              "default": "plays"
+            },
+            "required": false,
+            "name": "sort",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The previous page's `nextCursor`."
+            },
+            "required": false,
+            "description": "The previous page's `nextCursor`.",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of tracks.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LibraryTrack"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "null on the last page."
+                    },
+                    "total": {
+                      "type": "integer",
+                      "description": "Distinct tracks played, across all pages."
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor",
+                    "total"
                   ]
                 }
               }

@@ -57,6 +57,20 @@ test('makes a playlist from plays picked in History', async ({ page }) => {
   await expect(tracks.getByRole('link', { name: 'Searched And Played' })).toBeVisible()
 })
 
+test('lists every played track, by plays or name', async ({ page }) => {
+  await signIn(page)
+  await mainNav(page).filter({ visible: true }).getByRole('link', { name: 'Tracks' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Tracks' })).toBeVisible()
+  const main = page.getByRole('main')
+  // Brass Monkey Business is the most played in the fake history.
+  await expect(main.getByRole('listitem').first().getByRole('link', { name: 'Brass Monkey Business' })).toBeVisible()
+
+  await main.getByRole('button', { name: 'A–Z' }).click()
+  await expect(page).toHaveURL(/[?&]sort=name/)
+  const names = await main.getByRole('listitem').getByRole('link').allTextContents()
+  expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })))
+})
+
 test('unknown pages and signing out', async ({ page }) => {
   await signIn(page)
   await page.goto('/no-such-page')

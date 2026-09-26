@@ -110,7 +110,7 @@ function BottomTabs() {
     <div className="fixed inset-x-0 bottom-0 z-10 md:hidden">
       <MiniPlayerBar />
       <nav aria-label="Main" className="border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-        <ul className="grid grid-cols-4">
+        <ul className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
           {tabs.map(({ to, label, icon: Icon }) => (
             <li key={to}>
               <Link

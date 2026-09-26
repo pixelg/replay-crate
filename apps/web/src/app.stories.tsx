@@ -12,6 +12,7 @@ import {
   gaps,
   importDone,
   importInProgress,
+  libraryPage,
   pausedPlayback,
   pixelg,
   playlistDetail,
@@ -937,5 +938,119 @@ export const HistoryMarksNowPlaying = meta.story({
     await userEvent.click(player.getByRole('button', { name: 'Pause' }))
     await waitFor(() => expect(main.queryAllByText('Now playing')).toHaveLength(0))
     await expect(main.getAllByText('Brass Monkey Business')[0]!.closest('[aria-current]')).toBeNull()
+  },
+})
+
+export const Tracks = meta.story({
+  args: { path: '/tracks' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Tracks' })).toBeVisible()
+    await expect(canvas.getByText("Every track you've played: 4 so far.")).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Most played' })).toHaveAttribute('aria-pressed', 'true')
+    const main = within(canvas.getByRole('main'))
+    const first = main.getAllByRole('listitem')[0]!
+    await expect(within(first).getByRole('link', { name: 'Brass Monkey Business' })).toHaveAttribute('href', '/tracks/t1')
+    await expect(first).toHaveTextContent('12 plays')
+    // It's the fixture's playing track.
+    await waitFor(() => expect(first).toHaveAttribute('aria-current', 'true'))
+    await expect(within(first).getByRole('button', { name: 'Actions for Brass Monkey Business' })).toBeVisible()
+    await expect(canvas.getAllByRole('link', { name: 'Tracks' }).find((link) => link.checkVisibility())).toHaveAttribute('aria-current', 'page')
+  },
+})
+
+const libraryRequests = fn()
+
+export const TracksSorts = meta.story({
+  args: { path: '/tracks' },
+  beforeEach({ msw }) {
+    libraryRequests.mockClear()
+    msw.use(
+      http.get('/api/v1/tracks', ({ query, response }) => {
+        libraryRequests(query.get('sort'))
+        return response(200).json(libraryPage)
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'A–Z' }))
+    await waitFor(() => expect(libraryRequests).toHaveBeenLastCalledWith('name'))
+    // The request goes out before the route has finished loading and re-rendered.
+    await waitFor(() => expect(canvas.getByRole('button', { name: 'A–Z' })).toHaveAttribute('aria-pressed', 'true'))
+  },
+})
+
+export const TracksLoadsMore = meta.story({
+  args: { path: '/tracks' },
+  beforeEach({ msw }) {
+    libraryRequests.mockClear()
+    msw.use(
+      http.get('/api/v1/tracks', ({ query, response }) => {
+        const cursor = query.get('cursor')
+        libraryRequests(cursor)
+        return response(200).json(
+          cursor
+            ? { ...libraryPage, items: libraryPage.items.slice(2), nextCursor: null }
+            : { ...libraryPage, items: libraryPage.items.slice(0, 2), nextCursor: 'page-2' },
+        )
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('link', { name: 'Searched And Played' })).toBeVisible()
+    await expect(main.queryByRole('link', { name: 'Sunday Morning Static' })).toBeNull()
+    await userEvent.click(main.getByRole('button', { name: 'Load more tracks' }))
+    await expect(await main.findByRole('link', { name: 'Sunday Morning Static' })).toBeVisible()
+    await expect(libraryRequests).toHaveBeenLastCalledWith('page-2')
+    await expect(main.queryByRole('button', { name: 'Load more tracks' })).toBeNull()
+  },
+})
+
+export const TracksSelectCreatesPlaylist = meta.story({
+  args: { path: '/tracks' },
+  beforeEach({ msw }) {
+    requests.mockClear()
+    msw.use(
+      http.post('/api/v1/playlists', async ({ request }) => {
+        requests(await request.json())
+        return HttpResponse.json({ id: 'p1' }, { status: 201 })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'Select' }))
+    await userEvent.click(canvas.getByRole('checkbox', { name: 'Select Sunday Morning Static' }))
+    await userEvent.click(canvas.getByRole('checkbox', { name: 'Select Brass Monkey Business' }))
+    const bar = within(canvas.getByRole('toolbar', { name: 'Selected tracks' }))
+    await expect(bar.getByRole('status')).toHaveTextContent('2 tracks selected')
+    await userEvent.click(bar.getByRole('button', { name: 'Create playlist…' }))
+    const dialog = within(await screen.findByRole('dialog', { name: 'Create playlist' }))
+    await userEvent.click(await dialog.findByRole('button', { name: 'Create playlist' }))
+    // In the order shown (most played first), not the order picked.
+    await waitFor(() => expect(requests).toHaveBeenCalledWith({ name: expect.any(String), trackIds: ['t1', 't2'] }))
+  },
+})
+
+export const TracksEmpty = meta.story({
+  args: { path: '/tracks' },
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/tracks', ({ response }) => response(200).json({ items: [], nextCursor: null, total: 0 })))
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('No tracks yet')).toBeVisible()
+    await expect(canvas.queryByRole('button', { name: 'Select' })).toBeNull()
+  },
+})
+
+export const TracksOnPhone = meta.story({
+  args: { path: '/history' },
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  play: async ({ canvas, userEvent }) => {
+    const navs = await canvas.findAllByRole('navigation', { name: 'Main' })
+    const tabs = within(navs.find((nav) => nav.checkVisibility())!)
+    await expect(tabs.getAllByRole('link').map((link) => link.textContent)).toEqual(['History', 'Tracks', 'Playlists', 'Stats', 'Settings'])
+    await userEvent.click(tabs.getByRole('link', { name: 'Tracks' }))
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Tracks' })).toBeVisible()
   },
 })

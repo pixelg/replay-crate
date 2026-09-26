@@ -2,6 +2,7 @@ import { createOpenApiHttp } from 'openapi-msw'
 import type { paths } from './api.gen.ts'
 import {
   devices,
+  libraryPage,
   pixelg,
   playback,
   playlistDetail,
@@ -38,7 +39,10 @@ export const handlers = {
     ),
     http.get('/api/v1/history/gaps', ({ response }) => response(200).json({ gaps: [] })),
   ],
-  tracks: [http.get('/api/v1/tracks/{id}', ({ response }) => response(200).json(trackDetail))],
+  tracks: [
+    http.get('/api/v1/tracks', ({ response }) => response(200).json(libraryPage)),
+    http.get('/api/v1/tracks/{id}', ({ response }) => response(200).json(trackDetail)),
+  ],
   playlists: [
     http.get('/api/v1/playlists', ({ response }) => response(200).json(playlistsList)),
     http.get('/api/v1/playlists/{id}', ({ response }) => response(200).json(playlistDetail)),

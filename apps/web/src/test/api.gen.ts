@@ -178,6 +178,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tracks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every track you have played
+         * @description With play counts and last plays. `plays` and `last_played` sort highest and newest first, `name` A–Z. Pass `nextCursor` back as `cursor` for the next page (with the same `sort`).
+         */
+        get: operations["listTracks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tracks/{id}": {
         parameters: {
             query?: never;
@@ -806,6 +826,31 @@ export interface components {
         ArtistRef: {
             id: string;
             name: string;
+        };
+        LibraryTrack: {
+            track: {
+                id: string;
+                name: string;
+                durationMs: number;
+                explicit: boolean;
+                album: {
+                    id: string;
+                    name: string;
+                    thumbUrl: string | null;
+                };
+                artists: components["schemas"]["ArtistRef"][];
+            };
+            playCount: number;
+            /**
+             * Format: date-time
+             * @example 2026-09-21T12:00:00.000Z
+             */
+            firstPlayedAt: string;
+            /**
+             * Format: date-time
+             * @example 2026-09-21T12:00:00.000Z
+             */
+            lastPlayedAt: string;
         };
         TrackDetail: {
             track: {
@@ -1484,6 +1529,64 @@ export interface operations {
                          * @example 2026-09-21T12:00:00.000Z
                          */
                         lastSyncedAt: string | null;
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    listTracks: {
+        parameters: {
+            query?: {
+                sort?: "plays" | "last_played" | "name";
+                limit?: number;
+                /** @description The previous page's `nextCursor`. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of tracks. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["LibraryTrack"][];
+                        /** @description null on the last page. */
+                        nextCursor: string | null;
+                        /** @description Distinct tracks played, across all pages. */
+                        total: number;
                     };
                 };
             };
