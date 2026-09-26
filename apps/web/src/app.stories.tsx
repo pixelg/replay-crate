@@ -975,7 +975,8 @@ export const TracksSorts = meta.story({
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(await canvas.findByRole('button', { name: 'A–Z' }))
     await waitFor(() => expect(libraryRequests).toHaveBeenLastCalledWith('name'))
-    await expect(canvas.getByRole('button', { name: 'A–Z' })).toHaveAttribute('aria-pressed', 'true')
+    // The request goes out before the route has finished loading and re-rendered.
+    await waitFor(() => expect(canvas.getByRole('button', { name: 'A–Z' })).toHaveAttribute('aria-pressed', 'true'))
   },
 })
 
