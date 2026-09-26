@@ -1,25 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
+import { signIn, stubSpotify } from './support.ts'
 
-test.beforeEach(async ({ page }) => {
-  // Stand-in for Spotify's login page: approve at once and send the browser back to our
-  // callback with a code and the same PKCE `state` the app generated.
-  await page.route('https://accounts.spotify.com/authorize**', (route) => {
-    const authorize = new URL(route.request().url())
-    const callback = new URL(authorize.searchParams.get('redirect_uri')!)
-    callback.searchParams.set('code', 'e2e-code')
-    callback.searchParams.set('state', authorize.searchParams.get('state')!)
-    return route.fulfill({ status: 302, headers: { location: callback.toString() } })
-  })
-  // Album art comes from Spotify's CDN; nothing external in these tests.
-  await page.route('https://i.scdn.co/**', (route) => route.abort())
-})
-
-async function signIn(page: Page) {
-  await page.goto('/')
-  await expect(page).toHaveURL(/\/connect$/)
-  await page.getByRole('button', { name: 'Connect Spotify' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'History' })).toBeVisible()
-}
+test.beforeEach(({ page }) => stubSpotify(page))
 
 /** Main navigation: the sidebar on desktop, the bottom tabs on a phone (only one is visible). */
 const mainNav = (page: Page) => page.getByRole('navigation', { name: 'Main' })

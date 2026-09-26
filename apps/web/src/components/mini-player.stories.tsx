@@ -181,6 +181,8 @@ export const PhoneBar = meta.story({
     const region = within(await player(canvas))
     await expect(region.getByRole('button', { name: 'Pause' })).toBeVisible()
     await expect(region.queryByRole('button', { name: 'Next' })).toBeNull()
+    // The whole bar opens the player page.
+    await expect(region.getByRole('link', { name: 'Brass Monkey Business' })).toHaveAttribute('href', '/player')
     await expect(region.getByRole('progressbar', { name: 'Playback position' })).toBeInTheDocument()
   },
 })

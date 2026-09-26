@@ -23,6 +23,9 @@ library.add('boom-bap', [brass, searched], 'Boom Bap Essentials')
 // Known only to (fake) Spotify's catalog: arrives through a streaming history import.
 library.remember([
   track('4uLU6hMCjMI75M1A2tKUQC', { name: 'Imported Oldie', album: ['vault', 'From The Vault'], artists: [['keepers', 'Vault Keepers']] }),
+  // Played only by the player spec, so the mini player it leaves behind clashes with nothing.
+  track('warmup', { name: 'Needle Warm-Up', album: ['tests', 'Test Pressings'], artists: [['lathe', 'The Lathe']] }),
+  track('encore', { name: 'Last Call Encore', album: ['tests', 'Test Pressings'], artists: [['lathe', 'The Lathe']] }),
 ])
 
 // Plays pinned to calendar days from server start, so "Today" / "Yesterday" headings hold at any
