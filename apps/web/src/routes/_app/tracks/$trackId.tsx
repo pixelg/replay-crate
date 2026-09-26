@@ -1,15 +1,17 @@
 import { formatDuration, formatRelative } from '@replay-crate/core'
-import { isApiError, trackQueryOptions } from '@replay-crate/api-client'
+import { isApiError, trackQueryOptions, type TrackDetail } from '@replay-crate/api-client'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
-import { ArrowLeft } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { ArrowLeft, ListEnd, Play, Plus } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { AddToPlaylist } from '../../../components/add-to-playlist.tsx'
 import { AlbumArt } from '../../../components/album-art.tsx'
 import { ContextChip } from '../../../components/context-chip.tsx'
 import { ErrorPage } from '../../../components/error-page.tsx'
-import { TrackActions } from '../../../components/track-actions.tsx'
+import { CreatePlaylistDialog } from '../../../components/create-playlist-dialog.tsx'
+import { Button } from '../../../components/ui/button.tsx'
 import { api } from '../../../lib/api.ts'
+import { useTrackCommands } from '../../../lib/use-track-commands.ts'
 
 export const Route = createFileRoute('/_app/tracks/$trackId')({
   loader: async ({ context, params }) => {
@@ -50,14 +52,7 @@ function TrackPage() {
             {track.album.name}
             {year && ` · ${year}`} · {formatDuration(track.durationMs)}
           </p>
-          <div className="mt-3 flex items-center gap-2">
-            <AddToPlaylist
-              trackId={track.id}
-              trackName={track.name}
-              onPlaylists={playlists.map((playlist) => playlist.id)}
-            />
-            <TrackActions track={track} onPlaylists={playlists.map((playlist) => playlist.id)} showGoTo={false} />
-          </div>
+          <TrackButtons track={track} onPlaylists={playlists.map((playlist) => playlist.id)} />
         </div>
       </header>
 
@@ -141,5 +136,26 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <h2 className="mb-2 font-semibold">{title}</h2>
       {children}
     </section>
+  )
+}
+
+/** Play it, queue it, put it on a playlist, or start a new one with it. */
+function TrackButtons({ track, onPlaylists }: { track: TrackDetail['track']; onPlaylists: string[] }) {
+  const commands = useTrackCommands(track)
+  const [creating, setCreating] = useState(false)
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <Button size="sm" onClick={commands.play}>
+        <Play aria-hidden className="size-4" /> Play
+      </Button>
+      <Button size="sm" variant="secondary" onClick={commands.queue}>
+        <ListEnd aria-hidden className="size-4" /> Add to queue
+      </Button>
+      <AddToPlaylist trackId={track.id} trackName={track.name} onPlaylists={onPlaylists} />
+      <Button size="sm" variant="secondary" onClick={() => setCreating(true)}>
+        <Plus aria-hidden className="size-4" /> New playlist
+      </Button>
+      <CreatePlaylistDialog open={creating} onOpenChange={setCreating} trackIds={[track.id]} suggestedName={track.name} />
+    </div>
   )
 }

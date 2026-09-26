@@ -1054,3 +1054,62 @@ export const TracksOnPhone = meta.story({
     await expect(await canvas.findByRole('heading', { level: 1, name: 'Tracks' })).toBeVisible()
   },
 })
+
+export const TrackPagePlaysAndQueues = meta.story({
+  args: { path: '/tracks/t1' },
+  beforeEach({ msw }) {
+    playerRequests.mockClear()
+    const record =
+      (name: string) =>
+      async ({ request, response }: { request: Request; response: (status: 204) => { empty: () => Response } }) => {
+        playerRequests(name, await request.json())
+        return response(204).empty()
+      }
+    msw.use(http.put('/api/v1/player/play', record('play')), http.post('/api/v1/player/queue', record('queue')))
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await userEvent.click(await main.findByRole('button', { name: 'Play' }))
+    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('play', { uris: ['spotify:track:t1'] }))
+    const playing = await screen.findByText('Playing “Brass Monkey Business”')
+    await waitFor(() => expect(playing).toBeVisible())
+
+    await userEvent.click(main.getByRole('button', { name: 'Add to queue' }))
+    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('queue', { uri: 'spotify:track:t1' }))
+    // The buttons do what the ⋯ menu did, so there's no menu here.
+    await expect(main.queryByRole('button', { name: /^Actions for/ })).toBeNull()
+  },
+})
+
+export const TrackPageNewPlaylist = meta.story({
+  args: { path: '/tracks/t1' },
+  beforeEach({ msw }) {
+    requests.mockClear()
+    msw.use(
+      http.post('/api/v1/playlists', async ({ request }) => {
+        requests(await request.json())
+        return HttpResponse.json({ id: 'p1' }, { status: 201 })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'New playlist' }))
+    const dialog = within(await screen.findByRole('dialog', { name: 'Create playlist' }))
+    await waitFor(() => expect(dialog.getByText('With 1 track')).toBeVisible())
+    await expect(dialog.getByRole('textbox', { name: 'Name' })).toHaveValue('Brass Monkey Business')
+    await userEvent.click(dialog.getByRole('button', { name: 'Create playlist' }))
+    await waitFor(() => expect(requests).toHaveBeenCalledWith({ name: 'Brass Monkey Business', trackIds: ['t1'] }))
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Late Night Crate' })).toBeVisible()
+  },
+})
+
+export const TrackPageOnPhone = meta.story({
+  args: { path: '/tracks/t1' },
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    for (const name of ['Play', 'Add to queue', 'Add to playlist', 'New playlist']) {
+      await expect(await main.findByRole('button', { name })).toBeVisible()
+    }
+  },
+})
