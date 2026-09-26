@@ -19,6 +19,22 @@ export const pixelg: Me = { id: 'pixelg', displayName: 'Pixel G', imageUrl: null
 
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000).toISOString()
 
+/**
+ * Times for plays grouped by day, pinned to calendar days so "Today" and "Yesterday" hold at
+ * any time of day (hour offsets from now cross midnight early in the morning).
+ */
+const startOfDay = (daysAgo: number) => {
+  const day = new Date()
+  day.setHours(0, 0, 0, 0)
+  day.setDate(day.getDate() - daysAgo)
+  return day.getTime()
+}
+/** `minutes` ago, but never before today's midnight (then a few seconds after it, keeping order). */
+const today = (minutes: number) =>
+  new Date(Math.max(Date.now() - minutes * 60_000, startOfDay(0) + (60 - minutes) * 1_000)).toISOString()
+/** `hour`:00 local time, `daysAgo` days back. */
+const dayAt = (daysAgo: number, hour: number) => new Date(startOfDay(daysAgo) + hour * 3_600_000).toISOString()
+
 const track = (id: string, name: string, artists: string[], album: string): PlayItem['track'] => ({
   id,
   name,
@@ -30,35 +46,35 @@ const track = (id: string, name: string, artists: string[], album: string): Play
 
 export const plays: PlayItem[] = [
   {
-    playedAt: hoursAgo(0.2),
+    playedAt: today(12),
     msPlayed: null,
     source: 'poll',
     context: { type: 'playlist', uri: 'spotify:playlist:p1', name: 'Late Night Crate', imageUrl: null },
     track: track('t1', 'Brass Monkey Business', ['The Loop Collective', 'MC Vinyl'], 'Dusty Grooves'),
   },
   {
-    playedAt: hoursAgo(0.3),
+    playedAt: today(18),
     msPlayed: null,
     source: 'poll',
     context: { type: 'album', uri: 'spotify:album:a2', name: 'Sunday Sessions', imageUrl: null },
     track: track('t2', 'Sunday Morning Static', ['Paper Kites Club'], 'Sunday Sessions'),
   },
   {
-    playedAt: hoursAgo(26),
+    playedAt: dayAt(1, 22),
     msPlayed: null,
     source: 'poll',
     context: { type: 'collection', uri: 'spotify:user:pixelg:collection', name: 'Liked Songs', imageUrl: null },
     track: track('t3', 'A Very Long Track Title That Needs To Truncate Gracefully On Small Screens', ['Somebody'], 'Singles'),
   },
   {
-    playedAt: hoursAgo(27),
+    playedAt: dayAt(1, 21),
     msPlayed: null,
     source: 'poll',
     context: { type: 'playlist', uri: 'spotify:playlist:discover', name: null, imageUrl: null },
     track: track('t1', 'Brass Monkey Business', ['The Loop Collective', 'MC Vinyl'], 'Dusty Grooves'),
   },
   {
-    playedAt: hoursAgo(75),
+    playedAt: dayAt(3, 18),
     msPlayed: null,
     source: 'poll',
     context: null,
