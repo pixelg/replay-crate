@@ -2,12 +2,14 @@ import { isApiError, type Playback, type PlayerCommand, type PlayerItem } from '
 import { formatDuration } from '@replay-crate/core'
 import { Link } from '@tanstack/react-router'
 import { MonitorSpeaker, Pause, Play, SkipBack, SkipForward } from 'lucide-react'
+import { useState } from 'react'
 import { cn } from 'cn'
 import { describeError } from '../lib/describe-error.ts'
 import { usePlayback, usePlayerControls, useQueue } from '../lib/use-player.ts'
 import { AlbumArt } from './album-art.tsx'
 import { IconButton } from './player/icon-button.tsx'
-import { subtitleOf, thumbOf } from './player/items.ts'
+import { imageOf, subtitleOf, thumbOf } from './player/items.ts'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from './ui/hover-card.tsx'
 import { TrackRating } from './star-rating.tsx'
 
 // What Spotify is playing, with transport controls: in the header from `md` up, and as a bar
@@ -24,7 +26,8 @@ export function MiniPlayer({ className }: { className?: string }) {
   const { playback, progressMs, item } = player
   return (
     <section aria-label="Now playing" className={cn('flex min-w-0 items-center gap-3', className)}>
-      <NowPlaying item={item} message={player.message} />
+      {/* Keeps a little room when a long up-next title takes its share. */}
+      <NowPlaying item={item} message={player.message} className="min-w-48" />
       {item?.type === 'track' && item.id && (
         <TrackRating track={{ ...item, id: item.id }} className="hidden shrink-0 lg:inline-flex" />
       )}
@@ -33,20 +36,11 @@ export function MiniPlayer({ className }: { className?: string }) {
         <p className="hidden shrink-0 text-xs text-muted-foreground tabular-nums lg:block">
           {formatDuration(progressMs)}
           <span aria-hidden> / </span>
-          <span className="sr-only">, remaining </span>-{formatDuration(Math.max(0, item.durationMs - progressMs))}
+          <span className="sr-only"> of </span>
+          {formatDuration(item.durationMs)}
         </p>
       )}
-      {upNext && (
-        <div className="ml-2 hidden min-w-0 items-center gap-2 border-l border-border pl-4 lg:flex">
-          <AlbumArt src={thumbOf(upNext)} className="size-8" />
-          <div className="min-w-0 text-xs">
-            <p className="text-muted-foreground">Up next</p>
-            <p className="truncate">
-              {upNext.name} <span className="text-muted-foreground">· {subtitleOf(upNext)}</span>
-            </p>
-          </div>
-        </div>
-      )}
+      {upNext && <UpNext item={upNext} />}
       <ProgressLine progressMs={progressMs} durationMs={item?.durationMs ?? 0} className="absolute inset-x-0 bottom-0" />
     </section>
   )
@@ -131,11 +125,13 @@ function NowPlaying({
   item,
   message,
   opens = 'track',
+  className,
 }: {
   item: PlayerItem | null
   message: string | null
   /** Where the title leads: the track's page, or (on phones) the player page. */
   opens?: 'track' | 'player'
+  className?: string
 }) {
   if (!item) return null
   const title =
@@ -151,7 +147,7 @@ function NowPlaying({
       <span className="truncate font-medium">{item.name}</span>
     )
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-3">
+    <div className={cn('flex min-w-0 flex-1 items-center gap-3', className)}>
       <AlbumArt src={thumbOf(item)} className="size-10" />
       <div className="flex min-w-0 flex-col text-sm leading-tight">
         {title}
@@ -164,6 +160,53 @@ function NowPlaying({
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * What plays after this, from `lg` up. It takes the room its title needs, up to half the header
+ * (over half on wide screens), and wraps to two lines past that; the whole of it shows in a hover
+ * card (tap on touch).
+ */
+function UpNext({ item }: { item: PlayerItem }) {
+  const [open, setOpen] = useState(false)
+  const title = item.name
+  return (
+    <HoverCard open={open} onOpenChange={setOpen}>
+      <HoverCardTrigger
+        // A button, not the default link: a tap opens the card (touch has no hover), and the
+        // card links to the track.
+        render={<button type="button" />}
+        onClick={() => setOpen(true)}
+        delay={300}
+        className="ml-2 hidden min-w-0 shrink items-center gap-2 border-l border-border py-1 pl-4 text-left lg:flex lg:max-w-1/2 xl:max-w-3/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        <AlbumArt src={thumbOf(item)} className="size-8" />
+        <span className="min-w-0 text-xs leading-tight">
+          <span className="block text-muted-foreground">Up next</span>
+          <span className="line-clamp-2 break-words">
+            {title} <span className="text-muted-foreground">· {subtitleOf(item)}</span>
+          </span>
+        </span>
+      </HoverCardTrigger>
+      <HoverCardContent align="end" className="flex w-72 gap-3">
+        <AlbumArt src={imageOf(item)} className="size-16" />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-muted-foreground">Up next</p>
+          {item.type === 'track' && item.id ? (
+            <Link to="/tracks/$trackId" params={{ trackId: item.id }} className="font-medium hover:underline">
+              {title}
+            </Link>
+          ) : (
+            <p className="font-medium">{title}</p>
+          )}
+          <p className="text-muted-foreground">{subtitleOf(item)}</p>
+          <p className="text-xs text-muted-foreground">
+            {item.type === 'track' ? item.album.name : 'Episode'} · {formatDuration(item.durationMs)}
+          </p>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
   )
 }
 

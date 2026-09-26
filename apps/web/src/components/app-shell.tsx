@@ -10,7 +10,7 @@ import { SearchPalette } from './search/search-palette.tsx'
 import { ThemeToggle } from './theme-toggle.tsx'
 import { MiniPlayer, MiniPlayerBar } from './mini-player.tsx'
 import { Toaster } from './ui/sonner.tsx'
-import { navItems } from './nav-items.ts'
+import { navItems, navSections } from './nav-items.ts'
 import { MenuContent, MenuItem, MenuLinkItem, MenuRoot, MenuSeparator, MenuTrigger } from './ui/menu.tsx'
 import { UserAvatar } from './user-avatar.tsx'
 
@@ -138,20 +138,22 @@ function Brand({ className }: { className?: string }) {
 
 function SidebarNav() {
   return (
-    <nav aria-label="Main">
-      <ul className="flex flex-col gap-1">
-        {navItems.map(({ to, label, icon: Icon }) => (
-          <li key={to}>
-            <Link
-              to={to}
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-background hover:text-foreground data-[status=active]:bg-background data-[status=active]:text-foreground"
-            >
-              <Icon aria-hidden className="size-5" />
-              {label}
-            </Link>
-          </li>
-        ))}
-      </ul>
+    <nav aria-label="Main" className="flex flex-col gap-6">
+      {navSections.map((section) => (
+        <ul key={section[0]!.to} className="flex flex-col gap-1">
+          {section.map(({ to, label, icon: Icon }) => (
+            <li key={to}>
+              <Link
+                to={to}
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-background hover:text-foreground data-[status=active]:bg-background data-[status=active]:text-foreground"
+              >
+                <Icon aria-hidden className="size-5" />
+                {label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ))}
     </nav>
   )
 }

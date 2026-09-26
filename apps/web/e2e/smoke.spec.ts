@@ -99,7 +99,9 @@ test("shows stats with the interactive chart and Spotify's view", async ({ page 
 
 test('imports Spotify streaming history', async ({ page }) => {
   await signIn(page)
-  await mainNav(page).getByRole('link', { name: 'Settings' }).click()
+  // Settings is in the account menu: the sidebar's on desktop, the header's avatar on phones.
+  await page.getByRole('button', { name: /^Account: / }).click()
+  await page.getByRole('menuitem', { name: 'Settings' }).click()
   await page.getByRole('link', { name: 'Import', exact: true }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Import history' })).toBeVisible()
 

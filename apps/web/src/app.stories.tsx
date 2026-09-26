@@ -88,6 +88,21 @@ export const MiniPlayerInHeader = meta.story({
   },
 })
 
+export const MiniPlayerUpNext = meta.story({
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  play: async ({ canvas, userEvent }) => {
+    const header = within(await canvas.findByRole('banner'))
+    const upNext = await header.findByRole('button', { name: /^Up next Sunday Morning Static/ })
+    // Long titles wrap to two lines rather than squeezing the rest of the player.
+    await expect(upNext.querySelector('.line-clamp-2')).toHaveTextContent('Sunday Morning Static · Paper Kites Club')
+    // A click (a tap on touch, where there's no hover) opens the whole of it, with a way to the track.
+    await userEvent.click(upNext)
+    const card = within(await waitFor(() => document.querySelector<HTMLElement>('[data-slot=hover-card-content]')!))
+    await expect(card.getByRole('link', { name: 'Sunday Morning Static' })).toHaveAttribute('href', '/tracks/t2')
+    await waitFor(() => expect(card.getByText('Sunday Sessions · 3:33')).toBeVisible())
+  },
+})
+
 export const MiniPlayerOnPhone = meta.story({
   globals: { viewport: { value: 'mobile2', isRotated: false } },
   play: async ({ canvas }) => {
@@ -289,6 +304,16 @@ export const LogsOut = meta.story({
     await waitFor(() => expect(logOut.getBoundingClientRect().bottom).toBeLessThanOrEqual(account.getBoundingClientRect().top))
     await userEvent.click(logOut)
     await expect(await canvas.findByRole('button', { name: 'Connect Spotify' })).toBeVisible()
+  },
+})
+
+export const SidebarNav = meta.story({
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  play: async ({ canvas }) => {
+    const nav = within(await canvas.findByRole('complementary')).getByRole('navigation', { name: 'Main' })
+    // The player sits on its own above the library; Settings is in the account menu.
+    const sections = within(nav).getAllByRole('list').map((list) => within(list).getAllByRole('link').map((link) => link.textContent))
+    await expect(sections).toEqual([['Player'], ['History', 'Tracks', 'Playlists', 'Stats']])
   },
 })
 
@@ -769,6 +794,8 @@ export const Player = meta.story({
     const panel = within(await main.findByRole('region', { name: 'Brass Monkey Business' }))
     await expect(panel.getByText('Playing from Late Night Crate')).toBeVisible()
     await expect(panel.getByRole('slider', { name: 'Seek' })).toHaveAttribute('aria-valuetext', expect.stringMatching(/^1:2\d of 3:33$/))
+    // The position counts up; the length beside it stays put.
+    await expect(panel.getByText('3:33')).toBeVisible()
     await expect(panel.getByRole('slider', { name: 'Volume' })).toHaveAttribute('aria-valuetext', '70%')
     // Up next and the devices, the active one first.
     await expect(await main.findByText('The History of the Breakbeat')).toBeVisible()
@@ -776,6 +803,23 @@ export const Player = meta.story({
     await expect(main.getByRole('button', { name: `Play on ${devices[1]!.name}` })).toBeEnabled()
     // Player is in the sidebar and marked as the current page.
     await expect(canvas.getAllByRole('link', { name: 'Player' }).find((link) => link.checkVisibility())).toHaveAttribute('aria-current', 'page')
+  },
+})
+
+export const PlayerPlaysNow = meta.story({
+  args: { path: '/player' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(...recordPlayerCommands(), http.put('/api/v1/player/play', async ({ request, response }) => {
+      playerRequests('play', await request.json())
+      return response(204).empty()
+    }))
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    // Spotify can't skip ahead in its queue: the item plays now, and what was after it follows.
+    await userEvent.click(await main.findByRole('button', { name: 'Play Crate Digger now' }))
+    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('play', { uris: ['spotify:track:t5', 'spotify:episode:e1'] }))
   },
 })
 
@@ -1161,7 +1205,7 @@ export const TracksOnPhone = meta.story({
   play: async ({ canvas, userEvent }) => {
     const navs = await canvas.findAllByRole('navigation', { name: 'Main' })
     const tabs = within(navs.find((nav) => nav.checkVisibility())!)
-    await expect(tabs.getAllByRole('link').map((link: HTMLElement) => link.textContent)).toEqual(['History', 'Tracks', 'Playlists', 'Stats', 'Settings'])
+    await expect(tabs.getAllByRole('link').map((link: HTMLElement) => link.textContent)).toEqual(['History', 'Tracks', 'Playlists', 'Stats'])
     await userEvent.click(tabs.getByRole('link', { name: 'Tracks' }))
     await expect(await canvas.findByRole('heading', { level: 1, name: 'Tracks' })).toBeVisible()
   },
@@ -1485,12 +1529,39 @@ export const HistoryPages = meta.story({
   play: async ({ canvas, userEvent }) => {
     const main = within(await canvas.findByRole('main'))
     await expect(await main.findByText('1–5 of 12')).toBeVisible()
-    // The present tops the first page only.
+    // The present tops every page.
     await expect(await main.findByRole('group', { name: 'Now playing' })).toBeVisible()
     await userEvent.click(main.getByRole('link', { name: 'Page 2' }))
     await expect(await main.findByText('6–10 of 12')).toBeVisible()
-    await expect(main.queryByRole('group', { name: 'Now playing' })).toBeNull()
+    await expect(main.getByRole('group', { name: 'Now playing' })).toBeVisible()
     await expect(rowNames(main)).toEqual(['Crate Cut 06', 'Crate Cut 07', 'Crate Cut 08', 'Crate Cut 09', 'Crate Cut 10'])
+  },
+})
+
+export const HistoryNowPlayingSticks = meta.story({
+  args: { path: '/history?size=30' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    const plays = manyPlays(30)
+    msw.use(
+      http.get('/api/v1/history/plays', ({ query, response }) => {
+        const { items, rest, next } = pageBy(plays, query)
+        return response(200).json({ items, nextCursor: null, lastSyncedAt: null, ...rest, olderPlayedAt: next?.playedAt ?? null })
+      }),
+    )
+  },
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    const nowPlaying = await main.findByRole('group', { name: 'Now playing' })
+    await expect(await main.findByRole('link', { name: 'Crate Cut 30' })).toBeVisible()
+    window.scrollTo(0, document.documentElement.scrollHeight)
+    // Scrolled to the end, Now playing still sits under the header...
+    const header = canvas.getByRole('banner').getBoundingClientRect()
+    await waitFor(() => expect(nowPlaying.getBoundingClientRect().top).toBeCloseTo(header.bottom, 0))
+    // ...and day headings stick under it rather than behind it.
+    const day = main.getAllByRole('heading', { level: 2 }).find((heading) => heading.id.startsWith('day-'))!
+    await waitFor(() => expect(parseFloat(getComputedStyle(day).top)).toBeCloseTo(header.height + nowPlaying.offsetHeight, 0))
+    window.scrollTo(0, 0)
   },
 })
 
