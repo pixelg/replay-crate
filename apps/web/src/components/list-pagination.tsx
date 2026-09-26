@@ -12,7 +12,7 @@ import {
 } from './ui/pagination.tsx'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select.tsx'
 
-const sizeItems = PAGE_SIZES.map((size) => ({ value: String(size), label: size === 'all' ? 'All' : String(size) }))
+const toItems = (sizes: readonly PageSize[]) => sizes.map((size) => ({ value: String(size), label: size === 'all' ? 'All' : String(size) }))
 
 /**
  * Under a list: which items are showing, links to the other pages, and how many to show per
@@ -25,6 +25,7 @@ export function ListPagination({
   total,
   onSizeChange,
   linkTo,
+  sizes = PAGE_SIZES,
   className,
 }: {
   /** From 1. */
@@ -35,9 +36,12 @@ export function ListPagination({
   onSizeChange: (size: PageSize) => void
   /** A router link to this list at `page`, e.g. `(page) => <Link to="." search={…} />`. */
   linkTo: (page: number) => ReactElement
+  /** The sizes to offer; every size, All included, by default. */
+  sizes?: readonly PageSize[]
   className?: string
 }) {
   const labelId = useId()
+  const sizeItems = toItems(sizes)
   const paged = size !== 'all' && total !== undefined
   const pages = paged ? pageCount(total, size) : 1
 

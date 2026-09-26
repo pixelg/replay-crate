@@ -1,9 +1,12 @@
 import type { Me } from '@replay-crate/api-client'
 import { Link } from '@tanstack/react-router'
-import { ChevronsUpDown, Disc3, ExternalLink, LogOut, Radio } from 'lucide-react'
+import { ChevronsUpDown, Disc3, ExternalLink, LogOut, Radio, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from 'cn'
+import { modKey, useSearchPalette } from '../lib/search-palette.ts'
+import { SearchPaletteProvider } from './search/search-palette-provider.tsx'
 import { useIsPlaying } from '../lib/use-player.ts'
+import { SearchPalette } from './search/search-palette.tsx'
 import { ThemeToggle } from './theme-toggle.tsx'
 import { MiniPlayer, MiniPlayerBar } from './mini-player.tsx'
 import { Toaster } from './ui/sonner.tsx'
@@ -30,50 +33,89 @@ export function AppShell({
   children: ReactNode
 }) {
   return (
-    // While the phone's mini player bar shows, the page needs that much more room at the bottom.
-    <div className="min-h-dvh [--player-bar:0px] has-data-mini-player-bar:[--player-bar:3.5rem] md:grid md:grid-cols-[15rem_1fr]">
-      <aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-r border-border bg-muted p-4 md:flex">
-        <Brand />
-        <SidebarNav />
-        <div className="mt-auto flex items-center gap-1 border-t border-border pt-4">
-          <div className="min-w-0 flex-1">
-            <AccountMenu user={user} onLogout={onLogout} placement="sidebar" />
-          </div>
-          <ThemeToggle />
-        </div>
-      </aside>
-
-      <div className="flex min-h-dvh min-w-0 flex-col">
-        <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur md:px-8">
-          <Brand className="md:hidden" />
-          <MiniPlayer className="hidden flex-1 md:flex" />
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            {/* Phones have no player tab; this and the player bar lead there. */}
-            <Link
-              to="/player"
-              aria-label="Player"
-              title="Player"
-              className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted data-[status=active]:text-primary md:hidden"
-            >
-              <Radio aria-hidden className="size-5" />
-            </Link>
-            {/* The sidebar holds these from `md` up. */}
-            <ThemeToggle className="hover:bg-muted md:hidden" />
-            <div className="md:hidden">
-              <AccountMenu user={user} onLogout={onLogout} placement="header" />
+    <SearchPaletteProvider>
+      {/* While the phone's mini player bar shows, the page needs that much more room at the bottom. */}
+      <div className="min-h-dvh [--player-bar:0px] has-data-mini-player-bar:[--player-bar:3.5rem] md:grid md:grid-cols-[15rem_1fr]">
+        <aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-r border-border bg-muted p-4 md:flex">
+          <Brand />
+          <SearchButton />
+          <SidebarNav />
+          <div className="mt-auto flex items-center gap-1 border-t border-border pt-4">
+            <div className="min-w-0 flex-1">
+              <AccountMenu user={user} onLogout={onLogout} placement="sidebar" />
             </div>
+            <ThemeToggle />
           </div>
-        </header>
-        {banner}
-        <main className="flex-1 px-4 pt-6 pb-[calc(5rem+var(--player-bar)+env(safe-area-inset-bottom))] md:px-8 md:pb-10">
-          {children}
-        </main>
-      </div>
+        </aside>
 
-      <BottomTabs />
-      {/* Clear of the phone's tabs and player bar. */}
-      <Toaster position="bottom-center" mobileOffset={{ bottom: 'calc(8.5rem + env(safe-area-inset-bottom))' }} />
-    </div>
+        <div className="flex min-h-dvh min-w-0 flex-col">
+          <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur md:px-8">
+            <Brand className="md:hidden" />
+            <MiniPlayer className="hidden flex-1 md:flex" />
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              {/* Phones have no player tab; this and the player bar lead there. */}
+              <Link
+                to="/player"
+                aria-label="Player"
+                title="Player"
+                className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted data-[status=active]:text-primary md:hidden"
+              >
+                <Radio aria-hidden className="size-5" />
+              </Link>
+              {/* The sidebar holds these from `md` up. */}
+              <SearchIconButton />
+              <ThemeToggle className="hover:bg-muted md:hidden" />
+              <div className="md:hidden">
+                <AccountMenu user={user} onLogout={onLogout} placement="header" />
+              </div>
+            </div>
+          </header>
+          {banner}
+          <main className="flex-1 px-4 pt-6 pb-[calc(5rem+var(--player-bar)+env(safe-area-inset-bottom))] md:px-8 md:pb-10">
+            {children}
+          </main>
+        </div>
+
+        <BottomTabs />
+        {/* Clear of the phone's tabs and player bar. */}
+        <Toaster position="bottom-center" mobileOffset={{ bottom: 'calc(8.5rem + env(safe-area-inset-bottom))' }} />
+        <SearchPalette />
+      </div>
+    </SearchPaletteProvider>
+  )
+}
+
+/** The sidebar's way into search: looks like a box, opens the palette. */
+function SearchButton() {
+  const palette = useSearchPalette()
+  return (
+    <button
+      type="button"
+      onClick={() => palette.show()}
+      aria-keyshortcuts="Meta+K Control+K /"
+      className="-mt-2 flex h-9 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    >
+      <Search aria-hidden className="size-4" />
+      <span className="flex-1 text-left">Search…</span>
+      <kbd aria-hidden className="rounded border border-border px-1 font-sans text-xs">
+        {modKey()}K
+      </kbd>
+    </button>
+  )
+}
+
+/** Phones: a search icon in the top bar (the palette opens full screen). */
+function SearchIconButton() {
+  const palette = useSearchPalette()
+  return (
+    <button
+      type="button"
+      onClick={() => palette.show()}
+      aria-label="Search"
+      className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted md:hidden"
+    >
+      <Search aria-hidden className="size-5" />
+    </button>
   )
 }
 

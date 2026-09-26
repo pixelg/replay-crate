@@ -122,3 +122,13 @@
     @apply bg-background font-sans text-foreground antialiased;
   }
 }
+
+/* The search palette's "still loading" line (search-palette.tsx). */
+@keyframes search-progress {
+  from {
+    translate: -100% 0;
+  }
+  to {
+    translate: 300% 0;
+  }
+}
