@@ -187,7 +187,7 @@ export interface paths {
         };
         /**
          * Every track you have played
-         * @description With play counts and last plays. `plays` and `last_played` sort highest and newest first, `name` A–Z. Pass `nextCursor` back as `cursor` for the next page (with the same `sort`).
+         * @description With play counts, last plays and ratings. `plays`, `last_played` and `rating` sort highest and newest first (unrated tracks last), `name` A–Z. `minRating` keeps only tracks rated that many stars or more. Pass `nextCursor` back as `cursor` for the next page (with the same `sort` and `minRating`).
          */
         get: operations["listTracks"];
         put?: never;
@@ -1596,8 +1596,10 @@ export interface operations {
     listTracks: {
         parameters: {
             query?: {
-                sort?: "plays" | "last_played" | "name";
+                sort?: "plays" | "last_played" | "name" | "rating";
                 limit?: number;
+                /** @description Only tracks rated at least this. */
+                minRating?: number;
                 /** @description The previous page's `nextCursor`. */
                 cursor?: string;
             };
@@ -1617,7 +1619,7 @@ export interface operations {
                         items: components["schemas"]["LibraryTrack"][];
                         /** @description null on the last page. */
                         nextCursor: string | null;
-                        /** @description Distinct tracks played, across all pages. */
+                        /** @description Tracks across all pages (matching `minRating`, if given). */
                         total: number;
                     };
                 };
@@ -1885,6 +1887,13 @@ export interface operations {
                         minPlays?: number;
                         /** @default 90 */
                         idleDays?: number;
+                        /** @default 50 */
+                        limit?: number;
+                    } | {
+                        /** @enum {string} */
+                        kind: "top_rated";
+                        /** @default 4 */
+                        minRating?: number;
                         /** @default 50 */
                         limit?: number;
                     };

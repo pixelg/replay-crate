@@ -1199,3 +1199,57 @@ export const PlayerPageRating = meta.story({
     await expect(within(group).getByRole('radio', { name: '4 stars' })).toHaveAttribute('aria-checked', 'true')
   },
 })
+
+export const TracksByRating = meta.story({
+  args: { path: '/tracks' },
+  beforeEach({ msw }) {
+    libraryRequests.mockClear()
+    msw.use(
+      http.get('/api/v1/tracks', ({ query, response }) => {
+        const minRating = query.get('minRating')
+        libraryRequests(query.get('sort'), minRating)
+        // With a filter: the two rated tracks (4 and 2 stars in the fixtures) that pass it.
+        const items = minRating ? libraryPage.items.filter((item) => (item.track.rating ?? 0) >= Number(minRating)) : libraryPage.items
+        return response(200).json({ ...libraryPage, items, total: items.length })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'Rating' }))
+    await waitFor(() => expect(libraryRequests).toHaveBeenLastCalledWith('rating', null))
+
+    await userEvent.click(canvas.getByRole('button', { name: '4★ and up' }))
+    await waitFor(() => expect(libraryRequests).toHaveBeenLastCalledWith('rating', '4'))
+    await expect(await canvas.findByText('1 track rated 4 stars and up.')).toBeVisible()
+    const main = within(canvas.getByRole('main'))
+    await expect(main.getAllByRole('listitem')).toHaveLength(1)
+
+    await userEvent.click(canvas.getByRole('button', { name: '5★' }))
+    await expect(await canvas.findByText('Nothing rated that high yet')).toBeVisible()
+    // The filters stay, to go back.
+    await userEvent.click(canvas.getByRole('button', { name: 'Any rating' }))
+    await expect(await canvas.findByText("Every track you've played: 4 so far.")).toBeVisible()
+  },
+})
+
+const ruleRequests = fn()
+
+export const NewPlaylistTopRated = meta.story({
+  args: { path: '/playlists/new' },
+  beforeEach({ msw }) {
+    ruleRequests.mockClear()
+    msw.use(
+      http.post('/api/v1/playlists/preview', async ({ request }) => {
+        ruleRequests((await request.json()).rule)
+        return HttpResponse.json({ ...rulePreview, suggestedName: 'Rated 4 stars and up' })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'Top rated' }))
+    await waitFor(() => expect(ruleRequests).toHaveBeenLastCalledWith({ kind: 'top_rated', minRating: 4, limit: 50 }))
+    await expect(await canvas.findByText('Tracks you rated, best first, then the ones you play most.')).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: '5★ only' }))
+    await waitFor(() => expect(ruleRequests).toHaveBeenLastCalledWith({ kind: 'top_rated', minRating: 5, limit: 50 }))
+  },
+})

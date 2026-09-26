@@ -25,6 +25,7 @@ const kinds = [
   { value: 'recent', label: 'Recently played' },
   { value: 'on_repeat', label: 'On repeat' },
   { value: 'forgotten', label: 'Forgotten favourites' },
+  { value: 'top_rated', label: 'Top rated' },
   { value: 'empty', label: 'Empty' },
 ] as const satisfies ReadonlyArray<{ value: Kind; label: string }>
 
@@ -33,6 +34,7 @@ const hints: Record<Kind, string> = {
   recent: 'Everything you played in a time range, newest first.',
   on_repeat: 'Tracks you played 3 or more times in the last two weeks.',
   forgotten: 'Tracks you played 5+ times but not in the last 90 days.',
+  top_rated: 'Tracks you rated, best first, then the ones you play most.',
   empty: 'Start from nothing and add tracks from their pages.',
 }
 
@@ -44,13 +46,20 @@ const ranges = [
   { value: 'all', label: 'All time' },
 ] as const satisfies ReadonlyArray<{ value: Range; label: string }>
 
+const minRatings = [
+  { value: '3', label: '3★ and up' },
+  { value: '4', label: '4★ and up' },
+  { value: '5', label: '5★ only' },
+] as const
+type MinRating = (typeof minRatings)[number]['value']
+
 const sizes = [
   { value: '25', label: '25' },
   { value: '50', label: '50' },
   { value: '100', label: '100' },
 ] as const
 
-function toRule(kind: Kind, range: Range, limit: number): PlaylistRule | null {
+function toRule(kind: Kind, range: Range, limit: number, minRating: number): PlaylistRule | null {
   switch (kind) {
     case 'top':
     case 'recent':
@@ -59,6 +68,8 @@ function toRule(kind: Kind, range: Range, limit: number): PlaylistRule | null {
       return { kind, limit }
     case 'forgotten':
       return { kind, minPlays: 5, idleDays: 90, limit }
+    case 'top_rated':
+      return { kind, minRating, limit }
     case 'empty':
       return null
   }
@@ -68,10 +79,11 @@ function toRule(kind: Kind, range: Range, limit: number): PlaylistRule | null {
 function NewPlaylistPage() {
   const [kind, setKind] = useState<Kind>('top')
   const [range, setRange] = useState<Range>('30d')
+  const [minRating, setMinRating] = useState<MinRating>('4')
   const [size, setSize] = useState<(typeof sizes)[number]['value']>('50')
   const [name, setName] = useState<string | null>(null)
 
-  const rule = toRule(kind, range, Number(size))
+  const rule = toRule(kind, range, Number(size), Number(minRating))
   const preview = useQuery({
     queryKey: ['rule-preview', rule],
     queryFn: () => previewRule(api, rule!),
@@ -98,6 +110,11 @@ function NewPlaylistPage() {
           <Segmented label="Playlist type" value={kind} onChange={setKind} options={kinds} />
         </div>
         <p className="text-sm text-muted-foreground">{hints[kind]}</p>
+        {kind === 'top_rated' && (
+          <div className="overflow-x-auto">
+            <Segmented label="Minimum rating" value={minRating} onChange={setMinRating} options={minRatings} />
+          </div>
+        )}
         {(kind === 'top' || kind === 'recent') && (
           <div className="overflow-x-auto">
             <Segmented label="Time range" value={range} onChange={setRange} options={ranges} />

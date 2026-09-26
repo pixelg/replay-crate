@@ -176,6 +176,33 @@ describe('playlist management', () => {
       expect(body.tracks.map((t: { id: string }) => t.id)).toEqual(['c'])
     })
 
+    it('top rated: rated at least minRating, best then most played first', async () => {
+      const rate = (id: string, rating: number) =>
+        ctx.app.request(`/api/v1/tracks/${id}/rating`, {
+          method: 'PUT',
+          headers: { Cookie: cookie, Origin: ORIGIN, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rating }),
+        })
+      await rate('a', 4)
+      await rate('c', 5)
+      await rate('d', 4)
+      await rate('b', 2)
+      // Rated while playing for the first time: no play recorded yet, still picked.
+      await rate('never-played', 5)
+
+      const body = await preview({ kind: 'top_rated', minRating: 4 })
+      expect(body.suggestedName).toBe('Rated 4 stars and up')
+      expect(body.tracks.map((t: { id: string; playCount: number }) => [t.id, t.playCount])).toEqual([
+        ['c', 6],
+        ['never-played', 0],
+        ['a', 4],
+        ['d', 1],
+      ])
+      expect((await preview({ kind: 'top_rated', minRating: 5 })).suggestedName).toBe('Rated 5 stars')
+      // 4 stars and up is the default.
+      expect((await preview({ kind: 'top_rated' })).tracks).toHaveLength(4)
+    })
+
     it('rejects unknown rules', async () => {
       const res = await send('POST', '/api/v1/playlists/preview', { rule: { kind: 'vibes' } })
       expect(res.status).toBe(400)

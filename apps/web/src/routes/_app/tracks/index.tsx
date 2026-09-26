@@ -1,7 +1,7 @@
 import { tracksInfiniteQueryOptions, type TrackSort } from '@replay-crate/api-client'
 import { useSuspenseInfiniteQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { ListChecks, Music } from 'lucide-react'
+import { ListChecks, Music, Star } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { EmptyState } from '../../../components/empty-state.tsx'
 import { PageHeader } from '../../../components/page-header.tsx'
@@ -16,21 +16,40 @@ const sorts = [
   { value: 'plays', label: 'Most played' },
   { value: 'last_played', label: 'Recently played' },
   { value: 'name', label: 'A–Z' },
+  { value: 'rating', label: 'Rating' },
 ] as const satisfies ReadonlyArray<{ value: TrackSort; label: string }>
 const isSort = (value: unknown): value is TrackSort => sorts.some((sort) => sort.value === value)
 
+const ratingFilters = [
+  { value: 'any', label: 'Any rating' },
+  { value: '3', label: '3★ and up' },
+  { value: '4', label: '4★ and up' },
+  { value: '5', label: '5★' },
+] as const
+type RatingFilter = (typeof ratingFilters)[number]['value']
+/** `min` in the URL: 1–5, or absent for any. */
+const toMin = (value: unknown) => {
+  const min = Number(value)
+  return Number.isInteger(min) && min >= 1 && min <= 5 ? min : undefined
+}
+
 export const Route = createFileRoute('/_app/tracks/')({
   // The sort lives in the URL: shareable, and the back button undoes a change.
-  validateSearch: (search: Record<string, unknown>): { sort: TrackSort } => ({ sort: isSort(search.sort) ? search.sort : 'plays' }),
-  loaderDeps: ({ search }) => ({ sort: search.sort }),
-  loader: ({ context, deps }) => context.queryClient.ensureInfiniteQueryData(tracksInfiniteQueryOptions(api, deps.sort)),
+  validateSearch: (search: Record<string, unknown>): { sort: TrackSort; min?: number } => ({
+    sort: isSort(search.sort) ? search.sort : 'plays',
+    ...(toMin(search.min) && { min: toMin(search.min) }),
+  }),
+  loaderDeps: ({ search }) => ({ sort: search.sort, min: search.min }),
+  loader: ({ context, deps }) => context.queryClient.ensureInfiniteQueryData(tracksInfiniteQueryOptions(api, deps.sort, deps.min)),
   component: TracksPage,
 })
 
 function TracksPage() {
-  const { sort } = Route.useSearch()
+  const { sort, min } = Route.useSearch()
   const navigate = Route.useNavigate()
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useSuspenseInfiniteQuery(tracksInfiniteQueryOptions(api, sort))
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useSuspenseInfiniteQuery(
+    tracksInfiniteQueryOptions(api, sort, min),
+  )
   const items = data.pages.flatMap((page) => page.items)
   const total = data.pages[0]?.total ?? 0
   const playingTrackId = usePlayingTrackId()
@@ -53,7 +72,13 @@ function TracksPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader
           title="Tracks"
-          description={total ? `Every track you've played: ${total.toLocaleString()} so far.` : "Every track you've played."}
+          description={
+            min
+              ? `${total.toLocaleString()} ${total === 1 ? 'track' : 'tracks'} rated ${min === 5 ? '5 stars' : `${min} stars and up`}.`
+              : total
+                ? `Every track you've played: ${total.toLocaleString()} so far.`
+                : "Every track you've played."
+          }
         />
         {items.length > 0 && (
           <Button variant="secondary" size="sm" onClick={() => setSelected(selected ? null : new Set())} aria-pressed={selected !== null}>
@@ -62,11 +87,20 @@ function TracksPage() {
         )}
       </div>
 
+      {items.length || min ? (
+        <div className="mb-4 flex flex-wrap gap-2 overflow-x-auto">
+          <Segmented label="Sort by" value={sort} onChange={(next) => void navigate({ search: (prev) => ({ ...prev, sort: next }) })} options={sorts} />
+          <Segmented<RatingFilter>
+            label="Filter by rating"
+            value={min ? (String(min) as RatingFilter) : 'any'}
+            onChange={(next) => void navigate({ search: (prev) => ({ sort: prev.sort, ...(next !== 'any' && { min: Number(next) }) }) })}
+            options={ratingFilters}
+          />
+        </div>
+      ) : null}
+
       {items.length ? (
         <>
-          <div className="mb-4 overflow-x-auto">
-            <Segmented label="Sort by" value={sort} onChange={(next) => void navigate({ search: { sort: next } })} options={sorts} />
-          </div>
           <TrackLibraryList
             items={items}
             selection={selected ? { selected, toggle } : undefined}
@@ -81,9 +115,15 @@ function TracksPage() {
           )}
         </>
       ) : (
-        <EmptyState icon={Music} title="No tracks yet">
-          Tracks show up here once you've played them. Sync from History, or import your Spotify data.
-        </EmptyState>
+        min ? (
+          <EmptyState icon={Star} title="Nothing rated that high yet">
+            Rate tracks with the stars on their rows, their pages or the player, and they'll show up here.
+          </EmptyState>
+        ) : (
+          <EmptyState icon={Music} title="No tracks yet">
+            Tracks show up here once you've played them. Sync from History, or import your Spotify data.
+          </EmptyState>
+        )
       )}
 
       {selected && (

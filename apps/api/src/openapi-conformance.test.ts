@@ -102,6 +102,8 @@ describe('responses match the spec', () => {
     await call('GET', '/playlists')
     await call('GET', '/playlists/{id}', { id: 'road' })
     await call('POST', '/playlists/preview', {}, { rule: { kind: 'top', range: 'all', limit: 5 } })
+    await call('POST', '/playlists/preview', {}, { rule: { kind: 'top_rated', minRating: 4 } })
+    await call('GET', '/tracks?sort=rating&minRating=4')
     const { id: created } = await call('POST', '/playlists', {}, { name: 'New', trackIds: ['4uLU6hMCjMI75M1A2tKUQC'] })
     await call('POST', '/playlists/{id}/items', { id: created }, { trackIds: ['b'] })
     await call('PUT', '/playlists/{id}/items/move', { id: created }, { from: 1, to: 0 })

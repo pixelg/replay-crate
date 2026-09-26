@@ -1,11 +1,10 @@
 import { schema, type Db } from '@replay-crate/db'
-import { and, asc, count, countDistinct, desc, eq, gt, lt, max, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, gte, lt, max, or, sql, type SQL } from 'drizzle-orm'
 import { loadTrackArtists } from '../history/queries.ts'
-import { loadRatings } from './ratings.ts'
 
-const { albums, plays, tracks } = schema
+const { albums, plays, trackRatings, tracks } = schema
 
-export const TRACK_SORTS = ['plays', 'last_played', 'name'] as const
+export const TRACK_SORTS = ['plays', 'last_played', 'name', 'rating'] as const
 export type TrackSort = (typeof TRACK_SORTS)[number]
 
 /**
@@ -19,7 +18,8 @@ export const encodeCursor = (cursor: TrackCursor) => Buffer.from(JSON.stringify(
 export function decodeCursor(value: string): TrackCursor | null {
   try {
     const cursor = JSON.parse(Buffer.from(value, 'base64url').toString()) as Partial<TrackCursor>
-    const validKey = cursor.sort === 'plays' ? typeof cursor.key === 'number' : typeof cursor.key === 'string'
+    const numeric = cursor.sort === 'plays' || cursor.sort === 'rating'
+    const validKey = numeric ? typeof cursor.key === 'number' : typeof cursor.key === 'string'
     return TRACK_SORTS.includes(cursor.sort as TrackSort) && validKey && typeof cursor.id === 'string'
       ? (cursor as TrackCursor)
       : null
@@ -36,7 +36,12 @@ export function decodeCursor(value: string): TrackCursor | null {
 export async function listTracks(
   db: Db,
   userId: string,
-  { sort, limit, cursor }: { sort: TrackSort; limit: number; cursor: TrackCursor | null },
+  {
+    sort,
+    limit,
+    cursor,
+    minRating,
+  }: { sort: TrackSort; limit: number; cursor: TrackCursor | null; minRating?: number },
 ) {
   const mine = db.$with('mine').as(
     db
@@ -51,6 +56,10 @@ export async function listTracks(
       .groupBy(plays.trackId),
   )
   const name = sql<string>`lower(${tracks.name})`
+  // Unrated sorts as 0: after every rated track.
+  const stars = sql<number>`coalesce(${trackRatings.rating}, 0)`.mapWith(Number)
+  const rated = and(eq(trackRatings.trackId, mine.trackId), eq(trackRatings.userId, userId))
+  const filter = minRating ? gte(trackRatings.rating, minRating) : undefined
 
   // Order and "after the cursor" for each sort, with the track id breaking ties.
   const orders: Record<TrackSort, { orderBy: SQL[]; after: (key: number | string, id: string) => SQL | undefined }> = {
@@ -70,6 +79,10 @@ export async function listTracks(
       orderBy: [asc(name), asc(tracks.id)],
       after: (key, id) => or(sql`${name} > ${key}`, and(sql`${name} = ${key}`, gt(tracks.id, id))),
     },
+    rating: {
+      orderBy: [desc(stars), asc(tracks.id)],
+      after: (key, id) => or(sql`${stars} < ${key}`, and(sql`${stars} = ${key}`, gt(tracks.id, id))),
+    },
   }
   const order = orders[sort]
 
@@ -87,12 +100,15 @@ export async function listTracks(
       firstPlayedAt: mine.firstPlayedAt,
       lastPlayedAt: mine.lastPlayedAt,
       sortName: name,
+      rating: trackRatings.rating,
+      stars,
     })
     .from(mine)
     .innerJoin(tracks, eq(tracks.id, mine.trackId))
     .innerJoin(albums, eq(albums.id, tracks.albumId))
+    .leftJoin(trackRatings, rated)
     // A cursor from another sort starts this one from the top.
-    .where(cursor && cursor.sort === sort ? order.after(cursor.key, cursor.id) : undefined)
+    .where(and(filter, cursor && cursor.sort === sort ? order.after(cursor.key, cursor.id) : undefined))
     .orderBy(...order.orderBy)
     .limit(limit + 1)
 
@@ -101,13 +117,14 @@ export async function listTracks(
     db,
     page.map((row) => row.id),
   )
-  const ratings = await loadRatings(
-    db,
-    userId,
-    page.map((row) => row.id),
-  )
   const last = rows.length > limit ? page.at(-1)! : null
-  const [total] = await db.select({ n: countDistinct(plays.trackId) }).from(plays).where(eq(plays.userId, userId))
+  // Across all pages, with the same filter.
+  const [total] = await db
+    .with(mine)
+    .select({ n: count() })
+    .from(mine)
+    .leftJoin(trackRatings, rated)
+    .where(filter)
 
   return {
     items: page.map((row) => ({
@@ -118,7 +135,7 @@ export async function listTracks(
         explicit: row.explicit,
         album: { id: row.albumId, name: row.albumName, thumbUrl: row.albumThumbUrl },
         artists: artists.get(row.id) ?? [],
-        rating: ratings.get(row.id) ?? null,
+        rating: row.rating,
       },
       playCount: row.playCount,
       firstPlayedAt: toIso(row.firstPlayedAt)!,
@@ -127,7 +144,7 @@ export async function listTracks(
     nextCursor: last
       ? encodeCursor({
           sort,
-          key: sort === 'plays' ? last.playCount : sort === 'name' ? last.sortName : toIso(last.lastPlayedAt)!,
+          key: { plays: last.playCount, rating: last.stars, name: last.sortName, last_played: toIso(last.lastPlayedAt)! }[sort],
           id: last.id,
         })
       : null,
