@@ -92,5 +92,5 @@ function StatsPage() {
 }
 
 function ChartSkeleton() {
-  return <Card aria-hidden className="h-72 animate-pulse" />
+  return <Card aria-hidden className="h-72 motion-safe:animate-pulse" />
 }

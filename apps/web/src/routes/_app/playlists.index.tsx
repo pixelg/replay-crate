@@ -49,7 +49,7 @@ function PlaylistsPage() {
               : data.syncedAt && `Synced ${formatRelative(new Date(data.syncedAt))}`}
           </p>
           <Button variant="secondary" size="sm" onClick={() => sync()} disabled={isSyncing}>
-            <RefreshCw aria-hidden className={cn('size-4', isSyncing && 'animate-spin')} />
+            <RefreshCw aria-hidden className={cn('size-4', isSyncing && 'motion-safe:animate-spin')} />
             Sync playlists
           </Button>
           <Link to="/playlists/new" className={buttonClasses({ size: 'sm' })}>

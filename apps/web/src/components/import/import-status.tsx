@@ -37,7 +37,7 @@ export function ImportStatus({ status }: { status: Status }) {
       <Card size="sm" role="status" aria-label="Last import">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <LoaderCircle aria-hidden className="size-4 animate-spin text-primary" />
+            <LoaderCircle aria-hidden className="size-4 text-primary motion-safe:animate-spin" />
             Looking up {count(status.tracksToFetch, 'track')} on Spotify
           </CardTitle>
           <CardDescription>
