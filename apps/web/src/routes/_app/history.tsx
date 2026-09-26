@@ -3,7 +3,7 @@ import { formatRelative, pageCount, type PageSize } from '@replay-crate/core'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { CircleDashed, History, ListChecks, RefreshCw } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { EmptyState } from '../../components/empty-state.tsx'
 import { HistoryList, NowPlayingSection } from '../../components/history-list.tsx'
 import { InlineError } from '../../components/inline-error.tsx'
@@ -68,6 +68,7 @@ function HistoryPage() {
   const { data: gaps = [] } = useQuery(gapsQueryOptions(api))
   const playingTrackId = usePlayingTrackId()
   const nowPlaying = useNowPlaying()
+  const [nowPlayingRef, nowPlayingHeight] = useHeight()
 
   // A page past the end (history shrank, or a hand-edited URL): go to the last one.
   const lastPage = total !== undefined && size !== 'all' ? pageCount(total, size) : undefined
@@ -100,7 +101,7 @@ function HistoryPage() {
   }
 
   return (
-    <>
+    <div style={{ '--now-playing-height': `${nowPlayingHeight}px` } as CSSProperties}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader title="History" description="Every track you've played, and where you played it from." />
         <div className="flex flex-wrap items-center justify-end gap-3">
@@ -134,8 +135,8 @@ function HistoryPage() {
         </p>
       )}
 
-      {/* The present sits above the newest plays, so only on the first page. */}
-      {nowPlaying && page === 1 && <NowPlayingSection {...nowPlaying} selecting={selected !== null} />}
+      {/* The present heads every page, not just the newest plays, and stays there as they scroll. */}
+      {nowPlaying && <NowPlayingSection ref={nowPlayingRef} {...nowPlaying} selecting={selected !== null} />}
 
       {plays.length ? (
         <>
@@ -176,6 +177,21 @@ function HistoryPage() {
           <SelectionBar tracks={pickedTracks} onDone={() => setSelected(null)} onCancel={() => setSelected(null)} />
         </>
       )}
-    </>
+    </div>
   )
+}
+
+/** A ref for an element and its height (border box), kept up to date; 0 while it isn't mounted. */
+function useHeight() {
+  const [height, setHeight] = useState(0)
+  const ref = useCallback((element: HTMLElement | null) => {
+    if (!element) return
+    const observer = new ResizeObserver(([entry]) => setHeight(entry?.borderBoxSize[0]?.blockSize ?? 0))
+    observer.observe(element)
+    return () => {
+      observer.disconnect()
+      setHeight(0)
+    }
+  }, [])
+  return [ref, height] as const
 }

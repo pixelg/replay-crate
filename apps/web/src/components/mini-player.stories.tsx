@@ -49,8 +49,8 @@ export const WithUpNext = meta.story({
     const region = within(await player(canvas))
     await expect(await region.findByText('Up next')).toBeVisible()
     await expect(region.getByText('Sunday Morning Static')).toBeVisible()
-    // Elapsed and remaining: 3:33 long, 1:21 in when fetched.
-    const times = region.getByText((_, element) => element?.tagName === 'P' && /^1:2\d \/ , remaining -2:1\d$/.test(element.textContent ?? ''))
+    // Elapsed and the length (not a countdown): 3:33 long, 1:21 in when fetched.
+    const times = region.getByText((_, element) => element?.tagName === 'P' && /^1:2\d \/  of 3:33$/.test(element.textContent ?? ''))
     await expect(times).toBeVisible()
   },
 })

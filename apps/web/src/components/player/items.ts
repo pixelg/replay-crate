@@ -7,3 +7,5 @@ export const imageOf = (item: PlayerItem) => (item.type === 'track' ? item.album
 /** The artists of a track, or the show an episode is from. */
 export const subtitleOf = (item: PlayerItem) =>
   item.type === 'track' ? item.artists.map((artist) => artist.name).join(', ') : item.show.name
+/** Whether Spotify can start it by URI: tracks and episodes, not local files. */
+export const isPlayable = (item: PlayerItem) => item.id !== null

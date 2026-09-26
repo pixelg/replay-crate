@@ -129,7 +129,7 @@ function SeekBar({
           send({ kind: 'seek', positionMs: Math.round(thumb(value)) })
         }}
       />
-      <span className="w-10">-{formatDuration(Math.max(0, durationMs - position))}</span>
+      <span className="w-10">{formatDuration(durationMs)}</span>
     </div>
   )
 }
