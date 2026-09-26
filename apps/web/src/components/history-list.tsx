@@ -2,6 +2,7 @@ import type { HistoryGap, PlayContext, PlayerItem, PlayItem } from '@replay-crat
 import { formatDayLabel, groupByDay } from '@replay-crate/core'
 import { Link } from '@tanstack/react-router'
 import { AudioLines, CircleDashed } from 'lucide-react'
+import type { Ref } from 'react'
 import { cn } from 'cn'
 import { AlbumArt } from './album-art.tsx'
 import { TrackRating } from './star-rating.tsx'
@@ -86,8 +87,10 @@ export function HistoryList({
   )
 }
 
+// Day headings stick under the header, and under Now playing when that's there: the page sets
+// `--now-playing-height` to its height (0 without it).
 const headingClass =
-  'sticky top-14 z-[1] -mx-4 bg-background/95 px-4 py-2 text-sm font-semibold backdrop-blur md:-mx-8 md:px-8'
+  'sticky top-[calc(3.5rem+var(--now-playing-height,0px))] z-[1] -mx-4 bg-background/95 px-4 py-2 text-sm font-semibold backdrop-blur md:-mx-8 md:px-8'
 
 /**
  * What Spotify is playing right now, above the day groups: history reads on from the present.
@@ -97,18 +100,26 @@ export function NowPlayingSection({
   item,
   context,
   selecting = false,
+  ref,
 }: {
   item: PlayerItem
   context: PlayContext | null
   /** While History is in select mode, row menus make way for checkboxes; this one steps aside too. */
   selecting?: boolean
+  ref?: Ref<HTMLDivElement>
 }) {
   // Local files have no Spotify id, and episodes no track page or rating.
   const track = item.type === 'track' && item.id ? { ...item, id: item.id } : null
   return (
     // A group, not a region: the mini player is already the "Now playing" landmark.
-    <div role="group" aria-labelledby="now-playing" className="mb-6">
-      <h2 id="now-playing" className={headingClass}>
+    // It stays in view under the header while the plays scroll by.
+    <div
+      ref={ref}
+      role="group"
+      aria-labelledby="now-playing"
+      className="sticky top-14 z-[2] -mx-4 mb-4 bg-background/95 px-4 pb-2 backdrop-blur md:-mx-8 md:px-8"
+    >
+      <h2 id="now-playing" className="py-2 text-sm font-semibold">
         Now playing
       </h2>
       <div className="-mx-2 flex items-center gap-3 rounded-lg bg-accent px-2 py-2">

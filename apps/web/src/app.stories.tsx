@@ -1536,6 +1536,33 @@ export const HistoryPages = meta.story({
   },
 })
 
+export const HistoryNowPlayingSticks = meta.story({
+  args: { path: '/history?size=30' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    const plays = manyPlays(30)
+    msw.use(
+      http.get('/api/v1/history/plays', ({ query, response }) => {
+        const { items, rest, next } = pageBy(plays, query)
+        return response(200).json({ items, nextCursor: null, lastSyncedAt: null, ...rest, olderPlayedAt: next?.playedAt ?? null })
+      }),
+    )
+  },
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    const nowPlaying = await main.findByRole('group', { name: 'Now playing' })
+    await expect(await main.findByRole('link', { name: 'Crate Cut 30' })).toBeVisible()
+    window.scrollTo(0, document.documentElement.scrollHeight)
+    // Scrolled to the end, Now playing still sits under the header...
+    const header = canvas.getByRole('banner').getBoundingClientRect()
+    await waitFor(() => expect(nowPlaying.getBoundingClientRect().top).toBeCloseTo(header.bottom, 0))
+    // ...and day headings stick under it rather than behind it.
+    const day = main.getAllByRole('heading', { level: 2 }).find((heading) => heading.id.startsWith('day-'))!
+    await waitFor(() => expect(parseFloat(getComputedStyle(day).top)).toBeCloseTo(header.height + nowPlaying.offsetHeight, 0))
+    window.scrollTo(0, 0)
+  },
+})
+
 export const PlaylistPages = meta.story({
   args: { path: '/playlists/p1?size=5' },
   globals: { viewport: { value: 'desktop', isRotated: false } },
