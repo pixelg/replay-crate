@@ -126,3 +126,22 @@ test('moves the app to the host Spotify returns to, so sign-in works', async ({ 
   await page.getByRole('button', { name: 'Connect Spotify' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'History' })).toBeVisible()
 })
+
+test('links and serves the app icons', async ({ page, request }) => {
+  await page.goto('/connect')
+  const head = page.locator('head')
+  await expect(head.locator('link[rel="icon"]')).toHaveAttribute('href', '/favicon.svg')
+  await expect(head.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/apple-touch-icon.png')
+  await expect(head.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest.webmanifest')
+
+  const manifest = await request.get('/manifest.webmanifest')
+  expect(manifest.headers()['content-type']).toContain('application/manifest+json')
+  const { icons } = (await manifest.json()) as { icons: { src: string }[] }
+  for (const path of ['/favicon.svg', '/apple-touch-icon.png', ...icons.map((icon) => icon.src)]) {
+    const res = await request.get(path)
+    expect(res.status(), path).toBe(200)
+  }
+  // The favicon must parse: an XML error (e.g. `--` in a comment) shows no icon at all.
+  await page.goto('/favicon.svg')
+  expect(await page.evaluate('document.documentElement.tagName')).toBe('svg')
+})
