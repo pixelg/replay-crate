@@ -8,7 +8,7 @@ import { TrackRating } from './star-rating.tsx'
 import { TrackActions } from './track-actions.tsx'
 
 /** Which tracks are picked, by id; present while selecting. */
-export type TrackSelection = { selected: ReadonlySet<string>; toggle: (trackId: string) => void }
+export type TrackSelection = { selected: { has(trackId: string): boolean }; toggle: (item: LibraryTrack) => void }
 
 /** The library: every track played, with its play count and last play. */
 export function TrackLibraryList({
@@ -26,7 +26,8 @@ export function TrackLibraryList({
 }) {
   return (
     <ol className="flex flex-col divide-y divide-border">
-      {items.map(({ track, playCount, lastPlayedAt }) => {
+      {items.map((item) => {
+        const { track, playCount, lastPlayedAt } = item
         const playing = track.id === playingTrackId
         return (
           <li
@@ -39,7 +40,7 @@ export function TrackLibraryList({
                 type="checkbox"
                 aria-label={`Select ${track.name}`}
                 checked={selection.selected.has(track.id)}
-                onChange={() => selection.toggle(track.id)}
+                onChange={() => selection.toggle(item)}
                 className="size-5 shrink-0 accent-primary"
               />
             )}

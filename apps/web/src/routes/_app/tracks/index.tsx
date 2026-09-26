@@ -1,15 +1,19 @@
-import { tracksInfiniteQueryOptions, type TrackSort } from '@replay-crate/api-client'
-import { useSuspenseInfiniteQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { tracksInfiniteQueryOptions, tracksPageQueryOptions, type LibraryTrack, type TrackSort } from '@replay-crate/api-client'
+import { pageCount, type PageSize } from '@replay-crate/core'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { cn } from 'cn'
 import { ListChecks, Music, Star } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { EmptyState } from '../../../components/empty-state.tsx'
+import { ListPagination } from '../../../components/list-pagination.tsx'
 import { PageHeader } from '../../../components/page-header.tsx'
 import { SelectionBar } from '../../../components/selection-bar.tsx'
 import { TrackLibraryList } from '../../../components/track-library-list.tsx'
 import { Button } from '../../../components/ui/button.tsx'
 import { Segmented } from '../../../components/ui/segmented.tsx'
 import { api } from '../../../lib/api.ts'
+import { pageSearch, resizedPage, storedPageSize, storePageSize } from '../../../lib/page-size.ts'
 import { usePlayingTrackId } from '../../../lib/use-player.ts'
 
 const sorts = [
@@ -35,37 +39,90 @@ const toMin = (value: unknown) => {
 
 export const Route = createFileRoute('/_app/tracks/')({
   // The sort lives in the URL: shareable, and the back button undoes a change.
-  validateSearch: (search: Record<string, unknown>): { sort: TrackSort; min?: number } => ({
+  validateSearch: (search: Record<string, unknown>): { sort: TrackSort; min?: number; page?: number; size?: PageSize } => ({
     sort: isSort(search.sort) ? search.sort : 'plays',
     ...(toMin(search.min) && { min: toMin(search.min) }),
+    ...pageSearch(search),
   }),
-  loaderDeps: ({ search }) => ({ sort: search.sort, min: search.min }),
-  loader: ({ context, deps }) => context.queryClient.ensureInfiniteQueryData(tracksInfiniteQueryOptions(api, deps.sort, deps.min)),
+  loaderDeps: ({ search }) => ({
+    sort: search.sort,
+    min: search.min,
+    page: search.page ?? 1,
+    size: search.size ?? storedPageSize('tracks'),
+  }),
+  loader: ({ context, deps: { sort, min, page, size } }) =>
+    size === 'all'
+      ? context.queryClient.ensureInfiniteQueryData(tracksInfiniteQueryOptions(api, sort, min))
+      : context.queryClient.ensureQueryData(tracksPageQueryOptions(api, { sort, minRating: min, page, size })),
   component: TracksPage,
 })
 
+/**
+ * The tracks to show: one numbered page, or with All every page loaded so far ("Load more").
+ * Only the view in use fetches; the loader has already filled it.
+ */
+function useLibrary(sort: TrackSort, min: number | undefined, page: number, size: PageSize) {
+  const all = size === 'all'
+  const infinite = useInfiniteQuery({ ...tracksInfiniteQueryOptions(api, sort, min), enabled: all })
+  const paged = useQuery({
+    ...tracksPageQueryOptions(api, { sort, minRating: min, page, size: all ? 0 : size }),
+    enabled: !all,
+  })
+  if (all) {
+    const pages = infinite.data?.pages ?? []
+    return {
+      items: pages.flatMap((p) => p.items),
+      total: pages[0]?.total ?? 0,
+      offset: 0,
+      loadMore: infinite.hasNextPage ? () => void infinite.fetchNextPage() : undefined,
+      isLoadingMore: infinite.isFetchingNextPage,
+      isPlaceholder: false,
+    }
+  }
+  return {
+    items: paged.data?.items ?? [],
+    total: paged.data?.total ?? 0,
+    offset: (page - 1) * size,
+    loadMore: undefined,
+    isLoadingMore: false,
+    isPlaceholder: paged.isPlaceholderData,
+  }
+}
+
 function TracksPage() {
-  const { sort, min } = Route.useSearch()
+  const search = Route.useSearch()
+  const { sort, min } = search
+  const page = search.page ?? 1
+  const size = search.size ?? storedPageSize('tracks')
   const navigate = Route.useNavigate()
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useSuspenseInfiniteQuery(
-    tracksInfiniteQueryOptions(api, sort, min),
-  )
-  const items = data.pages.flatMap((page) => page.items)
-  const total = data.pages[0]?.total ?? 0
+  const { items, total, offset, loadMore, isLoadingMore, isPlaceholder } = useLibrary(sort, min, page, size)
   const playingTrackId = usePlayingTrackId()
 
-  // Select mode: picked track ids, kept in the order shown.
-  const [selected, setSelected] = useState<Set<string> | null>(null)
+  // A page past the end (a filter shrank the list, or a hand-edited URL): go to the last one.
+  const lastPage = size === 'all' ? undefined : pageCount(total, size)
+  useEffect(() => {
+    if (lastPage !== undefined && page > lastPage) {
+      void navigate({ search: (prev) => ({ ...prev, page: lastPage > 1 ? lastPage : undefined }), replace: true })
+    }
+  }, [page, lastPage, navigate])
+
+  // Select mode: picked tracks by id, kept across pages, in the order the list shows them.
+  const [selected, setSelected] = useState<Map<string, { track: LibraryTrack['track']; at: number }> | null>(null)
   const picked = useMemo(
-    () => (selected ? items.filter((item) => selected.has(item.track.id)).map((item) => item.track) : []),
-    [items, selected],
+    () => (selected ? [...selected.values()].toSorted((a, b) => a.at - b.at).map((pick) => pick.track) : []),
+    [selected],
   )
-  const toggle = (trackId: string) =>
+  const toggle = (item: LibraryTrack) =>
     setSelected((current) => {
-      const next = new Set(current)
-      if (!next.delete(trackId)) next.add(trackId)
+      const next = new Map(current)
+      if (!next.delete(item.track.id)) next.set(item.track.id, { track: item.track, at: offset + items.indexOf(item) })
       return next
     })
+
+  const setSize = (next: PageSize) => {
+    storePageSize('tracks', next)
+    void navigate({ search: (prev) => ({ ...prev, size: next, page: resizedPage(page, size, next) }) })
+  }
 
   return (
     <>
@@ -81,7 +138,7 @@ function TracksPage() {
           }
         />
         {items.length > 0 && (
-          <Button variant="secondary" size="sm" onClick={() => setSelected(selected ? null : new Set())} aria-pressed={selected !== null}>
+          <Button variant="secondary" size="sm" onClick={() => setSelected(selected ? null : new Map())} aria-pressed={selected !== null}>
             <ListChecks aria-hidden className="size-4" /> {selected ? 'Done' : 'Select'}
           </Button>
         )}
@@ -89,11 +146,16 @@ function TracksPage() {
 
       {items.length || min ? (
         <div className="mb-4 flex flex-wrap gap-2 overflow-x-auto">
-          <Segmented label="Sort by" value={sort} onChange={(next) => void navigate({ search: (prev) => ({ ...prev, sort: next }) })} options={sorts} />
+          {/* A new sort or filter starts again from page 1. */}
+          <Segmented label="Sort by" value={sort} onChange={(next) => void navigate({ search: (prev) => ({ ...prev, sort: next, page: undefined }) })} options={sorts} />
           <Segmented<RatingFilter>
             label="Filter by rating"
             value={min ? (String(min) as RatingFilter) : 'any'}
-            onChange={(next) => void navigate({ search: (prev) => ({ sort: prev.sort, ...(next !== 'any' && { min: Number(next) }) }) })}
+            onChange={(next) =>
+              void navigate({
+                search: (prev) => ({ sort: prev.sort, size: prev.size, ...(next !== 'any' && { min: Number(next) }) }),
+              })
+            }
             options={ratingFilters}
           />
         </div>
@@ -101,18 +163,27 @@ function TracksPage() {
 
       {items.length ? (
         <>
-          <TrackLibraryList
-            items={items}
-            selection={selected ? { selected, toggle } : undefined}
-            playingTrackId={playingTrackId}
-          />
-          {hasNextPage && (
+          <div className={cn('transition-opacity', isPlaceholder && 'opacity-60')} aria-busy={isPlaceholder}>
+            <TrackLibraryList
+              items={items}
+              selection={selected ? { selected, toggle } : undefined}
+              playingTrackId={playingTrackId}
+            />
+          </div>
+          {loadMore && (
             <div className="mt-6 flex justify-center">
-              <Button variant="ghost" onClick={() => void fetchNextPage()} disabled={isFetchingNextPage}>
-                {isFetchingNextPage ? 'Loading…' : 'Load more tracks'}
+              <Button variant="ghost" onClick={loadMore} disabled={isLoadingMore}>
+                {isLoadingMore ? 'Loading…' : 'Load more tracks'}
               </Button>
             </div>
           )}
+          <ListPagination
+            page={page}
+            size={size}
+            total={total}
+            onSizeChange={setSize}
+            linkTo={(to) => <Link from={Route.fullPath} to="." search={(prev) => ({ ...prev, page: to > 1 ? to : undefined })} />}
+          />
         </>
       ) : (
         min ? (

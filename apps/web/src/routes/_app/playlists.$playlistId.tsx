@@ -1,19 +1,27 @@
 import { isApiError, playlistQueryOptions, type PlaylistTrack } from '@replay-crate/api-client'
+import { pageCount, type PageSize } from '@replay-crate/core'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { ArrowLeft, ListMusic } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { AlbumArt } from '../../components/album-art.tsx'
 import { EmptyState } from '../../components/empty-state.tsx'
 import { ErrorPage } from '../../components/error-page.tsx'
 import { InlineError } from '../../components/inline-error.tsx'
+import { ListPagination } from '../../components/list-pagination.tsx'
 import { PlaylistTrackActions } from '../../components/playlist-track-actions.tsx'
 import { TrackRating } from '../../components/star-rating.tsx'
 import { Segmented } from '../../components/ui/segmented.tsx'
 import { api } from '../../lib/api.ts'
+import { pageOfItems, pageSearch, resizedPage, storedPageSize, storePageSize } from '../../lib/page-size.ts'
 import { usePlaylistEdit } from '../../lib/use-playlist-edits.ts'
 
 export const Route = createFileRoute('/_app/playlists/$playlistId')({
+  // The sort and page live in the URL: shareable, and the back button undoes a change.
+  validateSearch: (search: Record<string, unknown>): { sort?: Sort; page?: number; size?: PageSize } => ({
+    ...(isSort(search.sort) && search.sort !== 'order' && { sort: search.sort }),
+    ...pageSearch(search),
+  }),
   loader: async ({ context, params }) => {
     try {
       await context.queryClient.ensureQueryData(playlistQueryOptions(api, params.playlistId))
@@ -38,12 +46,23 @@ const sortOptions = [
   { value: 'least', label: 'Least played' },
 ] as const
 type Sort = (typeof sortOptions)[number]['value']
+const isSort = (value: unknown): value is Sort => sortOptions.some((option) => option.value === value)
 
 function PlaylistPage() {
   const { playlistId } = Route.useParams()
   const { data } = useSuspenseQuery(playlistQueryOptions(api, playlistId))
   const { playlist, items } = data
-  const [sort, setSort] = useState<Sort>('order')
+  const search = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const sort = search.sort ?? 'order'
+  const setSort = (next: Sort) =>
+    void navigate({ search: (prev) => ({ ...prev, sort: next === 'order' ? undefined : next, page: undefined }) })
+  const size = search.size ?? storedPageSize('playlist')
+  const page = size === 'all' ? 1 : Math.min(search.page ?? 1, pageCount(items.length, size))
+  const setSize = (next: PageSize) => {
+    storePageSize('playlist', next)
+    void navigate({ search: (prev) => ({ ...prev, size: next, page: resizedPage(page, size, next) }) })
+  }
   const edit = usePlaylistEdit()
   const lastPosition = items.at(-1)?.position ?? 0
 
@@ -84,7 +103,7 @@ function PlaylistPage() {
             {edit.error && !edit.isPending && <InlineError error={edit.error} action="Updating the playlist" />}
           </div>
           <ol className="flex flex-col divide-y divide-border" aria-busy={edit.isPending}>
-            {sorted.map((item) => (
+            {pageOfItems(sorted, page, size).map((item) => (
               <li key={`${item.position}-${item.track.id}`}>
                 <TrackRow
                   item={item}
@@ -105,6 +124,13 @@ function PlaylistPage() {
               </li>
             ))}
           </ol>
+          <ListPagination
+            page={page}
+            size={size}
+            total={items.length}
+            onSizeChange={setSize}
+            linkTo={(to) => <Link from={Route.fullPath} to="." search={(prev) => ({ ...prev, page: to > 1 ? to : undefined })} />}
+          />
         </section>
       )}
     </article>

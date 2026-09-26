@@ -1,5 +1,5 @@
 import { playlistsQueryOptions, type PlaylistSummary } from '@replay-crate/api-client'
-import { formatRelative } from '@replay-crate/core'
+import { formatRelative, pageCount, type PageSize } from '@replay-crate/core'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { ListMusic, Plus, RefreshCw, Users } from 'lucide-react'
@@ -7,14 +7,17 @@ import { useEffect, useRef } from 'react'
 import { AlbumArt } from '../../components/album-art.tsx'
 import { EmptyState } from '../../components/empty-state.tsx'
 import { InlineError } from '../../components/inline-error.tsx'
+import { ListPagination } from '../../components/list-pagination.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
 import { buttonClasses } from '../../components/ui/button-classes.ts'
 import { Button } from '../../components/ui/button.tsx'
 import { api } from '../../lib/api.ts'
 import { cn } from 'cn'
+import { pageOfItems, pageSearch, resizedPage, storedPageSize, storePageSize } from '../../lib/page-size.ts'
 import { usePlaylistSync } from '../../lib/use-playlist-sync.ts'
 
 export const Route = createFileRoute('/_app/playlists/')({
+  validateSearch: pageSearch,
   loader: ({ context }) => context.queryClient.ensureQueryData(playlistsQueryOptions(api)),
   component: PlaylistsPage,
 })
@@ -25,6 +28,15 @@ const STALE_AFTER_MS = 60 * 60 * 1000
 function PlaylistsPage() {
   const { data } = useSuspenseQuery(playlistsQueryOptions(api))
   const { sync, isSyncing, progress, error: syncError } = usePlaylistSync()
+  const search = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const size = search.size ?? storedPageSize('playlists')
+  // Past the end (fewer playlists after a sync, or a hand-edited URL): the last page.
+  const page = size === 'all' ? 1 : Math.min(search.page ?? 1, pageCount(data.playlists.length, size))
+  const setSize = (next: PageSize) => {
+    storePageSize('playlists', next)
+    void navigate({ search: (prev) => ({ ...prev, size: next, page: resizedPage(page, size, next) }) })
+  }
 
   const autoSynced = useRef(false)
   useEffect(() => {
@@ -59,13 +71,22 @@ function PlaylistsPage() {
       </div>
 
       {data.playlists.length ? (
-        <ul className="grid gap-x-6 sm:grid-cols-2">
-          {data.playlists.map((playlist) => (
-            <li key={playlist.id}>
-              <PlaylistRow playlist={playlist} />
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="grid gap-x-6 sm:grid-cols-2">
+            {pageOfItems(data.playlists, page, size).map((playlist) => (
+              <li key={playlist.id}>
+                <PlaylistRow playlist={playlist} />
+              </li>
+            ))}
+          </ul>
+          <ListPagination
+            page={page}
+            size={size}
+            total={data.playlists.length}
+            onSizeChange={setSize}
+            linkTo={(to) => <Link from={Route.fullPath} to="." search={(prev) => ({ ...prev, page: to > 1 ? to : undefined })} />}
+          />
+        </>
       ) : (
         <EmptyState icon={ListMusic} title={isSyncing ? 'Fetching your playlists…' : 'No playlists yet'}>
           Playlists you own or collaborate on show up here.
