@@ -143,5 +143,5 @@ test('links and serves the app icons', async ({ page, request }) => {
   }
   // The favicon must parse: an XML error (e.g. `--` in a comment) shows no icon at all.
   await page.goto('/favicon.svg')
-  expect(await page.evaluate(() => document.documentElement.tagName)).toBe('svg')
+  expect(await page.evaluate('document.documentElement.tagName')).toBe('svg')
 })
