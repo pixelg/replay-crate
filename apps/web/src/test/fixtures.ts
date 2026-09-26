@@ -234,14 +234,36 @@ export const rulePreview: RulePreview = {
 }
 
 /** 30 days of made-up listening ending today, as the overview endpoint returns it. */
+/** Top artists in the stats fixture, each with a run: one peaks early, one mid-month, one late. */
+const overviewArtists = [
+  { id: 'pete', name: 'Pete Rock', peak: 0.25 },
+  { id: 'atcq', name: 'A Tribe Called Quest', peak: 0.55 },
+  { id: 'showbiz', name: 'Showbiz & A.G.', peak: 0.85 },
+  { id: 'miilkbone', name: 'Miilkbone', peak: 0.5 },
+]
+
 export function statsOverview(days = 30): StatsOverview {
   const today = new Date()
   const series = Array.from({ length: days }, (_, i) => {
     const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1 - i))
     const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-    const replays = 6 + ((i * 7) % 11)
-    const newTracks = 2 + ((i * 5) % 7)
-    return { date: iso, newTracks, replays, minutes: (replays + newTracks) * 3 }
+    const at = i / Math.max(1, days - 1)
+    const byArtist = overviewArtists.map((artist, n) => {
+      const plays = Math.max(0, Math.round((n === 3 ? 2 : 7) - Math.abs(at - artist.peak) * 18))
+      return { plays, minutes: plays * (3 + n) }
+    })
+    const othersPlays = 3 + ((i * 5) % 4)
+    const others = { plays: othersPlays, minutes: othersPlays * 4 }
+    const all = byArtist.reduce((sum, a) => sum + a.plays, 0) + othersPlays
+    const newTracks = 1 + ((i * 5) % 3)
+    return {
+      date: iso,
+      newTracks,
+      replays: all - newTracks,
+      minutes: byArtist.reduce((sum, a) => sum + a.minutes, 0) + others.minutes,
+      byArtist,
+      others,
+    }
   })
   const plays = series.reduce((sum, p) => sum + p.newTracks + p.replays, 0)
   return {
@@ -255,6 +277,12 @@ export function statsOverview(days = 30): StatsOverview {
       artists: 97,
       newTracks: series.reduce((sum, p) => sum + p.newTracks, 0),
     },
+    artists: overviewArtists.map((artist, n) => ({
+      id: artist.id,
+      name: artist.name,
+      plays: series.reduce((sum, p) => sum + p.byArtist[n]!.plays, 0),
+      minutes: series.reduce((sum, p) => sum + p.byArtist[n]!.minutes, 0),
+    })),
     series,
     openGaps: 0,
   }

@@ -11,6 +11,8 @@ import { top } from './top.ts'
 
 const Range = range.openapi('StatsRange', { description: 'A rolling window ending now.' })
 
+const Listening = z.object({ plays: z.number().int(), minutes: z.number().int() }).openapi('Listening')
+
 const getOverview = createRoute({
   method: 'get',
   path: '/stats/overview',
@@ -18,7 +20,8 @@ const getOverview = createRoute({
   operationId: 'getStatsOverview',
   summary: 'Totals and listening over time',
   description:
-    "Each point splits plays into new tracks (a track's first-ever play) and replays. Ranges over 90 days " +
+    "Each point splits plays into new tracks (a track's first-ever play) and replays, and by artist: the " +
+    "range's top 5 artists by plays (first-credited artist) and everyone else, in plays and minutes. Ranges over 90 days " +
     "are bucketed by week, shorter ones by day, in the user's time zone; empty buckets are zeros.",
   security: signedIn,
   request: {
@@ -40,12 +43,17 @@ const getOverview = createRoute({
           artists: z.number().int(),
           newTracks: z.number().int(),
         }),
+        artists: z
+          .array(z.object({ id: z.string(), name: z.string(), ...Listening.shape }))
+          .openapi({ description: "The range's top artists by plays (not time), most first." }),
         series: z.array(
           z.object({
             date: z.string().openapi({ description: 'Bucket start, YYYY-MM-DD.' }),
             newTracks: z.number().int(),
             replays: z.number().int(),
             minutes: z.number().int(),
+            byArtist: z.array(Listening).openapi({ description: 'Per artist in `artists`, same order.' }),
+            others: Listening.openapi({ description: 'Everyone else.' }),
           }),
         ),
         openGaps: z.number().int().openapi({ description: 'Unfilled history gaps in the range.' }),

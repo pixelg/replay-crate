@@ -520,12 +520,33 @@ export const NewPlaylistMobile = meta.story({
 export const Stats = meta.story({
   args: { path: '/stats' },
   play: async ({ canvas }) => {
-    await expect(await canvas.findByText('Listening over time')).toBeVisible()
+    await expect(await canvas.findByText('Who you listened to')).toBeVisible()
     await expect(canvas.getByRole('list', { name: 'Totals' })).toBeVisible()
     await expect(canvas.getByText('Top tracks')).toBeVisible()
     // Spotify's view isn't prefetched by the route, so it arrives a moment later.
     await expect(await canvas.findByText("Spotify's view")).toBeVisible()
     await expect(await canvas.findByText('Not recorded yet')).toBeVisible()
+  },
+})
+
+export const StatsArtistsOverTime = meta.story({
+  args: { path: '/stats' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  play: async ({ canvas, userEvent }) => {
+    const card = (await canvas.findByText('Who you listened to')).closest('[data-slot=card]') as HTMLElement
+    const chart = within(card)
+    await expect(chart.getByText('Your top 4 artists by plays, and everyone else')).toBeVisible()
+    // A stacked area per top artist, then everyone else, named in the legend.
+    for (const name of ['Pete Rock', 'A Tribe Called Quest', 'Showbiz & A.G.', 'Miilkbone', 'Everyone else']) {
+      await expect(await chart.findByText(name)).toBeVisible()
+    }
+    await waitFor(() => expect(card.querySelectorAll('.recharts-area')).toHaveLength(5))
+    // Plays by default; time played is a click away (the ranking stays by plays).
+    const measure = chart.getByRole('group', { name: 'Measure' })
+    await expect(within(measure).getByRole('button', { name: 'Plays' })).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(within(measure).getByRole('button', { name: 'Time played' }))
+    await expect(within(measure).getByRole('button', { name: 'Time played' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(chart.getByText('Pete Rock')).toBeVisible()
   },
 })
 

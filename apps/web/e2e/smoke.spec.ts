@@ -86,8 +86,12 @@ test('unknown pages and signing out', async ({ page }) => {
 test("shows stats with the interactive chart and Spotify's view", async ({ page }) => {
   await signIn(page)
   await mainNav(page).getByRole('link', { name: 'Stats' }).click()
-  await expect(page.getByText('Listening over time')).toBeVisible()
-  await expect(page.locator('.recharts-area')).toHaveCount(2)
+  const chart = page.locator('[data-slot=card]').filter({ hasText: 'Who you listened to' })
+  await expect(chart).toBeVisible()
+  // A stacked area per top artist, and one for everyone else.
+  await expect(chart.getByText('Everyone else', { exact: true })).toBeVisible()
+  await expect(chart.getByText('The Loop Collective', { exact: true })).toBeVisible()
+  expect(await chart.locator('.recharts-area').count()).toBeGreaterThan(1)
   await expect(page.getByRole('list', { name: 'Totals' }).getByText('Plays')).toBeVisible()
   await expect(page.getByText("Spotify's view")).toBeVisible()
   await expect(page.getByText('Brass Monkey Business').first()).toBeVisible()
