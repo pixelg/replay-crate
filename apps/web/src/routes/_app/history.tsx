@@ -36,7 +36,7 @@ function HistoryPage() {
             <p className="text-xs text-muted-foreground">Synced {formatRelative(new Date(lastSyncedAt))}</p>
           )}
           <Button variant="secondary" size="sm" onClick={() => sync()} disabled={isSyncing}>
-            <RefreshCw aria-hidden className={cn('size-4', isSyncing && 'animate-spin')} />
+            <RefreshCw aria-hidden className={cn('size-4', isSyncing && 'motion-safe:animate-spin')} />
             {isSyncing ? 'Syncing…' : 'Sync now'}
           </Button>
         </div>

@@ -46,6 +46,8 @@
 }
 
 @theme {
+  /* The logo turns like a record while something plays (app-shell.tsx). */
+  --animate-spin-record: spin 4s linear infinite;
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-heading: var(--font-sans);
 }

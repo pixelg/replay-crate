@@ -12,6 +12,7 @@ import {
   gaps,
   importDone,
   importInProgress,
+  pausedPlayback,
   pixelg,
   playlistDetail,
   playlistsList,
@@ -755,5 +756,36 @@ export const PlayerOnPhone = meta.story({
     await expect(header.getByRole('link', { name: 'Player' })).toHaveAttribute('aria-current', 'page')
     const tabs = canvas.getAllByRole('navigation', { name: 'Main' }).find((nav) => nav.checkVisibility())!
     await expect(within(tabs).queryByRole('link', { name: 'Player' })).toBeNull()
+  },
+})
+
+/** The sidebar logo's disc: turning like a record while something plays. */
+const logoDisc = async (canvas: { findAllByRole: (role: string, options: object) => Promise<HTMLElement[]> }) => {
+  const links = await canvas.findAllByRole('link', { name: 'Replay Crate' })
+  return links.find((link) => link.checkVisibility())!.querySelector('svg')!
+}
+
+export const LogoTurnsWhilePlaying = meta.story({
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  play: async ({ canvas, userEvent }) => {
+    const disc = await logoDisc(canvas)
+    await waitFor(() => expect(getComputedStyle(disc).animationPlayState).toBe('running'))
+    await expect(getComputedStyle(disc).animationName).toBe('spin')
+
+    // Pausing stops it where it is: the animation is paused, not removed.
+    const player = within(await within(canvas.getByRole('banner')).findByRole('region', { name: 'Now playing' }))
+    await userEvent.click(player.getByRole('button', { name: 'Pause' }))
+    await waitFor(() => expect(getComputedStyle(disc).animationPlayState).toBe('paused'))
+    await expect(getComputedStyle(disc).animationName).toBe('spin')
+  },
+})
+
+export const LogoStillWhilePaused = meta.story({
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/player', () => HttpResponse.json({ playback: pausedPlayback })))
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('button', { name: 'Play' })).toBeVisible()
+    await expect(getComputedStyle(await logoDisc(canvas)).animationPlayState).toBe('paused')
   },
 })

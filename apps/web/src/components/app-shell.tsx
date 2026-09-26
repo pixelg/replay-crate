@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { Disc3, ExternalLink, LogOut, Radio } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from 'cn'
+import { useIsPlaying } from '../lib/use-player.ts'
 import { MiniPlayer, MiniPlayerBar } from './mini-player.tsx'
 import { navItems } from './nav-items.ts'
 import { MenuContent, MenuItem, MenuLinkItem, MenuRoot, MenuSeparator, MenuTrigger } from './ui/menu.tsx'
@@ -63,9 +64,17 @@ export function AppShell({
 }
 
 function Brand({ className }: { className?: string }) {
+  const playing = useIsPlaying()
   return (
     <Link to="/" className={cn('flex items-center gap-2 font-semibold tracking-tight', className)}>
-      <Disc3 aria-hidden className="size-6 text-primary" />
+      {/* Turns while music plays and stops where it is, not back at the start (a paused animation
+          keeps its angle). No turning at all for reduced motion. */}
+      <Disc3
+        aria-hidden
+        data-playing={playing}
+        // The pause is `!important`: the animation shorthand would otherwise reset it to running.
+        className="size-6 text-primary motion-safe:animate-spin-record data-[playing=false]:[animation-play-state:paused]!"
+      />
       Replay Crate
     </Link>
   )

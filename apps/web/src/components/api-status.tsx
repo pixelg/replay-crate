@@ -7,7 +7,7 @@ export function ApiStatus() {
   const { status } = useQuery(healthQueryOptions(api))
 
   const { label, dot } = {
-    pending: { label: 'Checking API…', dot: 'bg-muted-foreground animate-pulse' },
+    pending: { label: 'Checking API…', dot: 'bg-muted-foreground motion-safe:animate-pulse' },
     success: { label: 'API connected', dot: 'bg-green-600 dark:bg-green-400' },
     error: { label: 'API unreachable', dot: 'bg-red-600 dark:bg-red-400' },
   }[status]

@@ -42,6 +42,14 @@ export function usePlayback() {
   return { playback, progressMs, error: query.error, isPending: query.isPending }
 }
 
+/**
+ * Whether Spotify is playing right now, from the same polled playback. Components that only need
+ * this (the logo) don't re-render as the position ticks.
+ */
+export function useIsPlaying() {
+  return useQuery({ ...playbackQueryOptions(api), select: (playback) => Boolean(playback?.isPlaying) }).data ?? false
+}
+
 /** Up next, fetched again whenever the playing item changes. */
 export function useQueue(currentUri: string | null, { enabled = true } = {}) {
   return useQuery({ ...queueQueryOptions(api, currentUri), enabled: enabled && currentUri !== null })
