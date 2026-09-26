@@ -134,8 +134,8 @@ function HistoryPage() {
         </p>
       )}
 
-      {/* The present sits above the newest plays, so only on the first page. */}
-      {nowPlaying && page === 1 && <NowPlayingSection {...nowPlaying} selecting={selected !== null} />}
+      {/* The present heads every page, not just the newest plays. */}
+      {nowPlaying && <NowPlayingSection {...nowPlaying} selecting={selected !== null} />}
 
       {plays.length ? (
         <>

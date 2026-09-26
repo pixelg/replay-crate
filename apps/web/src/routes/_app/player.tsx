@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/page-header'
 import { DeviceList } from '@/components/player/device-list'
 import { IconButton } from '@/components/player/icon-button'
 import { NowPlayingPanel } from '@/components/player/now-playing-panel'
+import { isPlayable } from '@/components/player/items'
 import { QueueList } from '@/components/player/queue-list'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { api } from '@/lib/api'
@@ -56,7 +57,14 @@ function PlayerPage() {
                 </CardHeader>
                 <CardContent>
                   {queue.data ? (
-                    <QueueList items={queue.data.queue} />
+                    <QueueList
+                      items={queue.data.queue}
+                      disabled={controls.isSending}
+                      // Spotify can't jump ahead in its queue, so play that item and what follows it here.
+                      onPlayNow={(from) =>
+                        controls.send({ kind: 'play', uris: from.filter(isPlayable).slice(0, 100).map((next) => next.uri) })
+                      }
+                    />
                   ) : queue.error ? (
                     <InlineError error={queue.error} action="Loading the queue" />
                   ) : null}
