@@ -1,6 +1,6 @@
 import type { Me } from '@replay-crate/api-client'
 import { Link } from '@tanstack/react-router'
-import { Disc3, ExternalLink, LogOut, Radio } from 'lucide-react'
+import { ChevronsUpDown, Disc3, ExternalLink, LogOut, Radio } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from 'cn'
 import { useIsPlaying } from '../lib/use-player.ts'
@@ -34,6 +34,9 @@ export function AppShell({
       <aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-r border-border bg-muted p-4 md:flex">
         <Brand />
         <SidebarNav />
+        <div className="mt-auto border-t border-border pt-4">
+          <AccountMenu user={user} onLogout={onLogout} placement="sidebar" />
+        </div>
       </aside>
 
       <div className="flex min-h-dvh min-w-0 flex-col">
@@ -50,7 +53,10 @@ export function AppShell({
             >
               <Radio aria-hidden className="size-5" />
             </Link>
-            <AccountMenu user={user} onLogout={onLogout} />
+            {/* The sidebar holds the account menu from `md` up. */}
+            <div className="md:hidden">
+              <AccountMenu user={user} onLogout={onLogout} placement="header" />
+            </div>
           </div>
         </header>
         {banner}
@@ -128,18 +134,47 @@ function BottomTabs() {
   )
 }
 
-function AccountMenu({ user, onLogout }: { user: Me; onLogout: () => void }) {
+function AccountMenu({
+  user,
+  onLogout,
+  placement,
+}: {
+  user: Me
+  onLogout: () => void
+  /** The sidebar's footer row opens the menu upwards; the phone header's avatar opens it downwards. */
+  placement: 'sidebar' | 'header'
+}) {
+  const name = user.displayName ?? user.id
   return (
     <MenuRoot>
-      <MenuTrigger aria-label="Account">
-        <UserAvatar user={user} className="size-8" />
-      </MenuTrigger>
-      <MenuContent>
-        <div className="px-3 py-2">
-          <p className="truncate text-sm font-medium">{user.displayName ?? user.id}</p>
-          <p className="text-xs text-muted-foreground">Spotify account</p>
-        </div>
-        <MenuSeparator />
+      {placement === 'sidebar' ? (
+        <MenuTrigger
+          aria-label={`Account: ${name}`}
+          className="h-auto w-full justify-start gap-3 rounded-lg px-2 py-2 text-left text-foreground hover:bg-background data-popup-open:bg-background"
+        >
+          <UserAvatar user={user} className="size-8 shrink-0" />
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
+          <ChevronsUpDown aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+        </MenuTrigger>
+      ) : (
+        <MenuTrigger aria-label={`Account: ${name}`}>
+          <UserAvatar user={user} className="size-8" />
+        </MenuTrigger>
+      )}
+      <MenuContent
+        {...(placement === 'sidebar' ? { side: 'top', align: 'start' } : {})}
+        className={placement === 'sidebar' ? 'w-(--anchor-width)' : undefined}
+      >
+        {/* The sidebar's trigger already shows who's signed in. */}
+        {placement === 'header' && (
+          <>
+            <div className="px-3 py-2">
+              <p className="truncate text-sm font-medium">{name}</p>
+              <p className="text-xs text-muted-foreground">Spotify account</p>
+            </div>
+            <MenuSeparator />
+          </>
+        )}
         <MenuLinkItem render={<Link to="/settings" />}>Settings</MenuLinkItem>
         <MenuLinkItem href="https://github.com/pixelg/replay-crate" target="_blank" rel="noreferrer">
           Source on GitHub <ExternalLink aria-hidden className="ml-auto size-4 text-muted-foreground" />

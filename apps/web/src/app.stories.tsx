@@ -124,8 +124,9 @@ export const HistoryMobile = meta.story({
 export const Settings = meta.story({
   args: { path: '/settings' },
   play: async ({ canvas }) => {
-    await expect(await canvas.findByText('Pixel G')).toBeVisible()
-    await expect(await canvas.findByText('API connected')).toBeVisible()
+    const main = await canvas.findByRole('main')
+    await expect(await within(main).findByText('Pixel G')).toBeVisible()
+    await expect(await within(main).findByText('API connected')).toBeVisible()
   },
 })
 
@@ -197,21 +198,48 @@ export const LoginCancelled = meta.story({
   },
 })
 
+/** Signed in until the app calls logout. */
+function logoutHandlers() {
+  let signedIn = true
+  return [
+    http.get('/api/v1/auth/me', () =>
+      signedIn ? HttpResponse.json(pixelg) : HttpResponse.json({ error: 'unauthorized' }, { status: 401 }),
+    ),
+    http.post('/api/v1/auth/logout', () => {
+      signedIn = false
+      return new HttpResponse(null, { status: 204 })
+    }),
+  ]
+}
+
 export const LogsOut = meta.story({
   beforeEach({ msw }) {
-    let signedIn = true
-    msw.use(
-      http.get('/api/v1/auth/me', () =>
-        signedIn ? HttpResponse.json(pixelg) : HttpResponse.json({ error: 'unauthorized' }, { status: 401 }),
-      ),
-      http.post('/api/v1/auth/logout', () => {
-        signedIn = false
-        return new HttpResponse(null, { status: 204 })
-      }),
-    )
+    msw.use(...logoutHandlers())
   },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
   play: async ({ canvas, userEvent }) => {
-    await userEvent.click(await canvas.findByRole('button', { name: 'Account' }))
+    // From `md` up the account menu sits at the foot of the sidebar, not in the top bar.
+    const sidebar = await canvas.findByRole('complementary')
+    await expect(within(canvas.getByRole('banner')).queryByRole('button', { name: /^Account/ })).toBeNull()
+    const account = within(sidebar).getByRole('button', { name: 'Account: Pixel G' })
+    await expect(account).toHaveTextContent('Pixel G')
+    await userEvent.click(account)
+    // It opens upwards, above its trigger.
+    const logOut = await screen.findByRole('menuitem', { name: 'Log out' })
+    await waitFor(() => expect(logOut.getBoundingClientRect().bottom).toBeLessThanOrEqual(account.getBoundingClientRect().top))
+    await userEvent.click(logOut)
+    await expect(await canvas.findByRole('button', { name: 'Connect Spotify' })).toBeVisible()
+  },
+})
+
+export const LogsOutOnPhone = meta.story({
+  beforeEach({ msw }) {
+    msw.use(...logoutHandlers())
+  },
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  play: async ({ canvas, userEvent }) => {
+    // Phones have no sidebar, so the avatar stays in the top bar.
+    await userEvent.click(within(await canvas.findByRole('banner')).getByRole('button', { name: 'Account: Pixel G' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Log out' }))
     await expect(await canvas.findByRole('button', { name: 'Connect Spotify' })).toBeVisible()
   },
