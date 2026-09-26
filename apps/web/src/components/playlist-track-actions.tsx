@@ -1,10 +1,12 @@
-import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, MoreHorizontal, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import { TrackActions } from './track-actions.tsx'
 import { ConfirmDialog } from './ui/dialog.tsx'
-import { MenuContent, MenuItem, MenuRoot, MenuSeparator, MenuTrigger } from './ui/menu.tsx'
+import { MenuItem, MenuSeparator } from './ui/menu.tsx'
 
-/** The "⋯" menu on a playlist track: reorder (in playlist order only) and remove. */
+/** The "⋯" menu on a playlist track: the usual track actions, then reorder (in playlist order only) and remove. */
 export function PlaylistTrackActions({
+  trackId,
   trackName,
   playlistName,
   position,
@@ -14,6 +16,7 @@ export function PlaylistTrackActions({
   onMove,
   onRemove,
 }: {
+  trackId: string
   trackName: string
   playlistName: string
   position: number
@@ -30,33 +33,28 @@ export function PlaylistTrackActions({
 
   return (
     <>
-      <MenuRoot>
-        <MenuTrigger aria-label={`Actions for ${trackName}`} disabled={disabled} className="size-9">
-          <MoreHorizontal aria-hidden className="size-5" />
-        </MenuTrigger>
-        <MenuContent>
-          {canReorder && (
-            <>
-              <MenuItem disabled={isFirst} onClick={() => onMove(0)}>
-                <ArrowUpToLine aria-hidden className="size-4 text-muted-foreground" /> Move to top
-              </MenuItem>
-              <MenuItem disabled={isFirst} onClick={() => onMove(position - 1)}>
-                <ArrowUp aria-hidden className="size-4 text-muted-foreground" /> Move up
-              </MenuItem>
-              <MenuItem disabled={isLast} onClick={() => onMove(position + 1)}>
-                <ArrowDown aria-hidden className="size-4 text-muted-foreground" /> Move down
-              </MenuItem>
-              <MenuItem disabled={isLast} onClick={() => onMove(lastPosition)}>
-                <ArrowDownToLine aria-hidden className="size-4 text-muted-foreground" /> Move to bottom
-              </MenuItem>
-              <MenuSeparator />
-            </>
-          )}
-          <MenuItem onClick={() => setConfirming(true)}>
-            <Trash2 aria-hidden className="size-4 text-muted-foreground" /> Remove from playlist…
-          </MenuItem>
-        </MenuContent>
-      </MenuRoot>
+      <TrackActions track={{ id: trackId, name: trackName }} disabled={disabled}>
+        {canReorder && (
+          <>
+            <MenuItem disabled={isFirst} onClick={() => onMove(0)}>
+              <ArrowUpToLine aria-hidden className="size-4 text-muted-foreground" /> Move to top
+            </MenuItem>
+            <MenuItem disabled={isFirst} onClick={() => onMove(position - 1)}>
+              <ArrowUp aria-hidden className="size-4 text-muted-foreground" /> Move up
+            </MenuItem>
+            <MenuItem disabled={isLast} onClick={() => onMove(position + 1)}>
+              <ArrowDown aria-hidden className="size-4 text-muted-foreground" /> Move down
+            </MenuItem>
+            <MenuItem disabled={isLast} onClick={() => onMove(lastPosition)}>
+              <ArrowDownToLine aria-hidden className="size-4 text-muted-foreground" /> Move to bottom
+            </MenuItem>
+            <MenuSeparator />
+          </>
+        )}
+        <MenuItem onClick={() => setConfirming(true)}>
+          <Trash2 aria-hidden className="size-4 text-muted-foreground" /> Remove from playlist…
+        </MenuItem>
+      </TrackActions>
 
       <ConfirmDialog
         open={confirming}

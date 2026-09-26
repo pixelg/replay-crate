@@ -3,9 +3,9 @@ import { signIn, stubSpotify } from './support.ts'
 
 test.beforeEach(({ page }) => stubSpotify(page))
 
-// Nothing in the app starts playback yet (#73 adds Play), so the test starts it through the API
-// with the page's session, on the laptop: the fake player is shared by every test and project, so
-// don't rely on where an earlier run left it.
+// Starts playback through the API with the page's session, on the laptop, to control it from a
+// known state: the fake player is shared by every test and project, so don't rely on where an
+// earlier run left it.
 test('controls playback from the player page', async ({ page, isMobile }) => {
   await signIn(page)
   const started = await page.request.put('/api/v1/player/play', {
@@ -35,4 +35,15 @@ test('controls playback from the player page', async ({ page, isMobile }) => {
   await main.getByRole('button', { name: 'Play on Phone', exact: true }).click()
   await expect(main.getByText(/^Playing here/)).toHaveCount(1)
   await expect(main.getByText("Phone doesn't let apps change its volume.")).toBeVisible()
+})
+
+test("plays a track from its History row's menu", async ({ page }) => {
+  await signIn(page)
+  // "Searched And Played" isn't asserted anywhere else, so leaving it playing is harmless.
+  await page.getByRole('button', { name: 'Actions for Searched And Played' }).click()
+  await page.getByRole('menuitem', { name: 'Play', exact: true }).click()
+  await expect(page.getByText('Playing “Searched And Played”')).toBeVisible()
+  // The header player on wide screens, the bar above the tabs on a phone: only one is visible.
+  const nowPlaying = page.getByRole('region', { name: 'Now playing' }).filter({ visible: true })
+  await expect(nowPlaying.getByRole('link', { name: 'Searched And Played' })).toBeVisible()
 })

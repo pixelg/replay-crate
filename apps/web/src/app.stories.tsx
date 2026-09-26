@@ -789,3 +789,35 @@ export const LogoStillWhilePaused = meta.story({
     await expect(getComputedStyle(await logoDisc(canvas)).animationPlayState).toBe('paused')
   },
 })
+
+export const HistoryRowActions = meta.story({
+  beforeEach({ msw }) {
+    msw.use(...recordPlayerCommands(), http.post('/api/v1/player/queue', async ({ request, response }) => {
+      playerRequests('queue', await request.json())
+      return response(204).empty()
+    }))
+  },
+  play: async ({ canvas, userEvent }) => {
+    const today = await canvas.findByRole('region', { name: 'Today' })
+    await userEvent.click(within(today).getAllByRole('button', { name: 'Actions for Brass Monkey Business' })[0]!)
+    const menu = await screen.findByRole('menu')
+    await waitFor(() => expect(menu).toBeVisible())
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Add to queue' }))
+    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('queue', { uri: 'spotify:track:t1' }))
+    const toast = await screen.findByText('Added “Brass Monkey Business” to the queue')
+    await waitFor(() => expect(toast).toBeVisible())
+  },
+})
+
+export const PlaylistRowHasTrackActions = meta.story({
+  args: { path: '/playlists/p1' },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'Actions for Sunday Morning Static' }))
+    const menu = await screen.findByRole('menu')
+    await waitFor(() => expect(menu).toBeVisible())
+    // The shared items first, then the playlist's own.
+    const items = within(menu).getAllByRole('menuitem').map((item) => item.textContent?.trim())
+    await expect(items.slice(0, 4)).toEqual(['Play', 'Add to queue', 'Add to playlist…', 'Go to track'])
+    await expect(items).toContain('Remove from playlist…')
+  },
+})

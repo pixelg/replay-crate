@@ -8,6 +8,7 @@ import { AddToPlaylist } from '../../../components/add-to-playlist.tsx'
 import { AlbumArt } from '../../../components/album-art.tsx'
 import { ContextChip } from '../../../components/context-chip.tsx'
 import { ErrorPage } from '../../../components/error-page.tsx'
+import { TrackActions } from '../../../components/track-actions.tsx'
 import { api } from '../../../lib/api.ts'
 
 export const Route = createFileRoute('/_app/tracks/$trackId')({
@@ -49,12 +50,13 @@ function TrackPage() {
             {track.album.name}
             {year && ` · ${year}`} · {formatDuration(track.durationMs)}
           </p>
-          <div className="mt-3">
+          <div className="mt-3 flex items-center gap-2">
             <AddToPlaylist
               trackId={track.id}
               trackName={track.name}
               onPlaylists={playlists.map((playlist) => playlist.id)}
             />
+            <TrackActions track={track} onPlaylists={playlists.map((playlist) => playlist.id)} showGoTo={false} />
           </div>
         </div>
       </header>
