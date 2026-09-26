@@ -41,7 +41,8 @@ export async function listTracks(
     limit,
     cursor,
     minRating,
-  }: { sort: TrackSort; limit: number; cursor: TrackCursor | null; minRating?: number },
+    offset,
+  }: { sort: TrackSort; limit: number; cursor: TrackCursor | null; minRating?: number; offset?: number },
 ) {
   const mine = db.$with('mine').as(
     db
@@ -102,6 +103,8 @@ export async function listTracks(
       sortName: name,
       rating: trackRatings.rating,
       stars,
+      // Across all pages, with the same filter; counted in the same pass as the page.
+      total: sql<number>`count(*) over ()`.mapWith(Number),
     })
     .from(mine)
     .innerJoin(tracks, eq(tracks.id, mine.trackId))
@@ -111,6 +114,7 @@ export async function listTracks(
     .where(and(filter, cursor && cursor.sort === sort ? order.after(cursor.key, cursor.id) : undefined))
     .orderBy(...order.orderBy)
     .limit(limit + 1)
+    .offset(offset ?? 0)
 
   const page = rows.slice(0, limit)
   const artists = await loadTrackArtists(
@@ -118,13 +122,14 @@ export async function listTracks(
     page.map((row) => row.id),
   )
   const last = rows.length > limit ? page.at(-1)! : null
-  // Across all pages, with the same filter.
-  const [total] = await db
-    .with(mine)
-    .select({ n: count() })
-    .from(mine)
-    .leftJoin(trackRatings, rated)
-    .where(filter)
+  // A cursor narrows the rows the window counts, and a page past the end has no rows to carry it;
+  // count separately then.
+  const total =
+    rows[0] && !cursor
+      ? rows[0].total
+      : ((
+          await db.with(mine).select({ n: count() }).from(mine).leftJoin(trackRatings, rated).where(filter)
+        )[0]?.n ?? 0)
 
   return {
     items: page.map((row) => ({
@@ -148,7 +153,7 @@ export async function listTracks(
           id: last.id,
         })
       : null,
-    total: total?.n ?? 0,
+    total,
   }
 }
 

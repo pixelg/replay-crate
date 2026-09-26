@@ -83,6 +83,27 @@ describe('GET /api/v1/tracks', () => {
     expect(first.nextCursor).toEqual(expect.any(String))
   })
 
+  it('pages by offset for numbered pages, in every sort', async () => {
+    for (const sort of ['plays', 'last_played', 'name']) {
+      const names: string[] = []
+      for (let offset = 0; offset < 4; offset += 3) {
+        const page = await json(await get(`?sort=${sort}&limit=3&offset=${offset}`))
+        expect(page.total).toBe(4)
+        names.push(...page.items.map((item: { track: { name: string } }) => item.track.name))
+      }
+      expect(names).toEqual(await all(sort, 50))
+    }
+    // Past the end: no rows, same total.
+    expect(await json(await get('?limit=3&offset=9'))).toEqual({ items: [], nextCursor: null, total: 4 })
+  })
+
+  it('rejects cursor and offset together', async () => {
+    const { nextCursor } = await json(await get('?limit=1'))
+    const res = await get(`?limit=1&offset=1&cursor=${nextCursor}`)
+    expect(res.status).toBe(400)
+    expect(await json(res)).toMatchObject({ error: 'invalid_request', issues: [{ path: 'offset' }] })
+  })
+
   it("starts a sort from the top when given another sort's cursor", async () => {
     const { nextCursor } = await json(await get('?sort=name&limit=1'))
     const page = await json(await get(`?sort=plays&limit=1&cursor=${nextCursor}`))

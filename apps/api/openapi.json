@@ -2029,7 +2029,7 @@
         ],
         "operationId": "listPlays",
         "summary": "Play history",
-        "description": "Newest first. Pass `nextCursor` back as `before` for the next page.",
+        "description": "Newest first. Two ways to page: pass `nextCursor` back as `before` for the next page (infinite scroll), or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`. Not both at once.",
         "security": [
           {
             "session": []
@@ -2060,6 +2060,20 @@
             },
             "required": false,
             "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "description": "Plays to skip, for numbered pages."
+            },
+            "required": false,
+            "description": "Plays to skip, for numbered pages.",
+            "name": "offset",
             "in": "query"
           }
         ],
@@ -2093,6 +2107,19 @@
                       ],
                       "format": "date-time",
                       "example": "2026-09-21T12:00:00.000Z"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "description": "All of the user’s plays. With `offset` only."
+                    },
+                    "olderPlayedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "example": "2026-09-21T12:00:00.000Z",
+                      "description": "When the play just after this page was played (null on the last page), so a gap across the page boundary can still be shown. With `offset` only."
                     }
                   },
                   "required": [
@@ -2144,7 +2171,7 @@
         ],
         "operationId": "listTracks",
         "summary": "Every track you have played",
-        "description": "With play counts, last plays and ratings. `plays`, `last_played` and `rating` sort highest and newest first (unrated tracks last), `name` A–Z. `minRating` keeps only tracks rated that many stars or more. Pass `nextCursor` back as `cursor` for the next page (with the same `sort` and `minRating`).",
+        "description": "With play counts, last plays and ratings. `plays`, `last_played` and `rating` sort highest and newest first (unrated tracks last), `name` A–Z. `minRating` keeps only tracks rated that many stars or more. Pass `nextCursor` back as `cursor` for the next page (with the same `sort` and `minRating`), or pass `offset` for numbered pages. Not both at once.",
         "security": [
           {
             "session": []
@@ -2200,6 +2227,20 @@
             "required": false,
             "description": "The previous page's `nextCursor`.",
             "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "description": "Tracks to skip, for numbered pages."
+            },
+            "required": false,
+            "description": "Tracks to skip, for numbered pages.",
+            "name": "offset",
             "in": "query"
           }
         ],

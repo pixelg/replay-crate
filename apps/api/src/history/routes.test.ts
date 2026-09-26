@@ -191,6 +191,38 @@ describe('history', () => {
       expect(second.nextCursor).toBeNull()
     })
 
+    it('pages by offset with a total and the next page’s first play', async () => {
+      const first = await json(await get('/api/v1/history/plays?limit=2&offset=0'))
+      expect(first.items.map((p: { playedAt: string }) => p.playedAt)).toEqual([
+        '2026-09-21T11:50:00.000Z',
+        '2026-09-21T11:45:00.000Z',
+      ])
+      expect(first.total).toBe(3)
+      expect(first.olderPlayedAt).toBe('2026-09-21T11:40:00.000Z')
+      // Rows still carry their joins (track, artists, context) when paged by offset.
+      expect(first.items[0].track.artists).toHaveLength(2)
+      expect(first.items[0].context.name).toBe('Playlist pl-1')
+
+      const second = await json(await get('/api/v1/history/plays?limit=2&offset=2'))
+      expect(second.items.map((p: { playedAt: string }) => p.playedAt)).toEqual(['2026-09-21T11:40:00.000Z'])
+      expect(second).toMatchObject({ total: 3, olderPlayedAt: null, nextCursor: null })
+
+      const past = await json(await get('/api/v1/history/plays?limit=2&offset=10'))
+      expect(past).toMatchObject({ items: [], total: 3, olderPlayedAt: null })
+    })
+
+    it('leaves total out when paging by cursor', async () => {
+      const body = await json(await get('/api/v1/history/plays?limit=2'))
+      expect(body).not.toHaveProperty('total')
+      expect(body).not.toHaveProperty('olderPlayedAt')
+    })
+
+    it('rejects before and offset together', async () => {
+      const res = await get('/api/v1/history/plays?offset=0&before=2026-09-21T11:45:00.000Z')
+      expect(res.status).toBe(400)
+      expect(await json(res)).toMatchObject({ error: 'invalid_request', issues: [{ path: 'offset' }] })
+    })
+
     it('only returns the signed-in user’s plays', async () => {
       ctx.spotify.getCurrentUser.mockResolvedValueOnce({ id: 'someone-else', display_name: null, images: [] })
       const { token } = await ctx.login()

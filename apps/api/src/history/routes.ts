@@ -1,10 +1,10 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import { schema } from '@replay-crate/db'
 import { SpotifyApiError } from '@replay-crate/spotify'
-import { and, desc, eq, isNull, lt } from 'drizzle-orm'
+import { and, count, desc, eq, isNull, lt } from 'drizzle-orm'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
-import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
+import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
 import { ArtistRef, ContextRef, IsoDateTime, jsonResponse, Rating } from '../lib/schemas.ts'
 import { loadRatings } from '../tracks/ratings.ts'
 import { ReauthRequiredError } from '../spotify/access-token.ts'
@@ -40,12 +40,15 @@ const listPlays = createRoute({
   tags: ['History'],
   operationId: 'listPlays',
   summary: 'Play history',
-  description: 'Newest first. Pass `nextCursor` back as `before` for the next page.',
+  description:
+    'Newest first. Two ways to page: pass `nextCursor` back as `before` for the next page (infinite scroll), ' +
+    'or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`. Not both at once.',
   security: signedIn,
   request: {
     query: z.object({
       before: IsoDateTime.optional().openapi({ description: 'Only plays strictly older than this.' }),
       limit: z.coerce.number().int().min(1).max(100).default(50),
+      offset: z.coerce.number().int().min(0).optional().openapi({ description: 'Plays to skip, for numbered pages.' }),
     }),
   },
   responses: {
@@ -54,6 +57,12 @@ const listPlays = createRoute({
         items: z.array(PlayItem),
         nextCursor: IsoDateTime.nullable().openapi({ description: 'null on the last page.' }),
         lastSyncedAt: IsoDateTime.nullable(),
+        total: z.number().int().optional().openapi({ description: 'All of the user’s plays. With `offset` only.' }),
+        olderPlayedAt: IsoDateTime.nullable().optional().openapi({
+          description:
+            'When the play just after this page was played (null on the last page), so a gap across the page ' +
+            'boundary can still be shown. With `offset` only.',
+        }),
       }),
       'A page of plays.',
     ),
@@ -164,9 +173,27 @@ export function historyRoutes(deps: AppDeps) {
 
     .openapi({ ...listPlays, middleware: auth }, async (c) => {
       const user = c.var.user
-      const { before, limit } = c.req.valid('query')
+      const { before, limit, offset } = c.req.valid('query')
+      if (before !== undefined && offset !== undefined) {
+        return c.json(invalidRequest({ issues: [{ path: ['offset'], message: 'Pass either before or offset, not both' }] }), 400)
+      }
+      const mine = eq(plays.userId, user.id)
 
-      const rows = await db
+      // Numbered pages skip plays by position. Skip on `plays` alone (an index-only scan of
+      // (user_id, played_at)), then join just this page, rather than joining every skipped row.
+      const window =
+        offset === undefined
+          ? undefined
+          : db
+              .select({ playedAt: plays.playedAt })
+              .from(plays)
+              .where(mine)
+              .orderBy(desc(plays.playedAt))
+              .limit(limit + 1)
+              .offset(offset)
+              .as('window')
+
+      const query = db
         .select({
           playedAt: plays.playedAt,
           msPlayed: plays.msPlayed,
@@ -187,7 +214,9 @@ export function historyRoutes(deps: AppDeps) {
         .innerJoin(tracks, eq(plays.trackId, tracks.id))
         .innerJoin(albums, eq(tracks.albumId, albums.id))
         .leftJoin(contexts, eq(plays.contextUri, contexts.uri))
-        .where(and(eq(plays.userId, user.id), before ? lt(plays.playedAt, new Date(before)) : undefined))
+        .$dynamic()
+      const rows = await (window ? query.innerJoin(window, eq(plays.playedAt, window.playedAt)) : query)
+        .where(and(mine, before ? lt(plays.playedAt, new Date(before)) : undefined))
         .orderBy(desc(plays.playedAt))
         .limit(limit + 1)
 
@@ -221,6 +250,11 @@ export function historyRoutes(deps: AppDeps) {
           })),
           nextCursor: rows.length > limit ? page.at(-1)!.playedAt.toISOString() : null,
           lastSyncedAt: user.lastSyncedAt?.toISOString() ?? null,
+          ...(offset !== undefined && {
+            // plays.track_id is a foreign key, so the joins above drop nothing: this counts the same rows.
+            total: (await db.select({ n: count() }).from(plays).where(mine))[0]?.n ?? 0,
+            olderPlayedAt: rows[limit]?.playedAt.toISOString() ?? null,
+          }),
         },
         200,
       )

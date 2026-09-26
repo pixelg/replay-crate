@@ -167,7 +167,7 @@ export interface paths {
         };
         /**
          * Play history
-         * @description Newest first. Pass `nextCursor` back as `before` for the next page.
+         * @description Newest first. Two ways to page: pass `nextCursor` back as `before` for the next page (infinite scroll), or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`. Not both at once.
          */
         get: operations["listPlays"];
         put?: never;
@@ -187,7 +187,7 @@ export interface paths {
         };
         /**
          * Every track you have played
-         * @description With play counts, last plays and ratings. `plays`, `last_played` and `rating` sort highest and newest first (unrated tracks last), `name` A–Z. `minRating` keeps only tracks rated that many stars or more. Pass `nextCursor` back as `cursor` for the next page (with the same `sort` and `minRating`).
+         * @description With play counts, last plays and ratings. `plays`, `last_played` and `rating` sort highest and newest first (unrated tracks last), `name` A–Z. `minRating` keeps only tracks rated that many stars or more. Pass `nextCursor` back as `cursor` for the next page (with the same `sort` and `minRating`), or pass `offset` for numbered pages. Not both at once.
          */
         get: operations["listTracks"];
         put?: never;
@@ -1535,6 +1535,8 @@ export interface operations {
                 /** @description Only plays strictly older than this. */
                 before?: string;
                 limit?: number;
+                /** @description Plays to skip, for numbered pages. */
+                offset?: number | null;
             };
             header?: never;
             path?: never;
@@ -1561,6 +1563,14 @@ export interface operations {
                          * @example 2026-09-21T12:00:00.000Z
                          */
                         lastSyncedAt: string | null;
+                        /** @description All of the user’s plays. With `offset` only. */
+                        total?: number;
+                        /**
+                         * Format: date-time
+                         * @description When the play just after this page was played (null on the last page), so a gap across the page boundary can still be shown. With `offset` only.
+                         * @example 2026-09-21T12:00:00.000Z
+                         */
+                        olderPlayedAt?: string | null;
                     };
                 };
             };
@@ -1602,6 +1612,8 @@ export interface operations {
                 minRating?: number;
                 /** @description The previous page's `nextCursor`. */
                 cursor?: string;
+                /** @description Tracks to skip, for numbered pages. */
+                offset?: number | null;
             };
             header?: never;
             path?: never;

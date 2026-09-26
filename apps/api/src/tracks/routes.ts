@@ -4,7 +4,7 @@ import { and, asc, count, desc, eq, max, min } from 'drizzle-orm'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { loadTrackArtists, toContext } from '../history/queries.ts'
-import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
+import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
 import { ArtistRef, ContextRef, IsoDateTime, jsonBody, jsonResponse, Rating } from '../lib/schemas.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { clearRating, loadRatings, rateTrack } from './ratings.ts'
@@ -69,7 +69,8 @@ const listLibrary = createRoute({
   description:
     'With play counts, last plays and ratings. `plays`, `last_played` and `rating` sort highest and newest first ' +
     '(unrated tracks last), `name` A–Z. `minRating` keeps only tracks rated that many stars or more. ' +
-    'Pass `nextCursor` back as `cursor` for the next page (with the same `sort` and `minRating`).',
+    'Pass `nextCursor` back as `cursor` for the next page (with the same `sort` and `minRating`), or pass ' +
+    '`offset` for numbered pages. Not both at once.',
   security: signedIn,
   request: {
     query: z.object({
@@ -86,6 +87,7 @@ const listLibrary = createRoute({
           return cursor
         })
         .openapi({ type: 'string', description: 'The previous page\'s `nextCursor`.' }),
+      offset: z.coerce.number().int().min(0).optional().openapi({ description: 'Tracks to skip, for numbered pages.' }),
     }),
   },
   responses: {
@@ -149,8 +151,11 @@ export function trackRoutes(deps: AppDeps) {
 
   return createRouter()
     .openapi({ ...listLibrary, middleware: auth }, async (c) => {
-      const { sort, limit, cursor, minRating } = c.req.valid('query')
-      return c.json(await listTracks(db, c.var.user.id, { sort, limit, cursor, minRating }), 200)
+      const { sort, limit, cursor, minRating, offset } = c.req.valid('query')
+      if (cursor && offset !== undefined) {
+        return c.json(invalidRequest({ issues: [{ path: ['offset'], message: 'Pass either cursor or offset, not both' }] }), 400)
+      }
+      return c.json(await listTracks(db, c.var.user.id, { sort, limit, cursor, minRating, offset }), 200)
     })
     .openapi({ ...rate, middleware: auth }, async (c) => {
       const { id } = c.req.valid('param')
