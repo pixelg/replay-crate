@@ -14,6 +14,7 @@ import type {
   RulePreview,
   SearchHit,
   SearchResponse,
+  SpotifyTrackHit,
   SpotifyTop,
   StatsOverview,
   StatsTop,
@@ -538,3 +539,10 @@ export const searchResponse: SearchResponse = {
   },
   suggestion: null,
 }
+
+/** What Spotify's catalogue has for "pete": one you've played, and two you haven't. */
+export const spotifyTracks: SpotifyTrackHit[] = [
+  { id: 'troy', name: 'T.R.O.Y. (They Reminisce Over You)', artists: ['Pete Rock', 'C.L. Smooth'], album: 'Mecca and the Soul Brother', imageUrl: null, durationMs: 283_000, explicit: false, playCount: 30 },
+  { id: 'lots', name: 'Lots of Lovin', artists: ['Pete Rock', 'C.L. Smooth'], album: 'All Souled Out', imageUrl: null, durationMs: 250_000, explicit: false, playCount: 0 },
+  { id: 'rock-box', name: 'Rock Box', artists: ['Run-DMC'], album: 'Run-D.M.C.', imageUrl: null, durationMs: 330_000, explicit: false, playCount: 0 },
+]

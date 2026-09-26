@@ -10,6 +10,7 @@ import {
   playsPage,
   queue,
   searchResponse,
+  spotifyTracks,
   spotifyTop,
   statsOverview,
   statsTop,
@@ -86,6 +87,7 @@ export const handlers = {
       const { facets, ...rest } = searchResponse
       return response(200).json({ ...rest, query: { ...rest.query, text: query.get('q') ?? '' }, ...(query.get('facets') === 'true' && { facets }) })
     }),
+    http.get('/api/v1/search/spotify', ({ response }) => response(200).json({ tracks: spotifyTracks })),
   ],
   // Something is playing on the laptop; every command is accepted.
   player: [

@@ -1,4 +1,4 @@
-import type { PlayerCommand, SearchHit } from '@replay-crate/api-client'
+import type { PlayerCommand, SearchHit, SpotifyTrackHit } from '@replay-crate/api-client'
 import { toast } from 'sonner'
 import { hitUri, TYPE_LABELS } from '../components/search/hit-links.ts'
 import { describeError } from './describe-error.ts'
@@ -27,5 +27,9 @@ export function useSearchActions() {
     canQueue: (hit: SearchHit) => hit.type === 'track' || hit.type === 'play',
     queue: (hit: SearchHit) => run({ kind: 'queue', uri: hitUri(hit) }, `Added “${hit.name}” to the queue`),
     describe: (hit: SearchHit) => TYPE_LABELS[hit.type].singular,
+    /** A track straight from Spotify's catalogue. */
+    playTrack: (track: SpotifyTrackHit) => run({ kind: 'play', uris: [`spotify:track:${track.id}`] }, `Playing “${track.name}”`),
+    queueTrack: (track: SpotifyTrackHit) =>
+      run({ kind: 'queue', uri: `spotify:track:${track.id}` }, `Added “${track.name}” to the queue`),
   }
 }

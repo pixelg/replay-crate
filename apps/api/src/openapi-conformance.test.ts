@@ -131,6 +131,8 @@ describe('responses match the spec', () => {
     await call('GET', '/search?q=zzzzzz')
     await call('GET', '/search?q=song&types=track&limit=1&offset=1')
     await call('GET', '/search?q=song&types=song')
+    await call('GET', '/search/spotify?q=song')
+    await call('GET', '/search/spotify?q=rating:5')
     await call('POST', '/player/next', {}, {})
     await call('POST', '/player/previous', {}, {})
     await call('PUT', '/player/seek', {}, { positionMs: 1_000 })

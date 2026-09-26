@@ -1,9 +1,14 @@
 import { createRoute, z } from '@hono/zod-openapi'
+import { schema } from '@replay-crate/db'
+import { pickImage, SEARCH_LIMIT } from '@replay-crate/spotify'
+import { and, count, eq, inArray } from 'drizzle-orm'
 import { describeFilter, ENTITY_TYPES, formatFilter, parseSearchQuery, type EntityType } from '@replay-crate/core'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
 import { IsoDateTime, jsonResponse, Rating } from '../lib/schemas.ts'
+import { getAccessToken } from '../spotify/access-token.ts'
+import { spotifyErrorResponse } from '../spotify/errors.ts'
 
 const EntityTypeSchema = z.enum(ENTITY_TYPES).openapi('SearchType')
 const Range = z.tuple([z.number().int(), z.number().int()]).openapi({ description: '[start, end) character offsets.' })
@@ -105,58 +110,132 @@ const searchRoute = createRoute({
   },
 })
 
+const SpotifyTrackHit = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    artists: z.array(z.string()),
+    album: z.string(),
+    imageUrl: z.string().nullable(),
+    durationMs: z.number().int(),
+    explicit: z.boolean(),
+    playCount: z.number().int().openapi({ description: 'Your recorded plays; 0 for a track new to you.' }),
+  })
+  .openapi('SpotifyTrackHit')
+
+const spotifySearchRoute = createRoute({
+  method: 'get',
+  path: '/search/spotify',
+  tags: ['Search'],
+  operationId: 'searchSpotify',
+  summary: "Search Spotify's catalogue",
+  description:
+    'Tracks from all of Spotify, for finding music you have never played. Only the free text of `q` is sent ' +
+    `(filters are for your library), and Spotify returns at most ${SEARCH_LIMIT}. Separate from /search, so ` +
+    "Spotify's latency or rate limits never hold up your library's results.",
+  security: signedIn,
+  request: {
+    query: z.object({
+      q: z.string().max(200),
+      limit: z.coerce.number().int().min(1).max(SEARCH_LIMIT).default(SEARCH_LIMIT),
+    }),
+  },
+  responses: {
+    200: jsonResponse(z.object({ tracks: z.array(SpotifyTrackHit) }), 'Tracks, best match first.'),
+    ...errorResponses('invalid_request', 'unauthorized', 'forbidden', 'not_found', 'reauth_required', 'rate_limited'),
+  },
+})
+
 export function searchRoutes(deps: AppDeps) {
   const auth = requireUser(deps)
-  return createRouter().openapi({ ...searchRoute, middleware: auth }, async (c) => {
-    const { q, types, limit, offset, facets } = c.req.valid('query')
-    const started = performance.now()
-    const query = parseSearchQuery(q)
-    const result = await deps.search.search(c.var.user.id, query, {
-      types: types ? (types.split(',') as EntityType[]) : undefined,
-      limit,
-      offset,
-      facets: facets === 'true',
+  return createRouter()
+    .openapi({ ...spotifySearchRoute, middleware: auth }, async (c) => {
+      const { q, limit } = c.req.valid('query')
+      const text = parseSearchQuery(q).text.trim()
+      if (!text) return c.json({ tracks: [] }, 200)
+      try {
+        const page = await deps.spotify.searchTracks(await getAccessToken(deps, c.var.user.id), text, limit)
+        const found = page.items.filter((t): t is typeof t & { id: string } => Boolean(t.id) && !t.is_local)
+        const ids = found.map((t) => t.id)
+        const counts = ids.length
+          ? await deps.db
+              .select({ id: schema.plays.trackId, plays: count() })
+              .from(schema.plays)
+              .where(and(eq(schema.plays.userId, c.var.user.id), inArray(schema.plays.trackId, ids)))
+              .groupBy(schema.plays.trackId)
+          : []
+        const plays = new Map(counts.map((row) => [row.id, row.plays]))
+        return c.json(
+          {
+            tracks: found.map((t) => ({
+              id: t.id,
+              name: t.name,
+              artists: t.artists.map((artist) => artist.name),
+              album: t.album.name,
+              imageUrl: pickImage(t.album.images, 64),
+              durationMs: t.duration_ms,
+              explicit: t.explicit,
+              playCount: plays.get(t.id) ?? 0,
+            })),
+          },
+          200,
+        )
+      } catch (error) {
+        const response = spotifyErrorResponse(c, error)
+        if (response) return response
+        throw error
+      }
     })
-    return c.json(
-      {
-        query: {
-          text: query.text,
-          filters: query.filters.map((filter) => ({
-            token: formatFilter(filter),
-            label: describeFilter(filter),
-            start: filter.span[0],
-            end: filter.span[1],
+    .openapi({ ...searchRoute, middleware: auth }, async (c) => {
+      const { q, types, limit, offset, facets } = c.req.valid('query')
+      const started = performance.now()
+      const query = parseSearchQuery(q)
+      const result = await deps.search.search(c.var.user.id, query, {
+        types: types ? (types.split(',') as EntityType[]) : undefined,
+        limit,
+        offset,
+        facets: facets === 'true',
+      })
+      return c.json(
+        {
+          query: {
+            text: query.text,
+            filters: query.filters.map((filter) => ({
+              token: formatFilter(filter),
+              label: describeFilter(filter),
+              start: filter.span[0],
+              end: filter.span[1],
+            })),
+            issues: query.issues.map((issue) => ({ kind: issue.kind, message: issue.message, start: issue.span[0], end: issue.span[1] })),
+          },
+          engine: deps.search.engine,
+          tookMs: Math.round(performance.now() - started),
+          total: result.total,
+          groups: result.groups.map((group) => ({
+            type: group.type,
+            total: group.total,
+            hits: group.hits.map((hit) => ({
+              type: hit.type,
+              id: hit.id,
+              name: hit.name,
+              artists: hit.artists,
+              album: hit.album,
+              year: hit.year,
+              playCount: hit.playCount,
+              rating: hit.rating,
+              lastPlayedAt: hit.lastPlayedAt,
+              playedAt: hit.playedAt,
+              context: hit.type === 'play' ? (hit.contexts[0] ?? null) : null,
+              imageUrl: hit.imageUrl,
+              trackId: hit.trackId,
+              score: hit.score,
+              highlights: hit.highlights,
+            })),
           })),
-          issues: query.issues.map((issue) => ({ kind: issue.kind, message: issue.message, start: issue.span[0], end: issue.span[1] })),
+          ...(result.facets && { facets: result.facets }),
+          suggestion: result.suggestion,
         },
-        engine: deps.search.engine,
-        tookMs: Math.round(performance.now() - started),
-        total: result.total,
-        groups: result.groups.map((group) => ({
-          type: group.type,
-          total: group.total,
-          hits: group.hits.map((hit) => ({
-            type: hit.type,
-            id: hit.id,
-            name: hit.name,
-            artists: hit.artists,
-            album: hit.album,
-            year: hit.year,
-            playCount: hit.playCount,
-            rating: hit.rating,
-            lastPlayedAt: hit.lastPlayedAt,
-            playedAt: hit.playedAt,
-            context: hit.type === 'play' ? (hit.contexts[0] ?? null) : null,
-            imageUrl: hit.imageUrl,
-            trackId: hit.trackId,
-            score: hit.score,
-            highlights: hit.highlights,
-          })),
-        })),
-        ...(result.facets && { facets: result.facets }),
-        suggestion: result.suggestion,
-      },
-      200,
-    )
-  })
+        200,
+      )
+    })
 }

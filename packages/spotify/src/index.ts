@@ -20,6 +20,8 @@ export {
   play,
   removePlaylistItems,
   reorderPlaylistItems,
+  SEARCH_LIMIT,
+  searchTracks,
   seek,
   setRepeat,
   setShuffle,

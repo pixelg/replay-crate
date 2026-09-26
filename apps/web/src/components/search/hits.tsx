@@ -1,4 +1,4 @@
-import type { SearchHit } from '@replay-crate/api-client'
+import type { SearchHit, SpotifyTrackHit } from '@replay-crate/api-client'
 import { formatRelative } from '@replay-crate/core'
 import { Star } from 'lucide-react'
 import { cn } from 'cn'
@@ -63,6 +63,24 @@ export function HitSummary({ hit, size = 'md' }: { hit: SearchHit; size?: 'md' |
           {hit.rating}
           <Star aria-hidden className="size-3.5 fill-primary text-primary" />
         </span>
+      )}
+    </span>
+  )
+}
+
+/** A track from Spotify's catalogue: art, name, artists and album, marked when it's new to you. */
+export function SpotifyTrackSummary({ track }: { track: SpotifyTrackHit }) {
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-3">
+      <AlbumArt src={track.imageUrl} className="size-10" />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm font-medium">{track.name}</span>
+        <span className="truncate text-xs text-muted-foreground">
+          {track.artists.join(', ')} · {track.album}
+        </span>
+      </span>
+      {track.playCount === 0 && (
+        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">New to you</span>
       )}
     </span>
   )

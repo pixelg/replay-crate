@@ -7,6 +7,7 @@ import {
   play,
   removePlaylistItems,
   reorderPlaylistItems,
+  searchTracks,
   seek,
   setRepeat,
   setShuffle,
@@ -185,5 +186,13 @@ describe('player', () => {
   it('copes with an error body that is not JSON', async () => {
     const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(new Response('Bad gateway', { status: 502 }))
     await expect(skipToNext('t', {}, { fetchFn })).rejects.toMatchObject({ status: 502, reason: undefined })
+  })
+})
+
+describe('searchTracks', () => {
+  it('searches tracks, at most 10 at a time', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(json(200, { tracks: { items: [], total: 0, next: null } }))
+    await expect(searchTracks('t', 'pete rock & cl', 25, { fetchFn })).resolves.toEqual({ items: [], total: 0, next: null })
+    expect(fetchFn.mock.calls[0]![0]).toBe('https://api.spotify.com/v1/search?q=pete+rock+%26+cl&type=track&limit=10')
   })
 })

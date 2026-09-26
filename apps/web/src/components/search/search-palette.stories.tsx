@@ -169,3 +169,17 @@ export const OnPhone = meta.story({
     await waitFor(() => expect(dialog.getBoundingClientRect().width).toBe(window.innerWidth))
   },
 })
+
+export const FromSpotify = meta.story({
+  play: async () => {
+    const dialog = await open()
+    await userEvent.type(dialog.getByRole('combobox'), 'pete')
+    // Only what you've never played: T.R.O.Y. is already in the library results.
+    await expect(await dialog.findByText('From Spotify')).toBeVisible()
+    await expect(dialog.getByRole('option', { name: /Lots of Lovin/ })).toHaveTextContent('New to you')
+    await expect(dialog.getByRole('option', { name: /Rock Box/ })).toBeVisible()
+    // No page for a track you've never played: choosing it plays it.
+    await userEvent.click(dialog.getByRole('option', { name: /Lots of Lovin/ }))
+    await waitFor(() => expect(plays).toHaveBeenCalledWith({ uris: ['spotify:track:lots'] }))
+  },
+})

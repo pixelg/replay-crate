@@ -1,4 +1,10 @@
-import { searchQueryOptions, type SearchHit, type SearchResponse, type SearchType } from '@replay-crate/api-client'
+import {
+  searchQueryOptions,
+  spotifySearchQueryOptions,
+  type SearchHit,
+  type SearchResponse,
+  type SearchType,
+} from '@replay-crate/api-client'
 import { addFilter, ENTITY_TYPES, pageCount, parsePage, type NewFilter } from '@replay-crate/core'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
@@ -11,7 +17,7 @@ import { ListPagination } from '../../components/list-pagination.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
 import { FilterChips } from '../../components/search/filter-chips.tsx'
 import { hitLink, TYPE_LABELS } from '../../components/search/hit-links.ts'
-import { HitSummary } from '../../components/search/hits.tsx'
+import { HitSummary, SpotifyTrackSummary } from '../../components/search/hits.tsx'
 import { TrackActions } from '../../components/track-actions.tsx'
 import { api } from '../../lib/api.ts'
 import { storedPageSize, storePageSize } from '../../lib/page-size.ts'
@@ -89,7 +95,9 @@ function SearchPage() {
             </>
           )}
         </EmptyState>
-      ) : data ? (
+      ) : null}
+      {q.trim() && data && !data.total && <FromSpotify q={q} />}
+      {!q.trim() || (data && !data.total) ? null : data ? (
         <div aria-busy={results.isPlaceholderData || undefined} className="mt-6 gap-8 md:grid md:grid-cols-[13rem_minmax(0,1fr)]">
           <Facets data={data} type={type} onRefine={refine} />
           <div className="min-w-0">
@@ -116,6 +124,7 @@ function SearchPage() {
                 </section>
               ))
             )}
+            {!type && <FromSpotify q={q} />}
             <p className="mt-6 text-xs text-muted-foreground">
               {data.total.toLocaleString()} results in {data.tookMs} ms, from{' '}
               {data.engine === 'elasticsearch' ? 'Elasticsearch' : 'Postgres full-text search'}.
@@ -151,6 +160,35 @@ function TypeResults({ data, type, page, size }: { data: SearchResponse; type: S
         }}
         linkTo={(to) => <Link from={Route.fullPath} to="." search={(prev) => ({ ...prev, page: to > 1 ? to : undefined })} />}
       />
+    </section>
+  )
+}
+
+/** Tracks from all of Spotify for the same words: music you've never played, to play, queue or keep. */
+function FromSpotify({ q }: { q: string }) {
+  const { data, error } = useQuery(spotifySearchQueryOptions(api, q))
+  const tracks = data?.tracks ?? []
+  if (error) {
+    return (
+      <div className="mt-6">
+        <InlineError error={error} action="Searching Spotify" />
+      </div>
+    )
+  }
+  if (!tracks.length) return null
+  return (
+    <section aria-labelledby="from-spotify" className="mt-8">
+      <h2 id="from-spotify" className="mb-2 font-semibold">
+        From Spotify
+      </h2>
+      <ol className="flex flex-col divide-y divide-border">
+        {tracks.map((track) => (
+          <li key={track.id} className="flex items-center gap-2 py-2">
+            <SpotifyTrackSummary track={track} />
+            <TrackActions track={track} hasPage={track.playCount > 0} />
+          </li>
+        ))}
+      </ol>
     </section>
   )
 }

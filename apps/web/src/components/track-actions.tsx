@@ -19,6 +19,7 @@ export function TrackActions({
   context,
   onPlaylists,
   disabled,
+  hasPage = true,
   children,
 }: {
   track: { id: string; name: string }
@@ -27,6 +28,8 @@ export function TrackActions({
   /** Playlists the track is already on, marked as added in the dialog. */
   onPlaylists?: string[]
   disabled?: boolean
+  /** False for a track Replay Crate hasn't recorded yet (a Spotify search result): it has no page. */
+  hasPage?: boolean
   children?: ReactNode
 }) {
   const [adding, setAdding] = useState(false)
@@ -55,9 +58,11 @@ export function TrackActions({
           <MenuItem onClick={() => setAdding(true)}>
             <ListPlus aria-hidden className="size-4 text-muted-foreground" /> Add to playlist…
           </MenuItem>
-          <MenuLinkItem render={<Link to="/tracks/$trackId" params={{ trackId: track.id }} />}>
-            <Music aria-hidden className="size-4 text-muted-foreground" /> Go to track
-          </MenuLinkItem>
+          {hasPage && (
+            <MenuLinkItem render={<Link to="/tracks/$trackId" params={{ trackId: track.id }} />}>
+              <Music aria-hidden className="size-4 text-muted-foreground" /> Go to track
+            </MenuLinkItem>
+          )}
           {children && (
             <>
               <MenuSeparator />
