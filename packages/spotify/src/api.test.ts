@@ -164,6 +164,14 @@ describe('player', () => {
     expect(call(fetchFn)).toEqual({ url: 'https://api.spotify.com/v1/me/player', method: 'PUT', body: { device_ids: ['d2'], play: true } })
   })
 
+  it('ignores a text body on a successful command', async () => {
+    // Seen from PUT /me/player/pause: 200 with a plain-text id instead of the documented 204.
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response('BBSLUQyGnZ0x3kVwB2P', { status: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }),
+    )
+    await expect(pause('t', {}, { fetchFn })).resolves.toBeUndefined()
+  })
+
   it("keeps Spotify's reason when a command fails", async () => {
     const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
       json(404, { error: { status: 404, message: 'Player command failed: No active device found', reason: 'NO_ACTIVE_DEVICE' } }),
