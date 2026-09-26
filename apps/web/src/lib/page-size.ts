@@ -1,7 +1,7 @@
 import { DEFAULT_PAGE_SIZE, parsePage, parsePageSize, type PageSize } from '@replay-crate/core'
 
 /** The lists that page, each remembering its own page size. */
-export type PagedList = 'history' | 'tracks' | 'playlists' | 'playlist'
+export type PagedList = 'history' | 'tracks' | 'playlists' | 'playlist' | 'search'
 
 const key = (list: PagedList) => `rc:page-size:${list}`
 
