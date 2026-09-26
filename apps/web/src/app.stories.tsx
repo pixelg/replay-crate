@@ -49,6 +49,35 @@ export const History = meta.story({
   },
 })
 
+export const MiniPlayerInHeader = meta.story({
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  play: async ({ canvas }) => {
+    const header = within(await canvas.findByRole('banner'))
+    const player = within(await header.findByRole('region', { name: 'Now playing' }))
+    await expect(player.getByRole('link', { name: 'Brass Monkey Business' })).toBeVisible()
+    await expect(player.getByRole('button', { name: 'Pause' })).toBeVisible()
+    // The phone bar stays out of the way on a wide screen.
+    await expect(canvas.getAllByRole('region', { name: 'Now playing' }).filter((region) => region.checkVisibility())).toHaveLength(1)
+  },
+})
+
+export const MiniPlayerOnPhone = meta.story({
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { name: 'Today' })).toBeVisible()
+    const bar = await canvas.findByRole('region', { name: 'Now playing' })
+    await expect(bar).toBeVisible()
+    await expect(within(bar).getByRole('button', { name: 'Pause' })).toBeVisible()
+    // It sits right above the tabs, and the page makes room for both.
+    const tabs = canvas.getAllByRole('navigation', { name: 'Main' }).find((nav) => nav.checkVisibility())!
+    await expect(bar.getBoundingClientRect().bottom).toBeCloseTo(tabs.getBoundingClientRect().top, 0)
+    const main = canvas.getByRole('main')
+    await expect(parseFloat(getComputedStyle(main).paddingBottom)).toBeGreaterThanOrEqual(
+      bar.getBoundingClientRect().height + tabs.getBoundingClientRect().height,
+    )
+  },
+})
+
 export const HistoryEmpty = meta.story({
   beforeEach({ msw }) {
     msw.use(http.get('/api/v1/history/plays', () => HttpResponse.json({ items: [], nextCursor: null, lastSyncedAt: null })))
@@ -315,7 +344,8 @@ export const PlaylistRemovesTrack = meta.story({
     await userEvent.click(within(dialog).getByRole('button', { name: 'Remove' }))
 
     await waitFor(() => expect(requests).toHaveBeenCalledWith('p1', { trackIds: ['t2'] }))
-    await waitFor(() => expect(canvas.queryByText('Sunday Morning Static')).toBeNull())
+    const tracks = canvas.getByRole('region', { name: 'Tracks' })
+    await waitFor(() => expect(within(tracks).queryByText('Sunday Morning Static')).toBeNull())
   },
 })
 
