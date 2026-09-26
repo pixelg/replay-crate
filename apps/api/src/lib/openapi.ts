@@ -11,6 +11,7 @@ export const TAGS = [
   { name: 'Stats', description: 'Listening metrics.' },
   { name: 'Imports', description: 'Backfilling history from the Extended Streaming History export.' },
   { name: 'Player', description: 'Spotify playback: state, controls, queue and devices.' },
+  { name: 'Search', description: 'Searching your library: tracks, artists, albums, playlists and plays.' },
 ] as const
 export type Tag = (typeof TAGS)[number]['name']
 

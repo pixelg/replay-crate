@@ -4,6 +4,8 @@ import { createApp } from './app.ts'
 import type { AppDeps, SpotifyGateway } from './deps.ts'
 import { createFakeLibrary, createFakeSpotify, fakePlayerFor } from './fakes.ts'
 import { createTokenCipher } from './lib/crypto.ts'
+import { drainAll } from './search/indexer.ts'
+import { createPostgresSearchIndex } from './search/postgres.ts'
 
 export {
   createFakeLibrary,
@@ -66,6 +68,7 @@ export async function createTestContext() {
     redirectUri: REDIRECT_URI,
     cronSecret: CRON_SECRET,
     now: () => current,
+    search: createPostgresSearchIndex(db),
   }
 
   const app = createApp(deps)
@@ -90,6 +93,8 @@ export async function createTestContext() {
     /** The fake player behind the player calls; seed it with `player.nowPlaying(track)`. */
     player,
     login,
+    /** Runs the search indexer until the outbox is empty (the app does this in the background). */
+    indexSearch: () => drainAll(deps),
     advance: (ms: number) => {
       current = new Date(current.getTime() + ms)
     },

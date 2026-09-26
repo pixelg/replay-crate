@@ -8,6 +8,8 @@ import { createFakeLibrary, createFakeSpotify, play, playlistContext, track } fr
 import { startJobRunner } from './jobs/runner.ts'
 import { createTokenCipher } from './lib/crypto.ts'
 import { createServer } from './server.ts'
+import { startSearchIndexer } from './search/indexer.ts'
+import { createPostgresSearchIndex } from './search/postgres.ts'
 
 const port = Number(process.env.E2E_PORT ?? 4174)
 const webDistDir = process.env.WEB_DIST_DIR
@@ -49,10 +51,12 @@ const deps = {
   cipher: await createTokenCipher(Buffer.alloc(32, 9).toString('base64')),
   spotify: createFakeSpotify(library, { recentlyPlayed, topTracks: () => [brass, sunday] }),
   redirectUri: `http://127.0.0.1:${port}/callback`,
+  search: createPostgresSearchIndex(db),
 }
 
 // Looks up imported tracks, quickly so tests don't wait.
 startJobRunner(deps, { idleMs: 500, busyPauseMs: 100, log: { info() {}, error: console.error } })
+startSearchIndexer(deps, { idleMs: 200, busyPauseMs: 50, log: { info() {}, error: console.error } })
 
 serve({ fetch: createServer(deps, { webDistDir }).fetch, hostname: '127.0.0.1', port }, (info) => {
   console.log(`E2E server on http://${info.address}:${info.port} (fake Spotify, in-memory DB)`)

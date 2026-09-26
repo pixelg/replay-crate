@@ -10,6 +10,7 @@
     "dev": "pnpm db:up && turbo run dev --filter=@replay-crate/web --filter=@replay-crate/api",
     "db:up": "docker compose up --detach --wait",
     "db:down": "docker compose stop",
+    "search:reindex": "pnpm --filter @replay-crate/api search:reindex",
     "db:migrate": "pnpm --filter @replay-crate/db db:migrate",
     "db:psql": "docker compose exec postgres psql -U replay replay_crate",
     "build": "turbo run build",
