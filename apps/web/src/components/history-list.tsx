@@ -3,6 +3,7 @@ import { formatDayLabel, groupByDay } from '@replay-crate/core'
 import { Link } from '@tanstack/react-router'
 import { CircleDashed } from 'lucide-react'
 import { AlbumArt } from './album-art.tsx'
+import { TrackActions } from './track-actions.tsx'
 import { ContextChip } from './context-chip.tsx'
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
@@ -99,6 +100,7 @@ function PlayRow({ play }: { play: PlayItem }) {
       <time dateTime={play.playedAt} className="shrink-0 self-start pt-0.5 text-xs text-muted-foreground tabular-nums">
         {timeFormat.format(new Date(play.playedAt))}
       </time>
+      <TrackActions track={track} context={play.context} />
     </div>
   )
 }

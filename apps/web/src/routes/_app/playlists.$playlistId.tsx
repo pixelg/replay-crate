@@ -89,6 +89,7 @@ function PlaylistPage() {
                   item={item}
                   actions={
                     <PlaylistTrackActions
+                      trackId={item.track.id}
                       trackName={item.track.name}
                       playlistName={playlist.name}
                       position={item.position}

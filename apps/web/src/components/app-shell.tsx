@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { cn } from 'cn'
 import { useIsPlaying } from '../lib/use-player.ts'
 import { MiniPlayer, MiniPlayerBar } from './mini-player.tsx'
+import { Toaster } from './ui/sonner.tsx'
 import { navItems } from './nav-items.ts'
 import { MenuContent, MenuItem, MenuLinkItem, MenuRoot, MenuSeparator, MenuTrigger } from './ui/menu.tsx'
 import { UserAvatar } from './user-avatar.tsx'
@@ -59,6 +60,8 @@ export function AppShell({
       </div>
 
       <BottomTabs />
+      {/* Clear of the phone's tabs and player bar. */}
+      <Toaster position="bottom-center" mobileOffset={{ bottom: 'calc(8.5rem + env(safe-area-inset-bottom))' }} />
     </div>
   )
 }
