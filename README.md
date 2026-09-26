@@ -63,6 +63,28 @@ For everyday use, run the built app and the API as one server on http://127.0.0.
 
    Logs: `journalctl --user -u replay-crate -f`. Stop: `systemctl --user stop replay-crate`. After pulling changes, run `systemctl --user restart replay-crate`, which rebuilds the app.
 
+### Use it away from home (Tailscale)
+
+[`tailscale serve`](https://tailscale.com/kb/1312/serve) gives the server a private HTTPS address, `https://<host>.<tailnet>.ts.net`, that only devices signed in to your tailnet can open. No router ports needed.
+
+1. Sign this machine in with `sudo tailscale up`. In the Tailscale admin console under **DNS**, turn on MagicDNS and **HTTPS Certificates**.
+2. Put the server behind it. `--bg` keeps it across reboots:
+
+   ```bash
+   sudo tailscale serve --bg 4173
+   ```
+
+   `tailscale serve status` shows the address.
+3. Add `https://<host>.<tailnet>.ts.net/callback` to your Spotify app's redirect URIs.
+4. Tell the server its address, either for one run or for the service:
+
+   ```bash
+   REPLAY_CRATE_ORIGIN=https://<host>.<tailnet>.ts.net pnpm serve
+   ./scripts/install-service.sh https://<host>.<tailnet>.ts.net
+   ```
+
+The app works on one origin only, so `http://127.0.0.1:4173` now moves you over to the ts.net address, and you sign in again there once. Install Tailscale on your phone or laptop to reach it from anywhere. Run `./scripts/install-service.sh` without an address to go back to local-only.
+
 ## Import your full history
 
 Replay Crate only sees plays from while it's running. To fill in everything before that, and any gaps since:
