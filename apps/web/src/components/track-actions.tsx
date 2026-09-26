@@ -1,10 +1,8 @@
-import type { PlayContext, PlayerCommand } from '@replay-crate/api-client'
+import type { PlayContext } from '@replay-crate/api-client'
 import { Link } from '@tanstack/react-router'
 import { ListEnd, ListPlus, ListVideo, MoreHorizontal, Music, Play } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
-import { toast } from 'sonner'
-import { describeError } from '../lib/describe-error.ts'
-import { usePlayerControls } from '../lib/use-player.ts'
+import { useTrackCommands } from '../lib/use-track-commands.ts'
 import { AddToPlaylistDialog } from './add-to-playlist.tsx'
 import { MenuContent, MenuItem, MenuLinkItem, MenuRoot, MenuSeparator, MenuTrigger } from './ui/menu.tsx'
 
@@ -20,7 +18,6 @@ export function TrackActions({
   track,
   context,
   onPlaylists,
-  showGoTo = true,
   disabled,
   children,
 }: {
@@ -29,25 +26,12 @@ export function TrackActions({
   context?: PlayContext | null
   /** Playlists the track is already on, marked as added in the dialog. */
   onPlaylists?: string[]
-  /** Off on the track's own page. */
-  showGoTo?: boolean
   disabled?: boolean
   children?: ReactNode
 }) {
   const [adding, setAdding] = useState(false)
-  const { send } = usePlayerControls()
-  const uri = `spotify:track:${track.id}`
+  const commands = useTrackCommands(track)
   const playFrom = context && PLAYABLE_CONTEXTS.has(context.type) ? context : null
-
-  /** Sends a command and says how it went (the menu is gone by then). */
-  const run = (command: PlayerCommand, done: string) =>
-    send(command, {
-      onSuccess: () => toast.success(done),
-      onError: (error) => {
-        const { title, message } = describeError(error)
-        toast.error(title, { description: message })
-      },
-    })
 
   return (
     <>
@@ -56,30 +40,24 @@ export function TrackActions({
           <MoreHorizontal aria-hidden className="size-5" />
         </MenuTrigger>
         <MenuContent>
-          <MenuItem onClick={() => run({ kind: 'play', uris: [uri] }, `Playing “${track.name}”`)}>
+          <MenuItem onClick={commands.play}>
             <Play aria-hidden className="size-4 text-muted-foreground" /> Play
           </MenuItem>
           {playFrom && (
-            <MenuItem
-              onClick={() =>
-                run({ kind: 'play', contextUri: playFrom.uri, offset: { uri } }, `Playing “${track.name}” from ${contextName(playFrom)}`)
-              }
-            >
+            <MenuItem onClick={() => commands.playFrom(playFrom, contextName(playFrom))}>
               <ListVideo aria-hidden className="size-4 text-muted-foreground" />
               <span className="truncate">Play from {contextName(playFrom)}</span>
             </MenuItem>
           )}
-          <MenuItem onClick={() => run({ kind: 'queue', uri }, `Added “${track.name}” to the queue`)}>
+          <MenuItem onClick={commands.queue}>
             <ListEnd aria-hidden className="size-4 text-muted-foreground" /> Add to queue
           </MenuItem>
           <MenuItem onClick={() => setAdding(true)}>
             <ListPlus aria-hidden className="size-4 text-muted-foreground" /> Add to playlist…
           </MenuItem>
-          {showGoTo && (
-            <MenuLinkItem render={<Link to="/tracks/$trackId" params={{ trackId: track.id }} />}>
-              <Music aria-hidden className="size-4 text-muted-foreground" /> Go to track
-            </MenuLinkItem>
-          )}
+          <MenuLinkItem render={<Link to="/tracks/$trackId" params={{ trackId: track.id }} />}>
+            <Music aria-hidden className="size-4 text-muted-foreground" /> Go to track
+          </MenuLinkItem>
           {children && (
             <>
               <MenuSeparator />

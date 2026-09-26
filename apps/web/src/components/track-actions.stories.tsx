@@ -134,7 +134,6 @@ export const NoPlayFromForArtists = meta.story({
 
 /** Extra items for where it's shown, like a playlist's move and remove. */
 export const WithExtraItems = meta.story({
-  args: { showGoTo: false },
   render: (args) => (
     <TrackActions {...args}>
       <span role="menuitem" className="block px-3 py-2 text-sm">
@@ -144,7 +143,6 @@ export const WithExtraItems = meta.story({
   ),
   play: async ({ canvas, userEvent }) => {
     const menu = await openMenu(canvas, userEvent)
-    await expect(menu.queryByRole('menuitem', { name: 'Go to track' })).toBeNull()
     await expect(menu.getByRole('menuitem', { name: 'Remove from playlist…' })).toBeVisible()
   },
 })
