@@ -3,6 +3,7 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import { varlockVitePlugin } from '@varlock/vite-integration'
 import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
+import { ENV } from 'varlock/env'
 import { defineConfig, type Plugin } from 'vite'
 
 /**
@@ -20,6 +21,17 @@ function watchWorkspacePackages(): Plugin {
   }
 }
 
+/**
+ * Fills `%APP_ORIGIN%` in index.html with the app's origin (that of SPOTIFY_REDIRECT_URI, where
+ * the app is served), for the Open Graph tags, which need absolute URLs.
+ */
+function appOriginInHtml(): Plugin {
+  return {
+    name: 'app-origin-in-html',
+    transformIndexHtml: (html) => html.replaceAll('%APP_ORIGIN%', new URL(ENV.SPOTIFY_REDIRECT_URI).origin),
+  }
+}
+
 // Spotify rejects `localhost` redirect URIs but allows loopback IPs, so dev always
 // runs on 127.0.0.1. Open the app at that host too, or session cookies won't match.
 export default defineConfig({
@@ -29,6 +41,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     watchWorkspacePackages(),
+    appOriginInHtml(),
   ],
   // `@/` points at src, as shadcn/ui components expect.
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
