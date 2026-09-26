@@ -40,6 +40,8 @@ export type SpotifyGateway = {
     move: { rangeStart: number; insertBefore: number; snapshotId?: string },
   ): Promise<{ snapshot_id: string }>
   getTopTracks(accessToken: string, timeRange: TopTimeRange): Promise<Paging<SpotifyTrack>>
+  /** Spotify's catalogue, tracks only, at most 10. */
+  searchTracks(accessToken: string, q: string, limit?: number): Promise<Paging<SpotifyTrack>>
   getTopArtists(accessToken: string, timeRange: TopTimeRange): Promise<Paging<SpotifyArtist>>
   getTrack(accessToken: string, id: string): Promise<SpotifyTrack>
 

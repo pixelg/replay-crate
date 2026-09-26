@@ -26,6 +26,7 @@ export type RulePreview = InferResponseType<ApiClient['playlists']['preview']['$
 export type SearchResponse = InferResponseType<ApiClient['search']['$get'], 200>
 export type SearchHit = SearchResponse['groups'][number]['hits'][number]
 export type SearchType = SearchHit['type']
+export type SpotifyTrackHit = InferResponseType<ApiClient['search']['spotify']['$get'], 200>['tracks'][number]
 
 // Every call below either returns data or throws an ApiError.
 
@@ -368,4 +369,25 @@ export const searchQueryOptions = (
     placeholderData: keepPreviousData,
     // The index changes behind the scenes; a few seconds of reuse is plenty while typing.
     staleTime: 10_000,
+  })
+
+/** At least this much typed before asking Spotify. */
+export const SPOTIFY_SEARCH_MIN_LENGTH = 3
+
+/**
+ * Tracks from all of Spotify for `q` (its free text; filters are for the library). Asked
+ * separately from library search, so Spotify's pace never holds that up.
+ */
+export const spotifySearchQueryOptions = (api: ApiClient, q: string) =>
+  queryOptions({
+    queryKey: ['search', 'spotify', q.trim()],
+    queryFn: async ({ signal }) => {
+      const endpoint = 'GET /api/v1/search/spotify'
+      return expectOk(await send(endpoint, () => api.search.spotify.$get({ query: { q } }, { init: { signal } })), endpoint)
+    },
+    enabled: q.trim().length >= SPOTIFY_SEARCH_MIN_LENGTH,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+    // Spotify says no when it's busy (rate_limited); the library results stand on their own.
+    retry: false,
   })

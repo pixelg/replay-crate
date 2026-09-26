@@ -1,6 +1,12 @@
 import { Autocomplete } from '@base-ui/react/autocomplete'
 import { Dialog } from '@base-ui/react/dialog'
-import { searchQueryOptions, type SearchHit, type SearchResponse } from '@replay-crate/api-client'
+import {
+  searchQueryOptions,
+  spotifySearchQueryOptions,
+  type SearchHit,
+  type SearchResponse,
+  type SpotifyTrackHit,
+} from '@replay-crate/api-client'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { cn } from 'cn'
@@ -13,11 +19,15 @@ import { useDebouncedValue } from '../../lib/use-debounced-value.ts'
 import { useSearchActions } from '../../lib/use-search-actions.ts'
 import { FilterChips } from './filter-chips.tsx'
 import { hitLink, TYPE_LABELS } from './hit-links.ts'
-import { HitSummary } from './hits.tsx'
+import { HitSummary, SpotifyTrackSummary } from './hits.tsx'
 
 /** Keeps typing snappy: ask once the keys pause. */
 const DEBOUNCE_MS = 120
+/** Spotify is slower and rate-limited: ask it less often. */
+const SPOTIFY_DEBOUNCE_MS = 350
 const PER_GROUP = 4
+/** Spotify results worth showing: ones not already in the library's results. */
+const SPOTIFY_SHOWN = 4
 
 /** Examples that teach the query language, inserted with a click. */
 const TIPS = [
@@ -35,10 +45,14 @@ type Entry =
   | { kind: 'recent'; key: string; q: string }
   | { kind: 'tip'; key: string; insert: string; label: string; hint: string }
   | { kind: 'suggestion'; key: string; q: string }
+  | { kind: 'spotify'; key: string; track: SpotifyTrackHit }
 type Group = { label: string; items: Entry[] }
 
-/** The groups to show: the best match first, then each type, then a way to see everything. */
-function groupsFor(q: string, data: SearchResponse | undefined): Group[] {
+/**
+ * The groups to show: the best match first, then each type, then tracks from Spotify you've
+ * never played, then a way to see everything.
+ */
+function groupsFor(q: string, data: SearchResponse | undefined, spotify: SpotifyTrackHit[] = []): Group[] {
   if (!q.trim()) {
     const recent = recentSearches()
     return [
@@ -46,9 +60,16 @@ function groupsFor(q: string, data: SearchResponse | undefined): Group[] {
       { label: 'Try', items: TIPS.map((tip) => ({ kind: 'tip' as const, key: `tip:${tip.label}`, ...tip })) },
     ]
   }
-  if (!data) return []
+  const fresh = spotify.filter((track) => track.playCount === 0).slice(0, SPOTIFY_SHOWN)
+  const fromSpotify: Group[] = fresh.length
+    ? [{ label: 'From Spotify', items: fresh.map((track) => ({ kind: 'spotify' as const, key: `spotify:${track.id}`, track })) }]
+    : []
+  if (!data) return fromSpotify
   if (!data.total) {
-    return data.suggestion ? [{ label: 'Did you mean', items: [{ kind: 'suggestion', key: 'suggestion', q: data.suggestion }] }] : []
+    return [
+      ...(data.suggestion ? [{ label: 'Did you mean', items: [{ kind: 'suggestion' as const, key: 'suggestion', q: data.suggestion }] }] : []),
+      ...fromSpotify,
+    ]
   }
   const all = data.groups.flatMap((group) => group.hits)
   const top = all.reduce<SearchHit | undefined>((best, hit) => (!best || hit.score > best.score ? hit : best), undefined)
@@ -61,6 +82,7 @@ function groupsFor(q: string, data: SearchResponse | undefined): Group[] {
         items: group.hits.filter((hit) => hit !== top).map((hit) => ({ kind: 'hit' as const, key: key(hit), hit })),
       }))
       .filter((group) => group.items.length),
+    ...fromSpotify,
     { label: 'Everything', items: [{ kind: 'all', key: 'all', q, total: data.total }] },
   ]
 }
@@ -98,6 +120,8 @@ function PaletteBody({ initialQuery, onDone }: { initialQuery: string; onDone: (
   const [, rerender] = useReducer((n: number) => n + 1, 0)
   const settled = useDebouncedValue(q, DEBOUNCE_MS)
   const results = useQuery(searchQueryOptions(api, { q: settled, limit: PER_GROUP }))
+  const spotifyQ = useDebouncedValue(q, SPOTIFY_DEBOUNCE_MS)
+  const spotify = useQuery(spotifySearchQueryOptions(api, spotifyQ))
   const navigate = useNavigate()
   const actions = useSearchActions()
   const highlighted = useRef<Entry | undefined>(undefined)
@@ -106,7 +130,7 @@ function PaletteBody({ initialQuery, onDone }: { initialQuery: string; onDone: (
   // Results for an older query stay up (dimmed) until the new ones arrive.
   const data = q.trim() ? results.data : undefined
   const stale = q.trim() !== settled.trim() || results.isPlaceholderData
-  const groups = groupsFor(q, data)
+  const groups = groupsFor(q, data, q.trim() ? spotify.data?.tracks : undefined)
 
   const openAll = (query: string) => {
     rememberSearch(query)
@@ -131,6 +155,11 @@ function PaletteBody({ initialQuery, onDone }: { initialQuery: string; onDone: (
         setQ((current) => `${current.trim() ? `${current.trim()} ` : ''}${entry.insert}`)
         inputRef.current?.focus()
         break
+      case 'spotify':
+        // No page for a track you've never played: Enter plays it.
+        rememberSearch(q)
+        actions.playTrack(entry.track)
+        break
     }
   }
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement> & { preventBaseUIHandler?: () => void }) => {
@@ -147,7 +176,8 @@ function PaletteBody({ initialQuery, onDone }: { initialQuery: string; onDone: (
     } else if (entry?.kind === 'hit' && event.altKey && actions.canQueue(entry.hit)) {
       rememberSearch(q)
       actions.queue(entry.hit)
-    }
+    } else if (entry?.kind === 'spotify' && event.shiftKey) actions.playTrack(entry.track)
+    else if (entry?.kind === 'spotify' && event.altKey) actions.queueTrack(entry.track)
   }
 
   return (
@@ -288,6 +318,8 @@ function EntryContent({ entry, top }: { entry: Entry; top: boolean }): ReactNode
           <span className="truncate text-muted-foreground">{entry.hint}</span>
         </span>
       )
+    case 'spotify':
+      return <SpotifyTrackSummary track={entry.track} />
     case 'suggestion':
       return (
         <span className="flex flex-1 items-center gap-3 text-sm">

@@ -236,6 +236,20 @@ export function getTopArtists(
   return spotifyGet(`/me/top/artists?time_range=${timeRange}&limit=20`, accessToken, options)
 }
 
+/** Spotify's cap on search results per page for development-mode apps (Feb 2026). */
+export const SEARCH_LIMIT = 10
+
+/** Tracks matching `q` across Spotify's catalogue, best first. */
+export async function searchTracks(
+  accessToken: string,
+  q: string,
+  limit = SEARCH_LIMIT,
+  options?: RequestOptions,
+): Promise<Paging<SpotifyTrack>> {
+  const path = `/search${query({ q, type: 'track', limit: Math.min(limit, SEARCH_LIMIT) })}`
+  return (await spotifyGet<{ tracks: Paging<SpotifyTrack> }>(path, accessToken, options)).tracks
+}
+
 /** One track by id. (The batch `GET /tracks?ids=` was removed in Feb 2026.) */
 export function getTrack(accessToken: string, id: string, options?: RequestOptions): Promise<SpotifyTrack> {
   return spotifyGet(`/tracks/${encodeURIComponent(id)}`, accessToken, options)

@@ -246,6 +246,17 @@ export function createFakeSpotify(
       images: [{ url: `https://i.scdn.co/${id}`, width: 300, height: 300 }],
     }),
     getTopTracks: async () => paged(topTracks())(0),
+    // Every track the fake knows (its playlists, recent plays, top tracks), by name or artist.
+    searchTracks: async (_token, q, limit = 10) => {
+      const words = q.toLowerCase().split(/\s+/).filter(Boolean)
+      const known = new Map<string, SpotifyTrack>(library.catalog)
+      for (const t of [...recentlyPlayed().map((item) => item.track), ...topTracks()]) if (t.id) known.set(t.id, t)
+      const matches = [...known.values()].filter((t) => {
+        const text = [t.name, ...t.artists.map((artist) => artist.name)].join(' ').toLowerCase()
+        return words.every((word) => text.includes(word))
+      })
+      return paged(matches.slice(0, Math.min(limit, 10)))(0)
+    },
     // Top artists are the credited artists of the top tracks, in order, with images.
     getTopArtists: async () => {
       const seen = new Map<string, { id: string; name: string; uri: string; images: SpotifyImage[] }>()

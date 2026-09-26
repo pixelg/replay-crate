@@ -1523,6 +1523,10 @@ export const SearchPage = meta.story({
     await expect(await main.findByRole('heading', { level: 2, name: /Tracks/ })).toBeVisible()
     await expect(main.getByRole('heading', { level: 2, name: /Artists/ })).toBeVisible()
     await expect(main.getByText(/results in \d+ ms, from Postgres/)).toBeVisible()
+    // Music you've never played, from Spotify's catalogue.
+    const spotify = within(await main.findByRole('region', { name: 'From Spotify' }))
+    await expect(spotify.getAllByText('New to you')).toHaveLength(2)
+    await expect(spotify.getByRole('button', { name: 'Actions for Rock Box' })).toBeVisible()
     // A facet adds its filter to the query.
     const refine = within(main.getByRole('complementary', { name: 'Refine' }))
     await userEvent.click(refine.getByRole('button', { name: /1990s/ }))
