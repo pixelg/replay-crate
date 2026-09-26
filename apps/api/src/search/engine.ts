@@ -1,8 +1,11 @@
 import type { Db } from '@replay-crate/db'
+import { createElasticSearchIndex, type ElasticSearchIndex } from './elastic.ts'
 import { createPostgresSearchIndex } from './postgres.ts'
 import type { SearchIndex } from './types.ts'
 
-/** The search engine for this environment. Postgres for now; Elasticsearch arrives in #116. */
-export function createSearchIndex(db: Db): SearchIndex {
-  return createPostgresSearchIndex(db)
+/** Elasticsearch when there's a URL for it, Postgres otherwise. */
+export function createSearchIndex(db: Db, { elasticsearchUrl }: { elasticsearchUrl?: string }): SearchIndex {
+  return elasticsearchUrl ? createElasticSearchIndex({ node: elasticsearchUrl }) : createPostgresSearchIndex(db)
 }
+
+export const isElastic = (index: SearchIndex): index is ElasticSearchIndex => index.engine === 'elasticsearch'

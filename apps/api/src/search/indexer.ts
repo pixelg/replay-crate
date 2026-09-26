@@ -1,7 +1,8 @@
 import { schema } from '@replay-crate/db'
 import { sql } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
-import { allKeys, buildDocs, expand, type Change } from './docs.ts'
+import type { EntityType } from '@replay-crate/core'
+import { allKeys, buildDocs, expand, type Change, type Keys } from './docs.ts'
 
 type Logger = Pick<Console, 'info' | 'error'>
 
@@ -127,4 +128,32 @@ export function startSearchIndexer(
     stopped = true
     clearTimeout(timer)
   }
+}
+
+/**
+ * Builds every document straight from SQL and writes it to the index, no outbox involved: how a
+ * fresh Elasticsearch index is filled during a rebuild. Returns how many were written.
+ */
+export async function buildEverything(
+  deps: Pick<AppDeps, 'db' | 'search'>,
+  { log }: { log?: (message: string) => void } = {},
+): Promise<number> {
+  const { db, search } = deps
+  const users = (await db.select({ id: schema.users.id }).from(schema.users)).map((user) => user.id)
+  let written = 0
+  for (const userId of users) {
+    const keys = await allKeys(db, userId)
+    for (const type of Object.keys(keys) as EntityType[]) {
+      const ids = [...keys[type]]
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const batch: Keys = { track: new Set(), artist: new Set(), album: new Set(), playlist: new Set(), play: new Set() }
+        batch[type] = new Set(ids.slice(i, i + CHUNK))
+        const { docs } = await buildDocs(db, userId, batch)
+        await search.upsert(docs)
+        written += docs.length
+      }
+      log?.(`${userId}: ${keys[type].size} ${type} documents`)
+    }
+  }
+  return written
 }

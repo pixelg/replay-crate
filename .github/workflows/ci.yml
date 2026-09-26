@@ -68,3 +68,34 @@ jobs:
           name: playwright-traces
           path: apps/web/test-results
           retention-days: 7
+
+  # The search contract suite (apps/api/src/search/contract.ts) against a real Elasticsearch,
+  # the engine the app uses when ELASTICSEARCH_URL is set. The check job runs it on Postgres.
+  search:
+    name: search (Elasticsearch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:9.5.1
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: 'false'
+          xpack.ml.enabled: 'false'
+          ES_JAVA_OPTS: -Xms512m -Xmx512m
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd "curl -fs 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s'"
+          --health-interval 5s --health-timeout 10s --health-retries 30
+    env:
+      ELASTICSEARCH_URL: http://127.0.0.1:9200
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @replay-crate/api exec vitest run src/search
