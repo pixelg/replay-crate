@@ -1,5 +1,5 @@
 import type { AppType, Me, PlaylistRule } from '@replay-crate/api'
-import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
+import { infiniteQueryOptions, keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { hc, type InferResponseType } from 'hono/client'
 import { ApiError, expectOk, send } from './errors.ts'
 
@@ -71,10 +71,13 @@ export async function logout(api: ApiClient): Promise<void> {
   if (!res.ok) throw await ApiError.fromResponse(res, endpoint)
 }
 
-/** Newest-first play history; each page's `nextCursor` fetches older plays. */
+/**
+ * Newest-first play history; each page's `nextCursor` fetches older plays. The "All" view.
+ * Every plays query starts with `['plays']`, so invalidating that refreshes both views.
+ */
 export const playsInfiniteQueryOptions = (api: ApiClient) =>
   infiniteQueryOptions({
-    queryKey: ['plays'],
+    queryKey: ['plays', 'infinite'],
     queryFn: async ({ pageParam }): Promise<PlaysPage> => {
       const endpoint = 'GET /api/v1/history/plays'
       const res = await send(endpoint, () => api.history.plays.$get({ query: pageParam ? { before: pageParam } : {} }))
@@ -82,6 +85,21 @@ export const playsInfiniteQueryOptions = (api: ApiClient) =>
     },
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+  })
+
+/**
+ * One numbered page of play history (`page` from 1), with `total` and `olderPlayedAt`. Keeps
+ * showing the previous page while the next one loads.
+ */
+export const playsPageQueryOptions = (api: ApiClient, { page, size }: { page: number; size: number }) =>
+  queryOptions({
+    queryKey: ['plays', 'page', { page, size }],
+    queryFn: async (): Promise<PlaysPage> => {
+      const endpoint = 'GET /api/v1/history/plays'
+      const query = { limit: String(size), offset: String((page - 1) * size) }
+      return expectOk(await send(endpoint, () => api.history.plays.$get({ query })), endpoint)
+    },
+    placeholderData: keepPreviousData,
   })
 
 /** Rates a track 1–5 stars, or clears its rating with `null`. */
@@ -102,7 +120,7 @@ export async function setTrackRating(api: ApiClient, trackId: string, rating: nu
  */
 export const tracksInfiniteQueryOptions = (api: ApiClient, sort: TrackSort, minRating?: number) =>
   infiniteQueryOptions({
-    queryKey: ['tracks', 'library', sort, minRating ?? null],
+    queryKey: ['tracks', 'library', 'infinite', sort, minRating ?? null],
     queryFn: async ({ pageParam }): Promise<LibraryPage> => {
       const endpoint = 'GET /api/v1/tracks'
       const query = {
@@ -115,6 +133,26 @@ export const tracksInfiniteQueryOptions = (api: ApiClient, sort: TrackSort, minR
     },
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+  })
+
+/** One numbered page of the tracks library (`page` from 1). Keeps showing the previous page while the next one loads. */
+export const tracksPageQueryOptions = (
+  api: ApiClient,
+  { sort, minRating, page, size }: { sort: TrackSort; minRating?: number; page: number; size: number },
+) =>
+  queryOptions({
+    queryKey: ['tracks', 'library', 'page', { sort, minRating: minRating ?? null, page, size }],
+    queryFn: async (): Promise<LibraryPage> => {
+      const endpoint = 'GET /api/v1/tracks'
+      const query = {
+        sort,
+        limit: String(size),
+        offset: String((page - 1) * size),
+        ...(minRating && { minRating: String(minRating) }),
+      }
+      return expectOk(await send(endpoint, () => api.tracks.$get({ query })), endpoint)
+    },
+    placeholderData: keepPreviousData,
   })
 
 export const trackQueryOptions = (api: ApiClient, trackId: string) =>
