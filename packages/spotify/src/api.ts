@@ -77,9 +77,11 @@ export async function spotifyRequest<T>(
       ...(body !== undefined && { body: JSON.stringify(body) }),
     })
     if (res.ok) {
-      // Some endpoints answer 200 with an empty body (e.g. Change Playlist Details).
+      // Only JSON bodies carry data. Some endpoints answer 200 with an empty body (Change Playlist
+      // Details), and the player's commands, documented as 204, can answer 200 with a text id.
       const text = await res.text()
-      return (text ? JSON.parse(text) : undefined) as T
+      const json = res.headers.get('Content-Type')?.includes('json')
+      return (text && json ? JSON.parse(text) : undefined) as T
     }
 
     if (res.status === 429) {
