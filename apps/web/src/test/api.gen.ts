@@ -379,7 +379,7 @@ export interface paths {
         };
         /**
          * Totals and listening over time
-         * @description Each point splits plays into new tracks (a track's first-ever play) and replays. Ranges over 90 days are bucketed by week, shorter ones by day, in the user's time zone; empty buckets are zeros.
+         * @description Each point splits plays into new tracks (a track's first-ever play) and replays, and by artist: the range's top 5 artists by plays (first-credited artist) and everyone else, in plays and minutes. Ranges over 90 days are bucketed by week, shorter ones by day, in the user's time zone; empty buckets are zeros.
          */
         get: operations["getStatsOverview"];
         put?: never;
@@ -1057,6 +1057,10 @@ export interface components {
          * @enum {string}
          */
         StatsRange: "7d" | "30d" | "90d" | "1y" | "all";
+        Listening: {
+            plays: number;
+            minutes: number;
+        };
         TopItem: {
             rank: number;
             id: string;
@@ -2753,12 +2757,22 @@ export interface operations {
                             artists: number;
                             newTracks: number;
                         };
+                        /** @description The range's top artists by plays (not time), most first. */
+                        artists: {
+                            id: string;
+                            name: string;
+                            plays: number;
+                            minutes: number;
+                        }[];
                         series: {
                             /** @description Bucket start, YYYY-MM-DD. */
                             date: string;
                             newTracks: number;
                             replays: number;
                             minutes: number;
+                            /** @description Per artist in `artists`, same order. */
+                            byArtist: components["schemas"]["Listening"][];
+                            others: components["schemas"]["Listening"] & unknown;
                         }[];
                         /** @description Unfilled history gaps in the range. */
                         openGaps: number;

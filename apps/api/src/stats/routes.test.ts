@@ -56,11 +56,47 @@ describe('stats', () => {
         '2026-09-21',
       ])
       const byDate = Object.fromEntries(body.series.map((p: { date: string }) => [p.date, p]))
-      expect(byDate['2026-09-18']).toEqual({ date: '2026-09-18', newTracks: 1, replays: 0, minutes: 3 })
+      expect(byDate['2026-09-18']).toMatchObject({ date: '2026-09-18', newTracks: 1, replays: 0, minutes: 3 })
       expect(byDate['2026-09-19']).toMatchObject({ newTracks: 0, replays: 1 })
       expect(byDate['2026-09-21']).toMatchObject({ newTracks: 1, replays: 2 })
-      expect(byDate['2026-09-16']).toEqual({ date: '2026-09-16', newTracks: 0, replays: 0, minutes: 0 })
+      expect(byDate['2026-09-16']).toEqual({
+        date: '2026-09-16',
+        newTracks: 0,
+        replays: 0,
+        minutes: 0,
+        byArtist: [{ plays: 0, minutes: 0 }],
+        others: { plays: 0, minutes: 0 },
+      })
       expect(body.totals).toEqual({ plays: 5, minutes: 17, tracks: 2, artists: 2, newTracks: 2 })
+    })
+
+    it('splits listening by the top artists (first credit, by plays) and everyone else', async () => {
+      // Seven days: Band has all five plays (Guest is only a second credit).
+      const week = await json(await get('/api/v1/stats/overview?range=7d&tz=UTC'))
+      expect(week.artists).toEqual([{ id: 'band', name: 'Band', plays: 5, minutes: 17 }])
+      const byDate = Object.fromEntries(week.series.map((p: { date: string }) => [p.date, p]))
+      expect(byDate['2026-09-21']).toMatchObject({ byArtist: [{ plays: 3, minutes: 10 }], others: { plays: 0, minutes: 0 } })
+
+      // All time: Solo joins, ranked below Band on plays.
+      const all = await json(await get('/api/v1/stats/overview?range=all&tz=UTC'))
+      expect(all.artists.map((artist: { id: string }) => artist.id)).toEqual(['band', 'solo'])
+      const june = all.series.find((p: { date: string }) => p.date === weekStart('2026-06-01'))
+      expect(june).toMatchObject({ byArtist: [{ plays: 0 }, { plays: 1 }], others: { plays: 0 } })
+    })
+
+    it('ranks artists by plays, so a long track doesn’t outrank a short one', async () => {
+      // One half-hour epic: more time than all of Band's plays together.
+      const epic = { ...track('epic', { name: 'Epic', artists: [['long', 'Long Player']] }), duration_ms: 1_800_000 }
+      ctx.advance(60_000)
+      ctx.spotify.getRecentlyPlayed.mockResolvedValueOnce({ items: [play(epic, '2026-09-21T11:30:00.000Z')], cursors: null })
+      await ctx.app.request('/api/v1/history/sync', { method: 'POST', headers: { Cookie: cookie, Origin: 'http://127.0.0.1:5173' } })
+      const body = await json(await get('/api/v1/stats/overview?range=all&tz=UTC'))
+      // Long Player has the most time (30 min against Band's 17) but one play, so Band stays on top.
+      expect(body.artists.map((artist: { id: string; plays: number; minutes: number }) => [artist.id, artist.plays, artist.minutes])).toEqual([
+        ['band', 5, 17],
+        ['long', 1, 30],
+        ['solo', 1, 3],
+      ])
     })
 
     it('buckets by the user’s local day', async () => {

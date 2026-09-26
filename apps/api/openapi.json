@@ -924,6 +924,21 @@
         ],
         "description": "A rolling window ending now."
       },
+      "Listening": {
+        "type": "object",
+        "properties": {
+          "plays": {
+            "type": "integer"
+          },
+          "minutes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "plays",
+          "minutes"
+        ]
+      },
       "TopItem": {
         "type": "object",
         "properties": {
@@ -4248,7 +4263,7 @@
         ],
         "operationId": "getStatsOverview",
         "summary": "Totals and listening over time",
-        "description": "Each point splits plays into new tracks (a track's first-ever play) and replays. Ranges over 90 days are bucketed by week, shorter ones by day, in the user's time zone; empty buckets are zeros.",
+        "description": "Each point splits plays into new tracks (a track's first-ever play) and replays, and by artist: the range's top 5 artists by plays (first-credited artist) and everyone else, in plays and minutes. Ranges over 90 days are bucketed by week, shorter ones by day, in the user's time zone; empty buckets are zeros.",
         "security": [
           {
             "session": []
@@ -4328,6 +4343,33 @@
                         "newTracks"
                       ]
                     },
+                    "artists": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "plays": {
+                            "type": "integer"
+                          },
+                          "minutes": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "plays",
+                          "minutes"
+                        ]
+                      },
+                      "description": "The range's top artists by plays (not time), most first."
+                    },
                     "series": {
                       "type": "array",
                       "items": {
@@ -4345,13 +4387,32 @@
                           },
                           "minutes": {
                             "type": "integer"
+                          },
+                          "byArtist": {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/Listening"
+                            },
+                            "description": "Per artist in `artists`, same order."
+                          },
+                          "others": {
+                            "allOf": [
+                              {
+                                "$ref": "#/components/schemas/Listening"
+                              },
+                              {
+                                "description": "Everyone else."
+                              }
+                            ]
                           }
                         },
                         "required": [
                           "date",
                           "newTracks",
                           "replays",
-                          "minutes"
+                          "minutes",
+                          "byArtist",
+                          "others"
                         ]
                       }
                     },
@@ -4365,6 +4426,7 @@
                     "tz",
                     "bucket",
                     "totals",
+                    "artists",
                     "series",
                     "openGaps"
                   ]
