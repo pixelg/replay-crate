@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { AudioLines } from 'lucide-react'
 import { cn } from 'cn'
 import { AlbumArt } from './album-art.tsx'
+import { TrackRating } from './star-rating.tsx'
 import { TrackActions } from './track-actions.tsx'
 
 /** Which tracks are picked, by id; present while selecting. */
@@ -53,6 +54,7 @@ export function TrackLibraryList({
               </Link>
               <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
             </div>
+            <TrackRating track={track} className="hidden md:inline-flex" />
             <div className="shrink-0 text-right text-xs text-muted-foreground tabular-nums">
               {playing ? (
                 <p className="flex items-center justify-end gap-1 text-primary">

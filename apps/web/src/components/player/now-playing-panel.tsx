@@ -6,6 +6,7 @@ import { cn } from 'cn'
 import { useId, useState } from 'react'
 import { AlbumArt } from '../album-art.tsx'
 import { Slider } from '../ui/slider.tsx'
+import { TrackRating } from '../star-rating.tsx'
 import { IconButton } from './icon-button.tsx'
 import { imageOf, subtitleOf } from './items.ts'
 
@@ -50,6 +51,9 @@ export function NowPlayingPanel({
             )}
           </h2>
           <p className="truncate text-muted-foreground">{subtitleOf(item)}</p>
+          {item.type === 'track' && item.id && (
+            <TrackRating track={{ ...item, id: item.id }} size="md" className="mt-2" />
+          )}
         </div>
 
         <SeekBar progressMs={progressMs} durationMs={item.durationMs} disabled={disallowed.has('seeking')} send={send} />

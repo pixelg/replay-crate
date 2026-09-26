@@ -8,6 +8,7 @@ import { usePlayback, usePlayerControls, useQueue } from '../lib/use-player.ts'
 import { AlbumArt } from './album-art.tsx'
 import { IconButton } from './player/icon-button.tsx'
 import { subtitleOf, thumbOf } from './player/items.ts'
+import { TrackRating } from './star-rating.tsx'
 
 // What Spotify is playing, with transport controls: in the header from `md` up, and as a bar
 // above the bottom tabs on phones. Both read the same polled playback (lib/use-player.ts).
@@ -24,6 +25,9 @@ export function MiniPlayer({ className }: { className?: string }) {
   return (
     <section aria-label="Now playing" className={cn('flex min-w-0 items-center gap-3', className)}>
       <NowPlaying item={item} message={player.message} />
+      {item?.type === 'track' && item.id && (
+        <TrackRating track={{ ...item, id: item.id }} className="hidden shrink-0 lg:inline-flex" />
+      )}
       <Transport playback={playback} send={player.send} />
       {item && (
         <p className="hidden shrink-0 text-xs text-muted-foreground tabular-nums lg:block">

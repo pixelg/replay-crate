@@ -160,3 +160,19 @@ test('describes itself for link previews', async ({ page, request, baseURL }) =>
   expect(image.status()).toBe(200)
   expect(image.headers()['content-type']).toBe('image/png')
 })
+
+test('rates a track, and the rating stays', async ({ page }) => {
+  await signIn(page)
+  await page.getByRole('link', { name: 'Searched And Played' }).first().click()
+  const rating = page.getByRole('main').getByRole('radiogroup', { name: 'Rating for Searched And Played' })
+  await rating.getByRole('radio', { name: '4 stars' }).click()
+  await expect(rating.getByRole('radio', { name: '4 stars' })).toHaveAttribute('aria-checked', 'true')
+
+  await page.reload()
+  await expect(rating.getByRole('radio', { name: '4 stars' })).toHaveAttribute('aria-checked', 'true')
+  // Clear it again: the E2E database is shared by every test.
+  await rating.getByRole('radio', { name: '4 stars' }).click()
+  await expect(rating.getByRole('radio', { name: '4 stars' })).toHaveAttribute('aria-checked', 'false')
+  await page.reload()
+  await expect(rating.getByRole('radio', { name: '4 stars' })).toHaveAttribute('aria-checked', 'false')
+})

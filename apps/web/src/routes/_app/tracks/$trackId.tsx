@@ -9,6 +9,7 @@ import { AlbumArt } from '../../../components/album-art.tsx'
 import { ContextChip } from '../../../components/context-chip.tsx'
 import { ErrorPage } from '../../../components/error-page.tsx'
 import { CreatePlaylistDialog } from '../../../components/create-playlist-dialog.tsx'
+import { TrackRating } from '../../../components/star-rating.tsx'
 import { Button } from '../../../components/ui/button.tsx'
 import { api } from '../../../lib/api.ts'
 import { useTrackCommands } from '../../../lib/use-track-commands.ts'
@@ -52,6 +53,7 @@ function TrackPage() {
             {track.album.name}
             {year && ` · ${year}`} · {formatDuration(track.durationMs)}
           </p>
+          <TrackRating track={track} size="md" className="mt-2" />
           <TrackButtons track={track} onPlaylists={playlists.map((playlist) => playlist.id)} />
         </div>
       </header>

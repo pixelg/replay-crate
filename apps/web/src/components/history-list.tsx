@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { AudioLines, CircleDashed } from 'lucide-react'
 import { cn } from 'cn'
 import { AlbumArt } from './album-art.tsx'
+import { TrackRating } from './star-rating.tsx'
 import { TrackActions } from './track-actions.tsx'
 import { ContextChip } from './context-chip.tsx'
 
@@ -134,9 +135,12 @@ function PlayRow({ play, selection, playing }: { play: PlayItem; selection?: Pla
           <span className="sr-only md:not-sr-only">Now playing</span>
         </span>
       )}
-      <time dateTime={play.playedAt} className="shrink-0 self-start pt-0.5 text-xs text-muted-foreground tabular-nums">
-        {time}
-      </time>
+      <div className="flex shrink-0 flex-col items-end gap-1 self-start pt-0.5">
+        <time dateTime={play.playedAt} className="text-xs text-muted-foreground tabular-nums">
+          {time}
+        </time>
+        <TrackRating track={track} className="hidden md:inline-flex" />
+      </div>
       {!selection && <TrackActions track={track} context={play.context} />}
     </div>
   )

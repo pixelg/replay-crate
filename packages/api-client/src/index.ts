@@ -84,6 +84,18 @@ export const playsInfiniteQueryOptions = (api: ApiClient) =>
     getNextPageParam: (lastPage) => lastPage.nextCursor,
   })
 
+/** Rates a track 1–5 stars, or clears its rating with `null`. */
+export async function setTrackRating(api: ApiClient, trackId: string, rating: number | null): Promise<void> {
+  if (rating === null) {
+    const endpoint = `DELETE /api/v1/tracks/${trackId}/rating`
+    const res = await send(endpoint, () => api.tracks[':id'].rating.$delete({ param: { id: trackId } }))
+    if (!res.ok) throw await ApiError.fromResponse(res, endpoint)
+    return
+  }
+  const endpoint = `PUT /api/v1/tracks/${trackId}/rating`
+  await expectOk(await send(endpoint, () => api.tracks[':id'].rating.$put({ param: { id: trackId }, json: { rating } })), endpoint)
+}
+
 /** Every track played, one page at a time; each page's `nextCursor` fetches the next. */
 export const tracksInfiniteQueryOptions = (api: ApiClient, sort: TrackSort) =>
   infiniteQueryOptions({

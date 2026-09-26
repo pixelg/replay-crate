@@ -1113,3 +1113,89 @@ export const TrackPageOnPhone = meta.story({
     }
   },
 })
+
+const ratingRequests = fn()
+
+/** Records rating changes; `delayMs` holds the answer back, to see the change land first. */
+const recordRatings = (delayMs = 0, status: 200 | 500 = 200) => {
+  ratingRequests.mockClear()
+  return [
+    http.put('/api/v1/tracks/{id}/rating', async ({ params, request }) => {
+      const { rating } = await request.json()
+      ratingRequests('put', params.id, rating)
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+      return status === 200
+        ? HttpResponse.json({ rating })
+        : HttpResponse.json({ error: 'internal_error', requestId: 'req-9' }, { status: 500 })
+    }),
+    http.delete('/api/v1/tracks/{id}/rating', ({ params, response }) => {
+      ratingRequests('delete', params.id)
+      return response(204).empty()
+    }),
+  ]
+}
+
+/** Which star is checked in each "Rating for {name}" group on the page (null: unrated). */
+const ratingsShown = (canvas: { getAllByRole: (role: string, options: object) => HTMLElement[] }, name: string) =>
+  canvas.getAllByRole('radiogroup', { name: `Rating for ${name}` }).map((group) => {
+    const checked = within(group)
+      .getAllByRole('radio')
+      .findIndex((radio) => radio.getAttribute('aria-checked') === 'true')
+    return checked < 0 ? null : checked + 1
+  })
+
+export const RatingShowsEverywhereAtOnce = meta.story({
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(...recordRatings(2_000))
+  },
+  play: async ({ canvas, userEvent }) => {
+    // Brass Monkey Business: two History rows and the header player, all ★4.
+    await waitFor(() => expect(ratingsShown(canvas, 'Brass Monkey Business')).toEqual([4, 4, 4]))
+    const main = within(canvas.getByRole('main'))
+    const firstRow = main.getAllByRole('radiogroup', { name: 'Rating for Brass Monkey Business' })[0]!
+    await userEvent.click(within(firstRow).getByRole('radio', { name: '2 stars' }))
+    // Every copy changes before the (slow) API answers.
+    await expect(ratingsShown(canvas, 'Brass Monkey Business')).toEqual([2, 2, 2])
+    await waitFor(() => expect(ratingRequests).toHaveBeenCalledWith('put', 't1', 2))
+  },
+})
+
+export const RatingFailureRollsBack = meta.story({
+  beforeEach({ msw }) {
+    msw.use(...recordRatings(0, 500))
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    const group = (await main.findAllByRole('radiogroup', { name: 'Rating for Sunday Morning Static' }))[0]!
+    await userEvent.click(within(group).getByRole('radio', { name: '5 stars' }))
+    const toast = await screen.findByText('Something went wrong on the server')
+    await waitFor(() => expect(toast).toBeVisible())
+    await waitFor(() => expect(ratingsShown(canvas, 'Sunday Morning Static')).toEqual([null]))
+  },
+})
+
+export const TrackPageRating = meta.story({
+  args: { path: '/tracks/t1' },
+  beforeEach({ msw }) {
+    msw.use(...recordRatings())
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    const group = await main.findByRole('radiogroup', { name: 'Rating for Brass Monkey Business' })
+    await expect(within(group).getByRole('radio', { name: '4 stars' })).toHaveAttribute('aria-checked', 'true')
+    // Clicking the current rating clears it.
+    await userEvent.click(within(group).getByRole('radio', { name: '4 stars' }))
+    await waitFor(() => expect(ratingRequests).toHaveBeenCalledWith('delete', 't1'))
+    await expect(within(group).getByRole('radio', { name: '4 stars' })).toHaveAttribute('aria-checked', 'false')
+  },
+})
+
+export const PlayerPageRating = meta.story({
+  args: { path: '/player' },
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    const group = await main.findByRole('radiogroup', { name: 'Rating for Brass Monkey Business' })
+    await expect(within(group).getByRole('radio', { name: '4 stars' })).toHaveAttribute('aria-checked', 'true')
+  },
+})

@@ -8,6 +8,7 @@ import { EmptyState } from '../../components/empty-state.tsx'
 import { ErrorPage } from '../../components/error-page.tsx'
 import { InlineError } from '../../components/inline-error.tsx'
 import { PlaylistTrackActions } from '../../components/playlist-track-actions.tsx'
+import { TrackRating } from '../../components/star-rating.tsx'
 import { Segmented } from '../../components/ui/segmented.tsx'
 import { api } from '../../lib/api.ts'
 import { usePlaylistEdit } from '../../lib/use-playlist-edits.ts'
@@ -146,6 +147,7 @@ function TrackRow({ item, actions }: { item: PlaylistTrack; actions: ReactNode }
           </p>
         )}
       </div>
+      <TrackRating track={track} className="hidden md:inline-flex" />
       <div className="shrink-0 text-right">
         <p className="font-semibold tabular-nums">{item.playCount}</p>
         <p className="text-xs text-muted-foreground">
