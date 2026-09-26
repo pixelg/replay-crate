@@ -25,14 +25,14 @@ test('controls playback from the player page', async ({ page, isMobile }) => {
   await expect(main.getByRole('heading', { level: 2, name: 'Needle Warm-Up' })).toBeVisible()
   await expect(main.getByText('Last Call Encore')).toBeVisible() // up next
 
-  await main.getByRole('button', { name: 'Pause' }).click()
-  await expect(main.getByRole('button', { name: 'Play' })).toBeVisible()
+  await main.getByRole('button', { name: 'Pause', exact: true }).click()
+  await expect(main.getByRole('button', { name: 'Play', exact: true })).toBeVisible()
 
-  await main.getByRole('button', { name: 'Next' }).click()
+  await main.getByRole('button', { name: 'Next', exact: true }).click()
   await expect(main.getByRole('heading', { level: 2, name: 'Last Call Encore' })).toBeVisible()
 
   // Move playback to the phone: it becomes the active device, and it has no volume control.
-  await main.getByRole('button', { name: 'Play on Phone' }).click()
+  await main.getByRole('button', { name: 'Play on Phone', exact: true }).click()
   await expect(main.getByText(/^Playing here/)).toHaveCount(1)
   await expect(main.getByText("Phone doesn't let apps change its volume.")).toBeVisible()
 })
