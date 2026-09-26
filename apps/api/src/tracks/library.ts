@@ -1,6 +1,7 @@
 import { schema, type Db } from '@replay-crate/db'
 import { and, asc, count, countDistinct, desc, eq, gt, lt, max, or, sql, type SQL } from 'drizzle-orm'
 import { loadTrackArtists } from '../history/queries.ts'
+import { loadRatings } from './ratings.ts'
 
 const { albums, plays, tracks } = schema
 
@@ -100,6 +101,11 @@ export async function listTracks(
     db,
     page.map((row) => row.id),
   )
+  const ratings = await loadRatings(
+    db,
+    userId,
+    page.map((row) => row.id),
+  )
   const last = rows.length > limit ? page.at(-1)! : null
   const [total] = await db.select({ n: countDistinct(plays.trackId) }).from(plays).where(eq(plays.userId, userId))
 
@@ -112,6 +118,7 @@ export async function listTracks(
         explicit: row.explicit,
         album: { id: row.albumId, name: row.albumName, thumbUrl: row.albumThumbUrl },
         artists: artists.get(row.id) ?? [],
+        rating: ratings.get(row.id) ?? null,
       },
       playCount: row.playCount,
       firstPlayedAt: toIso(row.firstPlayedAt)!,

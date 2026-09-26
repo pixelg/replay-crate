@@ -359,6 +359,9 @@
                 "items": {
                   "$ref": "#/components/schemas/ArtistRef"
                 }
+              },
+              "rating": {
+                "$ref": "#/components/schemas/Rating"
               }
             },
             "required": [
@@ -367,7 +370,8 @@
               "durationMs",
               "explicit",
               "album",
-              "artists"
+              "artists",
+              "rating"
             ]
           }
         },
@@ -428,6 +432,15 @@
           "name"
         ]
       },
+      "Rating": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1,
+        "maximum": 5,
+        "example": 4
+      },
       "LibraryTrack": {
         "type": "object",
         "properties": {
@@ -473,6 +486,9 @@
                 "items": {
                   "$ref": "#/components/schemas/ArtistRef"
                 }
+              },
+              "rating": {
+                "$ref": "#/components/schemas/Rating"
               }
             },
             "required": [
@@ -481,7 +497,8 @@
               "durationMs",
               "explicit",
               "album",
-              "artists"
+              "artists",
+              "rating"
             ]
           },
           "playCount": {
@@ -503,6 +520,37 @@
           "playCount",
           "firstPlayedAt",
           "lastPlayedAt"
+        ]
+      },
+      "ForbiddenError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "forbidden"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "NotFoundError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "not_found"
+            ]
+          }
+        },
+        "required": [
+          "error"
         ]
       },
       "TrackDetail": {
@@ -558,6 +606,9 @@
                 "items": {
                   "$ref": "#/components/schemas/ArtistRef"
                 }
+              },
+              "rating": {
+                "$ref": "#/components/schemas/Rating"
               }
             },
             "required": [
@@ -566,7 +617,8 @@
               "durationMs",
               "explicit",
               "album",
-              "artists"
+              "artists",
+              "rating"
             ]
           },
           "stats": {
@@ -678,37 +730,6 @@
           "playedFrom",
           "recentPlays",
           "playlists"
-        ]
-      },
-      "NotFoundError": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string",
-            "enum": [
-              "not_found"
-            ]
-          }
-        },
-        "required": [
-          "error"
-        ]
-      },
-      "ForbiddenError": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string",
-            "enum": [
-              "forbidden"
-            ]
-          },
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "error"
         ]
       },
       "PlaylistSummary": {
@@ -829,6 +850,9 @@
                 "items": {
                   "$ref": "#/components/schemas/ArtistRef"
                 }
+              },
+              "rating": {
+                "$ref": "#/components/schemas/Rating"
               }
             },
             "required": [
@@ -837,7 +861,8 @@
               "durationMs",
               "explicit",
               "album",
-              "artists"
+              "artists",
+              "rating"
             ]
           },
           "playCount": {
@@ -925,6 +950,16 @@
           },
           "minutes": {
             "type": "integer"
+          },
+          "rating": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Rating"
+              },
+              {
+                "description": "For tracks; always null for artists and albums."
+              }
+            ]
           }
         },
         "required": [
@@ -934,7 +969,8 @@
           "subtitle",
           "imageUrl",
           "plays",
-          "minutes"
+          "minutes",
+          "rating"
         ]
       },
       "SpotifyTopItem": {
@@ -1277,6 +1313,9 @@
             "items": {
               "$ref": "#/components/schemas/ArtistRef"
             }
+          },
+          "rating": {
+            "$ref": "#/components/schemas/Rating"
           }
         },
         "required": [
@@ -1287,7 +1326,8 @@
           "durationMs",
           "explicit",
           "album",
-          "artists"
+          "artists",
+          "rating"
         ]
       },
       "PlayerEpisode": {
@@ -2184,6 +2224,213 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tracks/{id}/rating": {
+      "put": {
+        "tags": [
+          "Tracks"
+        ],
+        "operationId": "rateTrack",
+        "summary": "Rate a track",
+        "description": "1 to 5 stars, replacing any earlier rating. A track the app hasn't seen yet is fetched from Spotify first.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify track id."
+            },
+            "required": true,
+            "description": "Spotify track id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rating": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  }
+                },
+                "required": [
+                  "rating"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rating": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 5
+                    }
+                  },
+                  "required": [
+                    "rating"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthRequiredError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Tracks"
+        ],
+        "operationId": "clearTrackRating",
+        "summary": "Clear a rating",
+        "description": "Back to unrated. Clearing an unrated track is fine too.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify track id."
+            },
+            "required": true,
+            "description": "Spotify track id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Unrated."
           },
           "400": {
             "description": "invalid_request",

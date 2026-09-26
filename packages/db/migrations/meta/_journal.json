@@ -50,6 +50,13 @@
       "when": 1789993262983,
       "tag": "0006_imports",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790396143828,
+      "tag": "0007_ratings",
+      "breakpoints": true
     }
   ]
 }

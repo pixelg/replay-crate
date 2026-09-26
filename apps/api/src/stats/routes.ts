@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
-import { jsonResponse } from '../lib/schemas.ts'
+import { jsonResponse, Rating } from '../lib/schemas.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { overview } from './overview.ts'
 import { range, timeZone } from './ranges.ts'
@@ -85,6 +85,7 @@ const getTop = createRoute({
               imageUrl: z.string().nullable(),
               plays: z.number().int(),
               minutes: z.number().int(),
+              rating: Rating.openapi({ description: 'For tracks; always null for artists and albums.' }),
             })
             .openapi('TopItem'),
         ),

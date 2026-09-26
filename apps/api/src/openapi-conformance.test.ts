@@ -87,6 +87,9 @@ describe('responses match the spec', () => {
     await call('POST', '/imports/{id}/finish', imported)
     await call('GET', '/imports/latest')
 
+    // Rated before the reads below, so their bodies carry a rating.
+    await call('PUT', '/tracks/{id}/rating', { id: '4uLU6hMCjMI75M1A2tKUQC' }, { rating: 4 })
+    await call('PUT', '/tracks/{id}/rating', { id: '4uLU6hMCjMI75M1A2tKUQC' }, { rating: 9 })
     await call('GET', '/system/jobs')
     await call('GET', '/auth/me')
     await call('GET', '/history/plays')
@@ -128,6 +131,7 @@ describe('responses match the spec', () => {
     ctx.player.deactivate()
     await call('GET', '/player')
     await call('PUT', '/player/play', {}, { uris: ['spotify:track:b'] })
+    await call('DELETE', '/tracks/{id}/rating', { id: '4uLU6hMCjMI75M1A2tKUQC' })
     await call('POST', '/system/cron/poll', {}, undefined, { Authorization: `Bearer ${CRON_SECRET}` })
     await call('POST', '/auth/logout')
     await call('GET', '/auth/me')

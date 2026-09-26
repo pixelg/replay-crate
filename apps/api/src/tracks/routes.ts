@@ -5,7 +5,9 @@ import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { loadTrackArtists, toContext } from '../history/queries.ts'
 import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
-import { ArtistRef, ContextRef, IsoDateTime, jsonResponse } from '../lib/schemas.ts'
+import { ArtistRef, ContextRef, IsoDateTime, jsonBody, jsonResponse, Rating } from '../lib/schemas.ts'
+import { spotifyErrorResponse } from '../spotify/errors.ts'
+import { clearRating, loadRatings, rateTrack } from './ratings.ts'
 import { decodeCursor, listTracks, TRACK_SORTS } from './library.ts'
 
 const { albums, contexts, playlistItems, playlists, plays, tracks, userPlaylists } = schema
@@ -24,6 +26,7 @@ const TrackDetail = z
         releaseDate: z.string().nullable().openapi({ description: "Spotify's precision: YYYY, YYYY-MM or YYYY-MM-DD." }),
       }),
       artists: z.array(ArtistRef),
+      rating: Rating,
     }),
     stats: z.object({
       playCount: z.number().int(),
@@ -49,6 +52,7 @@ const LibraryTrack = z
       explicit: z.boolean(),
       album: z.object({ id: z.string(), name: z.string(), thumbUrl: z.string().nullable() }),
       artists: z.array(ArtistRef),
+      rating: Rating,
     }),
     playCount: z.number().int(),
     firstPlayedAt: IsoDateTime,
@@ -95,6 +99,36 @@ const listLibrary = createRoute({
   },
 })
 
+const TrackParams = z.object({ id: z.string().min(1).openapi({ description: 'Spotify track id.' }) })
+
+const rate = createRoute({
+  method: 'put',
+  path: '/tracks/{id}/rating',
+  tags: ['Tracks'],
+  operationId: 'rateTrack',
+  summary: 'Rate a track',
+  description:
+    "1 to 5 stars, replacing any earlier rating. A track the app hasn't seen yet is fetched from Spotify first.",
+  security: signedIn,
+  request: { params: TrackParams, body: jsonBody(z.object({ rating: z.number().int().min(1).max(5) })) },
+  responses: {
+    200: jsonResponse(z.object({ rating: z.number().int().min(1).max(5) }), 'Rated.'),
+    ...errorResponses('invalid_request', 'unauthorized', 'forbidden', 'not_found', 'reauth_required', 'rate_limited'),
+  },
+})
+
+const unrate = createRoute({
+  method: 'delete',
+  path: '/tracks/{id}/rating',
+  tags: ['Tracks'],
+  operationId: 'clearTrackRating',
+  summary: 'Clear a rating',
+  description: 'Back to unrated. Clearing an unrated track is fine too.',
+  security: signedIn,
+  request: { params: TrackParams },
+  responses: { 204: { description: 'Unrated.' }, ...errorResponses('invalid_request', 'unauthorized') },
+})
+
 const getTrack = createRoute({
   method: 'get',
   path: '/tracks/{id}',
@@ -103,7 +137,7 @@ const getTrack = createRoute({
   summary: 'A track with your play stats',
   description: 'Where you played it from, recent plays, and which of your playlists hold it.',
   security: signedIn,
-  request: { params: z.object({ id: z.string().min(1).openapi({ description: 'Spotify track id.' }) }) },
+  request: { params: TrackParams },
   responses: { 200: jsonResponse(TrackDetail, 'The track.'), ...errorResponses('unauthorized', 'not_found') },
 })
 
@@ -115,6 +149,22 @@ export function trackRoutes(deps: AppDeps) {
     .openapi({ ...listLibrary, middleware: auth }, async (c) => {
       const { sort, limit, cursor } = c.req.valid('query')
       return c.json(await listTracks(db, c.var.user.id, { sort, limit, cursor }), 200)
+    })
+    .openapi({ ...rate, middleware: auth }, async (c) => {
+      const { id } = c.req.valid('param')
+      const { rating } = c.req.valid('json')
+      try {
+        await rateTrack(deps, c.var.user.id, id, rating)
+      } catch (error) {
+        const response = spotifyErrorResponse(c, error)
+        if (response) return response
+        throw error
+      }
+      return c.json({ rating }, 200)
+    })
+    .openapi({ ...unrate, middleware: auth }, async (c) => {
+      await clearRating(db, c.var.user.id, c.req.valid('param').id)
+      return c.body(null, 204)
     })
     .openapi({ ...getTrack, middleware: auth }, async (c) => {
       const user = c.var.user
@@ -204,6 +254,7 @@ export function trackRoutes(deps: AppDeps) {
               releaseDate: track.releaseDate,
             },
             artists,
+            rating: (await loadRatings(db, user.id, [trackId])).get(trackId) ?? null,
           },
           stats: {
             playCount: stats?.playCount ?? 0,

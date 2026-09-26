@@ -1,6 +1,7 @@
 import { schema, type Db } from '@replay-crate/db'
 import { and, asc, count, countDistinct, desc, eq, gte, inArray, sql, sum } from 'drizzle-orm'
 import { loadTrackArtists } from '../history/queries.ts'
+import { loadRatings } from '../tracks/ratings.ts'
 import { rangeStart, type Range } from './ranges.ts'
 
 const { albumArtists, albums, artists, plays, trackArtists, tracks } = schema
@@ -15,6 +16,7 @@ export type TopItem = {
   imageUrl: string | null
   plays: number
   minutes: number
+  rating: number | null
 }
 
 /** Most played tracks, artists or albums in a rolling range, by play count or listening time. */
@@ -91,6 +93,7 @@ export async function top(
     }
   }
 
+  const ratings = type === 'tracks' ? await loadRatings(db, userId, rows.map((row) => row.id)) : new Map<string, number>()
   return rows.map((row, index) => ({
     rank: index + 1,
     id: row.id,
@@ -99,5 +102,6 @@ export async function top(
     imageUrl: row.imageUrl,
     plays: row.plays,
     minutes: Math.round((row.ms ?? 0) / 60_000),
+    rating: ratings.get(row.id) ?? null,
   }))
 }

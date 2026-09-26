@@ -2,7 +2,8 @@ import { z } from '@hono/zod-openapi'
 import { schema, type Db } from '@replay-crate/db'
 import { pickImage, type SpotifyDevice, type SpotifyPlaybackState, type SpotifyPlayable } from '@replay-crate/spotify'
 import { eq } from 'drizzle-orm'
-import { ArtistRef, ContextRef } from '../lib/schemas.ts'
+import { ArtistRef, ContextRef, Rating } from '../lib/schemas.ts'
+import { loadRatings } from '../tracks/ratings.ts'
 
 // The player's view of Spotify objects: camelCase, images picked, only what the app shows.
 
@@ -29,6 +30,7 @@ const TrackItem = z
     explicit: z.boolean(),
     album: z.object({ id: z.string(), name: z.string(), imageUrl: z.string().nullable(), thumbUrl: z.string().nullable() }),
     artists: z.array(ArtistRef),
+    rating: Rating,
   })
   .openapi('PlayerTrack')
 
@@ -84,7 +86,8 @@ export function toDevice(device: SpotifyDevice): z.infer<typeof Device> {
   }
 }
 
-export function toItem(item: SpotifyPlayable): z.infer<typeof PlayerItem> {
+/** `ratings` holds the user's ratings by track id (see loadRatings). */
+export function toItem(item: SpotifyPlayable, ratings: ReadonlyMap<string, number>): z.infer<typeof PlayerItem> {
   if (item.type === 'episode') {
     return {
       type: 'episode',
@@ -112,10 +115,11 @@ export function toItem(item: SpotifyPlayable): z.infer<typeof PlayerItem> {
       thumbUrl: pickImage(item.album.images, 64),
     },
     artists: item.artists.map(({ id, name }) => ({ id, name })),
+    rating: item.id ? (ratings.get(item.id) ?? null) : null,
   }
 }
 
-export async function toPlayback(db: Db, state: SpotifyPlaybackState): Promise<z.infer<typeof Playback>> {
+export async function toPlayback(db: Db, userId: string, state: SpotifyPlaybackState): Promise<z.infer<typeof Playback>> {
   let context: z.infer<typeof ContextRef> | null = null
   if (state.context) {
     const [known] = await db
@@ -131,9 +135,18 @@ export async function toPlayback(db: Db, state: SpotifyPlaybackState): Promise<z
     shuffle: state.shuffle_state,
     repeat: state.repeat_state,
     context,
-    item: state.item ? toItem(state.item) : null,
+    item: state.item ? toItem(state.item, await ratingsFor(db, userId, [state.item])) : null,
     disallows: Object.entries(state.actions?.disallows ?? {})
       .filter(([, disallowed]) => disallowed)
       .map(([action]) => action),
   }
+}
+
+/** The user's ratings of the tracks among `items` (episodes can't be rated). */
+export function ratingsFor(db: Db, userId: string, items: SpotifyPlayable[]) {
+  return loadRatings(
+    db,
+    userId,
+    items.flatMap((item) => (item.type === 'track' && item.id ? [item.id] : [])),
+  )
 }

@@ -5,7 +5,8 @@ import { and, desc, eq, isNull, lt } from 'drizzle-orm'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
-import { ArtistRef, ContextRef, IsoDateTime, jsonResponse } from '../lib/schemas.ts'
+import { ArtistRef, ContextRef, IsoDateTime, jsonResponse, Rating } from '../lib/schemas.ts'
+import { loadRatings } from '../tracks/ratings.ts'
 import { ReauthRequiredError } from '../spotify/access-token.ts'
 import { syncRecentlyPlayed } from '../sync/recently-played.ts'
 import { loadTrackArtists, toContext } from './queries.ts'
@@ -28,6 +29,7 @@ const PlayItem = z
       explicit: z.boolean(),
       album: z.object({ id: z.string(), name: z.string(), thumbUrl: z.string().nullable() }),
       artists: z.array(ArtistRef),
+      rating: Rating,
     }),
   })
   .openapi('PlayItem')
@@ -194,6 +196,11 @@ export function historyRoutes(deps: AppDeps) {
         db,
         page.map((row) => row.trackId),
       )
+      const ratings = await loadRatings(
+        db,
+        user.id,
+        page.map((row) => row.trackId),
+      )
 
       return c.json(
         {
@@ -209,6 +216,7 @@ export function historyRoutes(deps: AppDeps) {
               explicit: row.explicit,
               album: { id: row.albumId, name: row.albumName, thumbUrl: row.albumThumbUrl },
               artists: artistsByTrack.get(row.trackId) ?? [],
+              rating: ratings.get(row.trackId) ?? null,
             },
           })),
           nextCursor: rows.length > limit ? page.at(-1)!.playedAt.toISOString() : null,
