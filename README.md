@@ -134,7 +134,7 @@ sync · import · rating · playlist edit
 pnpm search:up
 ```
 
-That starts Elasticsearch 9 and Kibana on 127.0.0.1 (the `search` profile in `compose.yaml`; `pnpm db:up` alone doesn't). Then add `ELASTICSEARCH_URL=http://127.0.0.1:9200` to `.env.local` and restart `pnpm dev` or `pnpm serve`. On first start the API creates the index and indexes your whole library in the background. `pnpm search:reindex` rebuilds it any time; `pnpm search:down` stops the containers. Without Elasticsearch, search works the same on Postgres.
+That starts Elasticsearch 9 and Kibana on 127.0.0.1 (the `search` profile in `compose.yaml`; `pnpm db:up` alone doesn't). Then add `ELASTICSEARCH_URL=http://127.0.0.1:9200` to `.env.local` and restart `pnpm dev` or `pnpm serve`. From then on `pnpm serve` (and the service) starts Elasticsearch itself; Kibana still needs `pnpm search:up`. On first start the API creates the index and indexes your whole library in the background. `pnpm search:reindex` rebuilds it any time; `pnpm search:down` stops the containers. Without Elasticsearch, search works the same on Postgres.
 
 ### Dashboards (Kibana)
 
