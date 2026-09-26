@@ -6,6 +6,7 @@ import type { AppDeps } from '../deps.ts'
 import { loadTrackArtists, toContext } from '../history/queries.ts'
 import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
 import { ArtistRef, ContextRef, IsoDateTime, jsonResponse } from '../lib/schemas.ts'
+import { decodeCursor, listTracks, TRACK_SORTS } from './library.ts'
 
 const { albums, contexts, playlistItems, playlists, plays, tracks, userPlaylists } = schema
 
@@ -39,6 +40,61 @@ const TrackDetail = z
   })
   .openapi('TrackDetail')
 
+const LibraryTrack = z
+  .object({
+    track: z.object({
+      id: z.string(),
+      name: z.string(),
+      durationMs: z.number().int(),
+      explicit: z.boolean(),
+      album: z.object({ id: z.string(), name: z.string(), thumbUrl: z.string().nullable() }),
+      artists: z.array(ArtistRef),
+    }),
+    playCount: z.number().int(),
+    firstPlayedAt: IsoDateTime,
+    lastPlayedAt: IsoDateTime,
+  })
+  .openapi('LibraryTrack')
+
+const listLibrary = createRoute({
+  method: 'get',
+  path: '/tracks',
+  tags: ['Tracks'],
+  operationId: 'listTracks',
+  summary: 'Every track you have played',
+  description:
+    'With play counts and last plays. `plays` and `last_played` sort highest and newest first, `name` A–Z. ' +
+    'Pass `nextCursor` back as `cursor` for the next page (with the same `sort`).',
+  security: signedIn,
+  request: {
+    query: z.object({
+      sort: z.enum(TRACK_SORTS).default('plays'),
+      limit: z.coerce.number().int().min(1).max(100).default(50),
+      cursor: z
+        .string()
+        .optional()
+        .transform((value, ctx) => {
+          if (value === undefined) return null
+          const cursor = decodeCursor(value)
+          if (!cursor) ctx.addIssue({ code: 'custom', message: 'Not a cursor from this endpoint' })
+          return cursor
+        })
+        .openapi({ type: 'string', description: 'The previous page\'s `nextCursor`.' }),
+    }),
+  },
+  responses: {
+    200: jsonResponse(
+      z.object({
+        items: z.array(LibraryTrack),
+        nextCursor: z.string().nullable().openapi({ description: 'null on the last page.' }),
+        total: z.number().int().openapi({ description: 'Distinct tracks played, across all pages.' }),
+      }),
+      'A page of tracks.',
+    ),
+    ...errorResponses('invalid_request', 'unauthorized'),
+  },
+})
+
 const getTrack = createRoute({
   method: 'get',
   path: '/tracks/{id}',
@@ -55,7 +111,12 @@ export function trackRoutes(deps: AppDeps) {
   const { db } = deps
   const auth = requireUser(deps)
 
-  return createRouter().openapi({ ...getTrack, middleware: auth }, async (c) => {
+  return createRouter()
+    .openapi({ ...listLibrary, middleware: auth }, async (c) => {
+      const { sort, limit, cursor } = c.req.valid('query')
+      return c.json(await listTracks(db, c.var.user.id, { sort, limit, cursor }), 200)
+    })
+    .openapi({ ...getTrack, middleware: auth }, async (c) => {
       const user = c.var.user
       const { id: trackId } = c.req.valid('param')
 
