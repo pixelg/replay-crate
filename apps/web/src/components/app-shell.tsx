@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { Disc3, ExternalLink, LogOut } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from 'cn'
+import { MiniPlayer, MiniPlayerBar } from './mini-player.tsx'
 import { navItems } from './nav-items.ts'
 import { MenuContent, MenuItem, MenuLinkItem, MenuRoot, MenuSeparator, MenuTrigger } from './ui/menu.tsx'
 import { UserAvatar } from './user-avatar.tsx'
@@ -26,7 +27,8 @@ export function AppShell({
   children: ReactNode
 }) {
   return (
-    <div className="min-h-dvh md:grid md:grid-cols-[15rem_1fr]">
+    // While the phone's mini player bar shows, the page needs that much more room at the bottom.
+    <div className="min-h-dvh [--player-bar:0px] has-data-mini-player-bar:[--player-bar:3.5rem] md:grid md:grid-cols-[15rem_1fr]">
       <aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-r border-border bg-muted p-4 md:flex">
         <Brand />
         <SidebarNav />
@@ -35,12 +37,13 @@ export function AppShell({
       <div className="flex min-h-dvh min-w-0 flex-col">
         <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur md:px-8">
           <Brand className="md:hidden" />
-          <div className="ml-auto">
+          <MiniPlayer className="hidden flex-1 md:flex" />
+          <div className="ml-auto shrink-0">
             <AccountMenu user={user} onLogout={onLogout} />
           </div>
         </header>
         {banner}
-        <main className="flex-1 px-4 pt-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:px-8 md:pb-10">
+        <main className="flex-1 px-4 pt-6 pb-[calc(5rem+var(--player-bar)+env(safe-area-inset-bottom))] md:px-8 md:pb-10">
           {children}
         </main>
       </div>
@@ -81,24 +84,24 @@ function SidebarNav() {
 
 function BottomTabs() {
   return (
-    <nav
-      aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
-    >
-      <ul className="grid grid-cols-4">
-        {navItems.map(({ to, label, icon: Icon }) => (
-          <li key={to}>
-            <Link
-              to={to}
-              className="flex h-16 flex-col items-center justify-center gap-1 text-xs font-medium text-muted-foreground data-[status=active]:text-primary"
-            >
-              <Icon aria-hidden className="size-6" />
-              {label}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </nav>
+    <div className="fixed inset-x-0 bottom-0 z-10 md:hidden">
+      <MiniPlayerBar />
+      <nav aria-label="Main" className="border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+        <ul className="grid grid-cols-4">
+          {navItems.map(({ to, label, icon: Icon }) => (
+            <li key={to}>
+              <Link
+                to={to}
+                className="flex h-16 flex-col items-center justify-center gap-1 text-xs font-medium text-muted-foreground data-[status=active]:text-primary"
+              >
+                <Icon aria-hidden className="size-6" />
+                {label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </div>
   )
 }
 
