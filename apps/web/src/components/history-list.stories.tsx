@@ -40,7 +40,6 @@ export const NowPlaying = meta.story({
     const rows = canvas.getAllByText('Brass Monkey Business').map((title) => title.closest('[aria-current]'))
     await expect(rows).toHaveLength(2)
     for (const row of rows) await expect(row).toHaveAttribute('aria-current', 'true')
-    await expect(canvas.getAllByText('Now playing')).toHaveLength(2)
     await expect(canvas.getByText('Sunday Morning Static').closest('[aria-current]')).toBeNull()
   },
 })

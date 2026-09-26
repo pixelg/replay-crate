@@ -52,6 +52,28 @@ export const History = meta.story({
   },
 })
 
+export const HistoryStartsWithNowPlaying = meta.story({
+  play: async ({ canvas }) => {
+    const main = await canvas.findByRole('main')
+    const nowPlaying = await within(main).findByRole('group', { name: 'Now playing' })
+    // History reads from the present: what's playing sits above Today.
+    await expect(nowPlaying.compareDocumentPosition(within(main).getByRole('heading', { name: 'Today' }))).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    await expect(within(nowPlaying).getByRole('link', { name: 'Brass Monkey Business' })).toBeVisible()
+    await expect(within(main).getByRole('heading', { name: 'Today' })).toBeVisible()
+  },
+})
+
+export const HistoryPausedHasNoNowPlaying = meta.story({
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/player', () => HttpResponse.json({ playback: pausedPlayback })))
+  },
+  play: async ({ canvas }) => {
+    const main = await canvas.findByRole('main')
+    await expect(await within(main).findByRole('heading', { name: 'Today' })).toBeVisible()
+    await expect(within(main).queryByRole('group', { name: 'Now playing' })).toBeNull()
+  },
+})
+
 export const MiniPlayerInHeader = meta.story({
   globals: { viewport: { value: 'desktop', isRotated: false } },
   play: async ({ canvas }) => {
@@ -993,14 +1015,16 @@ export const HistorySelectOnPhone = meta.story({
 export const HistoryMarksNowPlaying = meta.story({
   globals: { viewport: { value: 'desktop', isRotated: false } },
   play: async ({ canvas, userEvent }) => {
-    const main = within(await canvas.findByRole('main'))
-    // The fixture plays Brass Monkey Business, which is in History twice.
-    await waitFor(() => expect(main.getAllByText('Now playing')).toHaveLength(2))
+    const mainEl = await canvas.findByRole('main')
+    const main = within(mainEl)
+    // The fixture plays Brass Monkey Business: it tops History, and both of its plays are marked.
+    await expect(await main.findByRole('group', { name: 'Now playing' })).toBeVisible()
+    await waitFor(() => expect(mainEl.querySelectorAll('[aria-current="true"]')).toHaveLength(2))
 
     // Paused isn't "currently playing".
     const player = within(await within(canvas.getByRole('banner')).findByRole('region', { name: 'Now playing' }))
     await userEvent.click(player.getByRole('button', { name: 'Pause' }))
-    await waitFor(() => expect(main.queryAllByText('Now playing')).toHaveLength(0))
+    await waitFor(() => expect(main.queryByRole('group', { name: 'Now playing' })).toBeNull())
     await expect(main.getAllByText('Brass Monkey Business')[0]!.closest('[aria-current]')).toBeNull()
   },
 })
@@ -1214,13 +1238,13 @@ export const RatingShowsEverywhereAtOnce = meta.story({
     msw.use(...recordRatings(2_000))
   },
   play: async ({ canvas, userEvent }) => {
-    // Brass Monkey Business: two History rows and the header player, all ★4.
-    await waitFor(() => expect(ratingsShown(canvas, 'Brass Monkey Business')).toEqual([4, 4, 4]))
+    // Brass Monkey Business: the header player, History's now-playing row and two plays, all ★4.
+    await waitFor(() => expect(ratingsShown(canvas, 'Brass Monkey Business')).toEqual([4, 4, 4, 4]))
     const main = within(canvas.getByRole('main'))
     const firstRow = main.getAllByRole('radiogroup', { name: 'Rating for Brass Monkey Business' })[0]!
     await userEvent.click(within(firstRow).getByRole('radio', { name: '2 stars' }))
     // Every copy changes before the (slow) API answers.
-    await expect(ratingsShown(canvas, 'Brass Monkey Business')).toEqual([2, 2, 2])
+    await expect(ratingsShown(canvas, 'Brass Monkey Business')).toEqual([2, 2, 2, 2])
     await waitFor(() => expect(ratingRequests).toHaveBeenCalledWith('put', 't1', 2))
   },
 })
