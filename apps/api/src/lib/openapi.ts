@@ -80,6 +80,34 @@ const ERRORS = {
     status: 503,
     schema: errorBody('cron_disabled').openapi('CronDisabledError', { description: 'CRON_SECRET is not set.' }),
   },
+  no_active_device: {
+    status: 409,
+    schema: errorBody('no_active_device').openapi('NoActiveDeviceError', {
+      description: 'No Spotify device is active. Open Spotify somewhere, or pass a `deviceId`.',
+    }),
+  },
+  premium_required: {
+    status: 403,
+    schema: errorBody('premium_required').openapi('PremiumRequiredError', {
+      description: "The Spotify account isn't Premium, which every player call needs.",
+    }),
+  },
+  missing_scopes: {
+    status: 403,
+    schema: errorBody('missing_scopes')
+      .extend({ scopes: z.array(z.string()).openapi({ description: 'What reconnecting Spotify would grant.' }) })
+      .openapi('MissingScopesError', { description: "The user connected before the app asked for these scopes." }),
+  },
+  command_refused: {
+    status: 403,
+    schema: errorBody('command_refused')
+      .extend({
+        reason: z.string().openapi({
+          description: "Spotify's reason, e.g. VOLUME_CONTROL_DISALLOW, NO_SPECIFIC_TRACK, DEVICE_NOT_CONTROLLABLE.",
+        }),
+      })
+      .openapi('CommandRefusedError', { description: 'Spotify refused the command for the current device or item.' }),
+  },
   internal_error: {
     status: 500,
     schema: errorBody('internal_error')

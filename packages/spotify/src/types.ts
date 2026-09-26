@@ -132,7 +132,12 @@ export type SpotifyPlaybackState = {
   is_playing: boolean
   item: SpotifyPlayable | null
   currently_playing_type: 'track' | 'episode' | 'ad' | 'unknown'
-  /** Controls the current context doesn't allow (e.g. `skipping_prev` on the first track). */
+  /** Smart shuffle (Spotify's recommendations mixed in), when the client reports it. */
+  smart_shuffle?: boolean
+  /**
+   * Controls Spotify won't allow right now, e.g. `{ disallows: { resuming: true, toggling_shuffle: true } }`
+   * (only `true` entries are sent).
+   */
   actions?: { disallows?: Partial<Record<string, boolean>> }
 }
 

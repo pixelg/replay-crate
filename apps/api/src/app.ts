@@ -8,6 +8,7 @@ import type { AppDeps } from './deps.ts'
 import { historyRoutes } from './history/routes.ts'
 import { importRoutes } from './imports/routes.ts'
 import { defaultHook, SECURITY_SCHEMES, TAGS } from './lib/openapi.ts'
+import { playerRoutes } from './player/routes.ts'
 import { playlistManageRoutes } from './playlists/manage-routes.ts'
 import { playlistRoutes } from './playlists/routes.ts'
 import { statsRoutes } from './stats/routes.ts'
@@ -61,6 +62,7 @@ export function createApp(deps: AppDeps) {
     .route('/', playlistRoutes(deps))
     .route('/', statsRoutes(deps))
     .route('/', importRoutes(deps))
+    .route('/', playerRoutes(deps))
 
   // Every error response is JSON: `{ error: <code>, ...details }`.
   app.notFound((c) => c.json({ error: 'not_found' }, 404))
