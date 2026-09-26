@@ -32,8 +32,22 @@ function withGaps(plays: PlayItem[], gaps: HistoryGap[]): Entry[] {
   return entries
 }
 
+/** Which plays are picked, by `playedAt` (unique per user); present while selecting. */
+export type PlaySelection = { selected: ReadonlySet<string>; toggle: (playedAt: string) => void }
+
 /** Plays grouped under sticky day headings, with gap markers where plays may be missing. */
-export function HistoryList({ plays, gaps = [], now = new Date() }: { plays: PlayItem[]; gaps?: HistoryGap[]; now?: Date }) {
+export function HistoryList({
+  plays,
+  gaps = [],
+  now = new Date(),
+  selection,
+}: {
+  plays: PlayItem[]
+  gaps?: HistoryGap[]
+  now?: Date
+  /** When set, rows get checkboxes instead of their menus. */
+  selection?: PlaySelection
+}) {
   const days = groupByDay(withGaps(plays, gaps), (entry) => new Date(entry.at))
 
   return (
@@ -50,7 +64,7 @@ export function HistoryList({ plays, gaps = [], now = new Date() }: { plays: Pla
             {group.items.map((entry) =>
               entry.kind === 'play' ? (
                 <li key={entry.play.playedAt}>
-                  <PlayRow play={entry.play} />
+                  <PlayRow play={entry.play} selection={selection} />
                 </li>
               ) : (
                 <li key={`gap-${entry.gap.id}`}>
@@ -81,10 +95,20 @@ function GapMarker({ gap }: { gap: HistoryGap }) {
   )
 }
 
-function PlayRow({ play }: { play: PlayItem }) {
+function PlayRow({ play, selection }: { play: PlayItem; selection?: PlaySelection }) {
   const { track } = play
+  const time = timeFormat.format(new Date(play.playedAt))
   return (
     <div className="flex items-center gap-3 py-2">
+      {selection && (
+        <input
+          type="checkbox"
+          aria-label={`Select ${track.name}, played at ${time}`}
+          checked={selection.selected.has(play.playedAt)}
+          onChange={() => selection.toggle(play.playedAt)}
+          className="size-5 shrink-0 accent-primary"
+        />
+      )}
       <AlbumArt src={track.album.thumbUrl} className="size-12" />
       <div className="min-w-0 flex-1">
         <Link
@@ -98,9 +122,9 @@ function PlayRow({ play }: { play: PlayItem }) {
         {play.context && <ContextChip context={play.context} className="mt-1" />}
       </div>
       <time dateTime={play.playedAt} className="shrink-0 self-start pt-0.5 text-xs text-muted-foreground tabular-nums">
-        {timeFormat.format(new Date(play.playedAt))}
+        {time}
       </time>
-      <TrackActions track={track} context={play.context} />
+      {!selection && <TrackActions track={track} context={play.context} />}
     </div>
   )
 }
