@@ -24,15 +24,16 @@ export function MenuTrigger({ className, ...props }: WithClassName<ComponentProp
 
 /** Portal + positioner + popup in one, since every menu in the app needs all three. */
 export function MenuContent({
+  side,
   align = 'end',
   sideOffset = 8,
   className,
   ...props
 }: WithClassName<ComponentProps<typeof BaseMenu.Popup>> &
-  Pick<ComponentProps<typeof BaseMenu.Positioner>, 'align' | 'sideOffset'>) {
+  Pick<ComponentProps<typeof BaseMenu.Positioner>, 'side' | 'align' | 'sideOffset'>) {
   return (
     <BaseMenu.Portal>
-      <BaseMenu.Positioner align={align} sideOffset={sideOffset} className="z-50 outline-hidden">
+      <BaseMenu.Positioner side={side} align={align} sideOffset={sideOffset} className="z-50 outline-hidden">
         <BaseMenu.Popup
           className={cn(
             'min-w-48 origin-(--transform-origin) rounded-lg border border-border bg-card p-1 shadow-lg outline-hidden',
