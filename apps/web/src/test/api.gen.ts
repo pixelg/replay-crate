@@ -724,6 +724,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/search/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a settled search
+         * @description For the search dashboards in Kibana: a search that led somewhere (a result picked, or all results shown), not every keystroke. Recorded only when search runs on Elasticsearch; otherwise accepted and dropped.
+         */
+        post: operations["recordSearchEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/search/spotify": {
         parameters: {
             query?: never;
@@ -1202,6 +1222,8 @@ export interface components {
             /** @description Up next: the user's queue, then the rest of the context. */
             queue: components["schemas"]["PlayerItem"][];
         };
+        /** @enum {string} */
+        SearchType: "track" | "artist" | "album" | "playlist" | "play";
         SpotifyTrackHit: {
             id: string;
             name: string;
@@ -1276,8 +1298,6 @@ export interface components {
             /** @description When nothing matched: something close in your library. */
             suggestion: string | null;
         };
-        /** @enum {string} */
-        SearchType: "track" | "artist" | "album" | "playlist" | "play";
         SearchHit: {
             type: components["schemas"]["SearchType"];
             /** @description Spotify id; for a play, its id in the history. */
@@ -4282,6 +4302,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedError"];
+                };
+            };
+        };
+    };
+    recordSearchEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    q: string;
+                    total: number;
+                    /** @enum {string} */
+                    source: "palette" | "page";
+                    picked?: {
+                        type: components["schemas"]["SearchType"];
+                        id: string;
+                        /** @description 1 is the first result shown. */
+                        rank: number;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Recorded, or dropped when there is nowhere to record it. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
                 };
             };
         };

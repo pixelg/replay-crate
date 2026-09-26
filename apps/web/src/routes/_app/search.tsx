@@ -1,4 +1,5 @@
 import {
+  recordSearchEvent,
   searchQueryOptions,
   spotifySearchQueryOptions,
   type SearchHit,
@@ -10,7 +11,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { ArrowRight, Search as SearchIcon, SearchX } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { EmptyState } from '../../components/empty-state.tsx'
 import { InlineError } from '../../components/inline-error.tsx'
 import { ListPagination } from '../../components/list-pagination.tsx'
@@ -60,6 +61,13 @@ function SearchPage() {
     }),
   )
   const data = results.data
+  // Each search the page settles on, once, for the search dashboards.
+  const recorded = useRef<string | null>(null)
+  useEffect(() => {
+    if (!data || results.isPlaceholderData || !q.trim() || recorded.current === q) return
+    recorded.current = q
+    recordSearchEvent(api, { q, total: data.total, source: 'page' })
+  }, [data, results.isPlaceholderData, q])
   const setQuery = (next: string) => void navigate({ search: (prev) => ({ ...prev, q: next, page: undefined }), replace: true })
   const refine = (filter: NewFilter) => void navigate({ search: (prev) => ({ ...prev, q: addFilter(prev.q, filter), page: undefined }) })
 

@@ -1490,6 +1490,16 @@
           "queue"
         ]
       },
+      "SearchType": {
+        "type": "string",
+        "enum": [
+          "track",
+          "artist",
+          "album",
+          "playlist",
+          "play"
+        ]
+      },
       "SpotifyTrackHit": {
         "type": "object",
         "properties": {
@@ -1772,16 +1782,6 @@
           "total",
           "groups",
           "suggestion"
-        ]
-      },
-      "SearchType": {
-        "type": "string",
-        "enum": [
-          "track",
-          "artist",
-          "album",
-          "playlist",
-          "play"
         ]
       },
       "SearchHit": {
@@ -6760,6 +6760,112 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/search/events": {
+      "post": {
+        "tags": [
+          "Search"
+        ],
+        "operationId": "recordSearchEvent",
+        "summary": "Record a settled search",
+        "description": "For the search dashboards in Kibana: a search that led somewhere (a result picked, or all results shown), not every keystroke. Recorded only when search runs on Elasticsearch; otherwise accepted and dropped.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "q": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "palette",
+                      "page"
+                    ]
+                  },
+                  "picked": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "$ref": "#/components/schemas/SearchType"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "rank": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "1 is the first result shown."
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "id",
+                      "rank"
+                    ]
+                  }
+                },
+                "required": [
+                  "q",
+                  "total",
+                  "source"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded, or dropped when there is nowhere to record it."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
                 }
               }
             }

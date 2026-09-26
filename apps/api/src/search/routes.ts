@@ -6,7 +6,7 @@ import { describeFilter, ENTITY_TYPES, formatFilter, parseSearchQuery, type Enti
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
-import { IsoDateTime, jsonResponse, Rating } from '../lib/schemas.ts'
+import { IsoDateTime, jsonBody, jsonResponse, Rating } from '../lib/schemas.ts'
 import { getAccessToken } from '../spotify/access-token.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 
@@ -146,9 +146,60 @@ const spotifySearchRoute = createRoute({
   },
 })
 
+const searchEventRoute = createRoute({
+  method: 'post',
+  path: '/search/events',
+  tags: ['Search'],
+  operationId: 'recordSearchEvent',
+  summary: 'Record a settled search',
+  description:
+    'For the search dashboards in Kibana: a search that led somewhere (a result picked, or all results shown), ' +
+    'not every keystroke. Recorded only when search runs on Elasticsearch; otherwise accepted and dropped.',
+  security: signedIn,
+  request: {
+    body: jsonBody(
+      z.object({
+        q: z.string().max(200),
+        total: z.number().int().min(0),
+        source: z.enum(['palette', 'page']),
+        picked: z
+          .object({ type: EntityTypeSchema, id: z.string(), rank: z.number().int().min(1).openapi({ description: '1 is the first result shown.' }) })
+          .optional(),
+      }),
+    ),
+  },
+  responses: {
+    204: { description: 'Recorded, or dropped when there is nowhere to record it.' },
+    ...errorResponses('invalid_request', 'unauthorized'),
+  },
+})
+
 export function searchRoutes(deps: AppDeps) {
   const auth = requireUser(deps)
   return createRouter()
+    .openapi({ ...searchEventRoute, middleware: auth }, (c) => {
+      const { q, total, source, picked } = c.req.valid('json')
+      const query = parseSearchQuery(q)
+      // Fire and forget: analytics never slows down or fails a search.
+      deps.analytics
+        ?.recordSearch({
+          '@timestamp': (deps.now?.() ?? new Date()).toISOString(),
+          userId: c.var.user.id,
+          q,
+          text: query.text,
+          filters: query.filters.map(formatFilter),
+          filterFields: [...new Set(query.filters.map((filter) => filter.field))],
+          total,
+          zeroResults: total === 0,
+          source,
+          pickedType: picked?.type ?? null,
+          pickedId: picked?.id ?? null,
+          pickedRank: picked?.rank ?? null,
+          engine: deps.search.engine,
+        })
+        .catch((error: unknown) => console.error('[search] recording a search failed', error))
+      return c.body(null, 204)
+    })
     .openapi({ ...spotifySearchRoute, middleware: auth }, async (c) => {
       const { q, limit } = c.req.valid('query')
       const text = parseSearchQuery(q).text.trim()

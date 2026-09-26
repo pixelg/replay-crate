@@ -2,6 +2,7 @@ import { schema } from '@replay-crate/db'
 import { sql } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
 import type { EntityType } from '@replay-crate/core'
+import { playEvents } from './analytics.ts'
 import { allKeys, buildDocs, expand, type Change, type Keys } from './docs.ts'
 
 type Logger = Pick<Console, 'info' | 'error'>
@@ -20,7 +21,10 @@ export type DrainResult = { changes: number; indexed: number; removed: number; f
  * it's never lost. `skip locked` lets two API processes (dev and serve) share the outbox.
  * If indexing fails, the claimed rows go back with a backoff.
  */
-export async function drainSearchOutbox(deps: Pick<AppDeps, 'db' | 'search'>, { batch = BATCH } = {}): Promise<DrainResult> {
+export async function drainSearchOutbox(
+  deps: Pick<AppDeps, 'db' | 'search' | 'analytics'>,
+  { batch = BATCH } = {},
+): Promise<DrainResult> {
   const { db, search } = deps
   const claimed = (
     (await db.execute(sql`
@@ -40,6 +44,7 @@ export async function drainSearchOutbox(deps: Pick<AppDeps, 'db' | 'search'>, { 
       const { docs, gone } = await buildDocs(db, userId, keys)
       for (let i = 0; i < docs.length; i += CHUNK) await search.upsert(docs.slice(i, i + CHUNK))
       if (gone.length) await search.remove(gone)
+      await recordPlays(deps, userId, [...keys.play])
       result.indexed += docs.length
       result.removed += gone.length
     }
@@ -70,7 +75,7 @@ export async function drainSearchOutbox(deps: Pick<AppDeps, 'db' | 'search'>, { 
 }
 
 /** Drains everything that's due now (tests, and the reindex script). */
-export async function drainAll(deps: Pick<AppDeps, 'db' | 'search'>): Promise<DrainResult> {
+export async function drainAll(deps: Pick<AppDeps, 'db' | 'search' | 'analytics'>): Promise<DrainResult> {
   const total: DrainResult = { changes: 0, indexed: 0, removed: 0, failed: 0, remaining: 0 }
   for (;;) {
     const result = await drainSearchOutbox(deps)
@@ -103,7 +108,7 @@ export async function enqueueEverything(deps: Pick<AppDeps, 'db'>, userId?: stri
  * search within seconds. Returns a function that stops it.
  */
 export function startSearchIndexer(
-  deps: Pick<AppDeps, 'db' | 'search'>,
+  deps: Pick<AppDeps, 'db' | 'search' | 'analytics'>,
   { idleMs = 3_000, busyPauseMs = 100, log = console }: { idleMs?: number; busyPauseMs?: number; log?: Logger } = {},
 ): () => void {
   let stopped = false
@@ -135,7 +140,7 @@ export function startSearchIndexer(
  * fresh Elasticsearch index is filled during a rebuild. Returns how many were written.
  */
 export async function buildEverything(
-  deps: Pick<AppDeps, 'db' | 'search'>,
+  deps: Pick<AppDeps, 'db' | 'search' | 'analytics'>,
   { log }: { log?: (message: string) => void } = {},
 ): Promise<number> {
   const { db, search } = deps
@@ -150,10 +155,22 @@ export async function buildEverything(
         batch[type] = new Set(ids.slice(i, i + CHUNK))
         const { docs } = await buildDocs(db, userId, batch)
         await search.upsert(docs)
+        if (type === 'play') await recordPlays(deps, userId, [...batch.play])
         written += docs.length
       }
       log?.(`${userId}: ${keys[type].size} ${type} documents`)
     }
   }
   return written
+}
+
+/** Play events for Kibana, when there's somewhere to send them: current plays, and deleted ones gone. */
+async function recordPlays(deps: Pick<AppDeps, 'db' | 'analytics'>, userId: string, ids: string[]) {
+  if (!deps.analytics || !ids.length) return
+  const events = await playEvents(deps.db, userId, ids)
+  const found = new Set(events.map((event) => event.playId))
+  await deps.analytics.recordPlays(
+    events,
+    ids.filter((id) => !found.has(id)).map((playId) => ({ userId, playId })),
+  )
 }

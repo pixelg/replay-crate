@@ -391,3 +391,12 @@ export const spotifySearchQueryOptions = (api: ApiClient, q: string) =>
     // Spotify says no when it's busy (rate_limited); the library results stand on their own.
     retry: false,
   })
+export type SearchEvent = { q: string; total: number; source: 'palette' | 'page'; picked?: { type: SearchType; id: string; rank: number } }
+
+/**
+ * Records a settled search for the search dashboards (Kibana). Fire and forget: it never throws,
+ * and a failure is only logged.
+ */
+export function recordSearchEvent(api: ApiClient, event: SearchEvent): void {
+  api.search.events.$post({ json: event }).catch((error: unknown) => console.warn('Recording the search failed', error))
+}

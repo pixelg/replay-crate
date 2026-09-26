@@ -1,6 +1,7 @@
 import { SpotifyApiError } from '@replay-crate/spotify'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestContext, play, track } from '../testing.ts'
+import type { Analytics } from './analytics.ts'
 
 describe('GET /api/v1/search', () => {
   let ctx: Awaited<ReturnType<typeof createTestContext>>
@@ -102,5 +103,57 @@ describe('GET /api/v1/search/spotify', () => {
     const res = await get('q=brass')
     expect(res.status).toBe(503)
     expect(await json(res)).toEqual({ error: 'rate_limited', retryAfter: 30 })
+  })
+})
+
+describe('POST /api/v1/search/events', () => {
+  let ctx: Awaited<ReturnType<typeof createTestContext>>
+  let cookie: string
+  const post = (body: unknown) =>
+    ctx.app.request('/api/v1/search/events', {
+      method: 'POST',
+      headers: { Cookie: cookie, Origin: 'http://127.0.0.1:5173', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+  beforeEach(async () => {
+    ctx = await createTestContext()
+    cookie = `rc_session=${(await ctx.login()).token}`
+  })
+  afterEach(() => ctx.close())
+
+  it('records a settled search for the dashboards, parsed', async () => {
+    const recordSearch = vi.fn<Analytics['recordSearch']>(async () => {})
+    ctx.deps.analytics = { recordSearch, recordPlays: vi.fn<Analytics['recordPlays']>(async () => {}) }
+    const res = await post({ q: 'pete rating:>=4', total: 3, source: 'palette', picked: { type: 'artist', id: 'pete', rank: 1 } })
+    expect(res.status).toBe(204)
+    expect(recordSearch).toHaveBeenCalledWith({
+      '@timestamp': '2026-09-21T12:00:00.000Z',
+      userId: 'pixelg',
+      q: 'pete rating:>=4',
+      text: 'pete',
+      filters: ['rating:>=4'],
+      filterFields: ['rating'],
+      total: 3,
+      zeroResults: false,
+      source: 'palette',
+      pickedType: 'artist',
+      pickedId: 'pete',
+      pickedRank: 1,
+      engine: 'postgres',
+    })
+  })
+
+  it('accepts it with nowhere to record it, and never fails on the recorder', async () => {
+    expect((await post({ q: 'x', total: 0, source: 'page' })).status).toBe(204)
+    ctx.deps.analytics = {
+      recordSearch: vi.fn<Analytics['recordSearch']>(async () => Promise.reject(new Error('down'))),
+      recordPlays: vi.fn<Analytics['recordPlays']>(async () => {}),
+    }
+    expect((await post({ q: 'x', total: 0, source: 'page' })).status).toBe(204)
+  })
+
+  it('rejects a bad event', async () => {
+    expect((await post({ q: 'x', total: -1, source: 'elsewhere' })).status).toBe(400)
   })
 })

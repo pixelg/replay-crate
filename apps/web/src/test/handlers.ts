@@ -83,6 +83,7 @@ export const handlers = {
   imports: [http.get('/api/v1/imports/latest', ({ response }) => response(200).json({ import: null }))],
   // Whatever is typed, the "pete" results (facets only when asked for).
   search: [
+    http.post('/api/v1/search/events', ({ response }) => response(204).empty()),
     http.get('/api/v1/search', ({ query, response }) => {
       const { facets, ...rest } = searchResponse
       return response(200).json({ ...rest, query: { ...rest.query, text: query.get('q') ?? '' }, ...(query.get('facets') === 'true' && { facets }) })

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { parseSearchQuery } from '@replay-crate/core'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { describeSearchIndexContract } from './contract.ts'
+import { createElasticAnalytics } from './analytics.ts'
 import { createElasticSearchIndex } from './elastic.ts'
 
 // Runs against a real Elasticsearch when ELASTICSEARCH_URL is set (`pnpm search:up` locally, a
@@ -71,5 +72,54 @@ describe.skipIf(!node)('elasticsearch rebuilds', () => {
     expect(await names('name')).toEqual(['New Name'])
     const indices = Object.keys(await index.client.indices.get({ index: `${prefix}-library-*` }))
     expect(indices).toEqual([next])
+  })
+})
+
+describe.skipIf(!node)('elasticsearch analytics', () => {
+  let analytics: ReturnType<typeof createElasticAnalytics>
+  beforeAll(() => {
+    analytics = createElasticAnalytics({ node: node!, prefix: `rc-test-${randomUUID().slice(0, 8)}`, refresh: true })
+  })
+  afterAll(() => analytics.destroy())
+
+  it('keeps play and search events for Kibana', async () => {
+    expect(await analytics.ensureIndices()).toEqual({ playsCreated: true })
+    expect(await analytics.ensureIndices()).toEqual({ playsCreated: false })
+    const event = {
+      '@timestamp': '2026-09-21T11:00:00.000Z',
+      userId: 'u1',
+      playId: '1',
+      trackId: 't1',
+      track: 'Track',
+      artists: ['Artist'],
+      artist: 'Artist',
+      album: 'Album',
+      context: null,
+      contextType: null,
+      source: 'poll' as const,
+      minutes: 3.5,
+      hour: 11,
+      weekday: '1 Mon',
+    }
+    await analytics.recordPlays([event, { ...event, playId: '2' }], [])
+    await analytics.recordPlays([], [{ userId: 'u1', playId: '2' }])
+    await analytics.recordSearch({
+      '@timestamp': '2026-09-21T11:00:00.000Z',
+      userId: 'u1',
+      q: 'x',
+      text: 'x',
+      filters: [],
+      filterFields: [],
+      total: 0,
+      zeroResults: true,
+      source: 'page',
+      pickedType: null,
+      pickedId: null,
+      pickedRank: null,
+      engine: 'elasticsearch',
+    })
+    const client = createElasticSearchIndex({ node: node!, prefix: 'unused' }).client
+    expect((await client.count({ index: analytics.playsIndex })).count).toBe(1)
+    expect((await client.count({ index: analytics.searchesIndex })).count).toBe(1)
   })
 })

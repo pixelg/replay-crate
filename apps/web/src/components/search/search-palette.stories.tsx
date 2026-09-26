@@ -27,6 +27,7 @@ function Demo() {
 
 const searches = fn()
 const plays = fn()
+const events = fn()
 
 const meta = preview.meta({
   title: 'Search/Palette',
@@ -41,6 +42,7 @@ const meta = preview.meta({
   beforeEach({ msw }) {
     searches.mockClear()
     plays.mockClear()
+    events.mockClear()
     localStorage.removeItem('rc:recent-searches')
     // Earlier handlers win: these, then the defaults.
     msw.use(
@@ -48,6 +50,10 @@ const meta = preview.meta({
         searches(query.get('q'))
         const { facets: _, ...rest } = searchResponse
         return response(200).json({ ...rest, query: { ...rest.query, text: query.get('q') ?? '' } })
+      }),
+      http.post('/api/v1/search/events', async ({ request, response }) => {
+        events(await request.json())
+        return response(204).empty()
       }),
       http.put('/api/v1/player/play', async ({ request, response }) => {
         plays(await request.json())
@@ -181,5 +187,18 @@ export const FromSpotify = meta.story({
     // No page for a track you've never played: choosing it plays it.
     await userEvent.click(dialog.getByRole('option', { name: /Lots of Lovin/ }))
     await waitFor(() => expect(plays).toHaveBeenCalledWith({ uris: ['spotify:track:lots'] }))
+  },
+})
+
+export const RecordsWhatWasPicked = meta.story({
+  play: async () => {
+    const dialog = await open()
+    await userEvent.type(dialog.getByRole('combobox'), 'pete')
+    await dialog.findByText('Top result')
+    await userEvent.keyboard('{Enter}')
+    // For the search dashboards: the query, how much it found, and what was picked from where.
+    await waitFor(() =>
+      expect(events).toHaveBeenCalledWith({ q: 'pete', total: 5, source: 'palette', picked: { type: 'artist', id: 'pete', rank: 1 } }),
+    )
   },
 })

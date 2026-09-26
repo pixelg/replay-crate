@@ -3,6 +3,7 @@ import type { SpotifyPlaylist, SpotifyPlaylistItem } from '@replay-crate/spotify
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestContext, paged, play, playlist, playlistContext, playlistEntry, track } from '../testing.ts'
+import type { Analytics } from './analytics.ts'
 import { drainSearchOutbox, enqueueEverything } from './indexer.ts'
 
 const ORIGIN = 'http://127.0.0.1:5173'
@@ -144,6 +145,39 @@ describe('search indexing', () => {
     expect(await enqueueEverything(ctx.deps)).toBeGreaterThan(0)
     await ctx.indexSearch()
     expect(await search('brass', '&types=track')).toEqual(['track:brass (1)'])
+  })
+
+  it('sends play events to analytics, and deleted plays away', async () => {
+    const recordPlays = vi.fn<Analytics['recordPlays']>(async () => {})
+    ctx.deps.analytics = { recordPlays, recordSearch: vi.fn<Analytics['recordSearch']>(async () => {}) }
+    await syncPlays(play(troy, '2026-09-21T11:00:00.000Z', playlistContext('road')))
+    await ctx.indexSearch()
+    const [events, removed] = recordPlays.mock.calls[0]!
+    expect(removed).toEqual([])
+    const played = new Date('2026-09-21T11:00:00.000Z')
+    expect(events).toEqual([
+      {
+        '@timestamp': '2026-09-21T11:00:00.000Z',
+        userId: 'pixelg',
+        playId: expect.any(String),
+        trackId: 'troy',
+        track: 'They Reminisce Over You',
+        artists: ['Pete Rock', 'C.L. Smooth'],
+        artist: 'Pete Rock',
+        album: 'Mecca and the Soul Brother',
+        context: 'Playlist road',
+        contextType: 'playlist',
+        source: 'poll',
+        minutes: 3.33,
+        hour: played.getHours(),
+        weekday: ['7 Sun', '1 Mon', '2 Tue', '3 Wed', '4 Thu', '5 Fri', '6 Sat'][played.getDay()],
+      },
+    ])
+
+    recordPlays.mockClear()
+    await ctx.db.delete(schema.plays)
+    await ctx.indexSearch()
+    expect(recordPlays).toHaveBeenCalledWith([], [{ userId: 'pixelg', playId: events[0]!.playId }])
   })
 
   it('only indexes what is in each library', async () => {
