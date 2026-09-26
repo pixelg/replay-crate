@@ -164,6 +164,8 @@ test('describes itself for link previews', async ({ page, request, baseURL }) =>
 test('rates a track, and the rating stays', async ({ page }) => {
   await signIn(page)
   await page.getByRole('link', { name: 'Searched And Played' }).first().click()
+  // On the track page, not History (where it's also the now-playing row, with a rating of its own).
+  await expect(page.getByRole('heading', { level: 1, name: 'Searched And Played' })).toBeVisible()
   const rating = page.getByRole('main').getByRole('radiogroup', { name: 'Rating for Searched And Played' })
   await rating.getByRole('radio', { name: '4 stars' }).click()
   await expect(rating.getByRole('radio', { name: '4 stars' })).toHaveAttribute('aria-checked', 'true')
