@@ -3,10 +3,11 @@ import { formatDuration } from '@replay-crate/core'
 import { Link } from '@tanstack/react-router'
 import { MonitorSpeaker, Pause, Play, SkipBack, SkipForward } from 'lucide-react'
 import { cn } from 'cn'
-import type { ComponentProps } from 'react'
 import { describeError } from '../lib/describe-error.ts'
 import { usePlayback, usePlayerControls, useQueue } from '../lib/use-player.ts'
 import { AlbumArt } from './album-art.tsx'
+import { IconButton } from './player/icon-button.tsx'
+import { subtitleOf, thumbOf } from './player/items.ts'
 
 // What Spotify is playing, with transport controls: in the header from `md` up, and as a bar
 // above the bottom tabs on phones. Both read the same polled playback (lib/use-player.ts).
@@ -60,8 +61,9 @@ export function MiniPlayerBar() {
       className="relative flex h-14 items-center gap-3 border-t border-border bg-card px-4"
     >
       <ProgressLine progressMs={progressMs} durationMs={item.durationMs} className="absolute inset-x-0 top-0" />
-      <NowPlaying item={item} message={player.message} />
-      <PlayPause playback={playback} send={player.send} />
+      {/* The title's link covers the bar; play/pause sits above it. */}
+      <NowPlaying item={item} message={player.message} opens="player" />
+      <PlayPause playback={playback} send={player.send} className="relative z-10" />
     </section>
   )
 }
@@ -121,10 +123,23 @@ function PlayerNotice({
   )
 }
 
-function NowPlaying({ item, message }: { item: PlayerItem | null; message: string | null }) {
+function NowPlaying({
+  item,
+  message,
+  opens = 'track',
+}: {
+  item: PlayerItem | null
+  message: string | null
+  /** Where the title leads: the track's page, or (on phones) the player page. */
+  opens?: 'track' | 'player'
+}) {
   if (!item) return null
   const title =
-    item.type === 'track' && item.id ? (
+    opens === 'player' ? (
+      <Link to="/player" className="truncate font-medium after:absolute after:inset-0">
+        {item.name}
+      </Link>
+    ) : item.type === 'track' && item.id ? (
       <Link to="/tracks/$trackId" params={{ trackId: item.id }} className="truncate font-medium hover:underline">
         {item.name}
       </Link>
@@ -163,7 +178,15 @@ function Transport({ playback, send }: { playback: Playback; send: (command: Pla
   )
 }
 
-function PlayPause({ playback, send }: { playback: Playback; send: (command: PlayerCommand) => void }) {
+function PlayPause({
+  playback,
+  send,
+  className,
+}: {
+  playback: Playback
+  send: (command: PlayerCommand) => void
+  className?: string
+}) {
   const playing = playback.isPlaying
   const disallowed = playback.disallows.includes(playing ? 'pausing' : 'resuming')
   return (
@@ -171,30 +194,10 @@ function PlayPause({ playback, send }: { playback: Playback; send: (command: Pla
       label={playing ? 'Pause' : 'Play'}
       disabled={disallowed || !playback.item}
       onClick={() => send({ kind: playing ? 'pause' : 'play' })}
-      className="bg-primary text-primary-foreground hover:enabled:bg-primary/90"
+      className={cn('bg-primary text-primary-foreground hover:enabled:bg-primary/90', className)}
     >
       {playing ? <Pause aria-hidden className="size-4" /> : <Play aria-hidden className="size-4" />}
     </IconButton>
-  )
-}
-
-function IconButton({
-  label,
-  className,
-  ...props
-}: { label: string; className?: string } & Omit<ComponentProps<'button'>, 'aria-label'>) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      className={cn(
-        'inline-flex size-9 items-center justify-center rounded-full text-foreground hover:enabled:bg-muted',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-40',
-        className,
-      )}
-      {...props}
-    />
   )
 }
 
@@ -216,6 +219,3 @@ function ProgressLine({ progressMs, durationMs, className }: { progressMs: numbe
   )
 }
 
-const thumbOf = (item: PlayerItem) => (item.type === 'track' ? item.album.thumbUrl : item.thumbUrl)
-const subtitleOf = (item: PlayerItem) =>
-  item.type === 'track' ? item.artists.map((artist) => artist.name).join(', ') : item.show.name

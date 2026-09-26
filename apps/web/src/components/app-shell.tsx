@@ -1,6 +1,6 @@
 import type { Me } from '@replay-crate/api-client'
 import { Link } from '@tanstack/react-router'
-import { Disc3, ExternalLink, LogOut } from 'lucide-react'
+import { Disc3, ExternalLink, LogOut, Radio } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from 'cn'
 import { MiniPlayer, MiniPlayerBar } from './mini-player.tsx'
@@ -38,7 +38,16 @@ export function AppShell({
         <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur md:px-8">
           <Brand className="md:hidden" />
           <MiniPlayer className="hidden flex-1 md:flex" />
-          <div className="ml-auto shrink-0">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {/* Phones have no player tab; this and the player bar lead there. */}
+            <Link
+              to="/player"
+              aria-label="Player"
+              title="Player"
+              className="inline-flex size-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted data-[status=active]:text-primary md:hidden"
+            >
+              <Radio aria-hidden className="size-5" />
+            </Link>
             <AccountMenu user={user} onLogout={onLogout} />
           </div>
         </header>
@@ -82,13 +91,15 @@ function SidebarNav() {
   )
 }
 
+const tabs = navItems.filter((item) => item.tab)
+
 function BottomTabs() {
   return (
     <div className="fixed inset-x-0 bottom-0 z-10 md:hidden">
       <MiniPlayerBar />
       <nav aria-label="Main" className="border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
         <ul className="grid grid-cols-4">
-          {navItems.map(({ to, label, icon: Icon }) => (
+          {tabs.map(({ to, label, icon: Icon }) => (
             <li key={to}>
               <Link
                 to={to}

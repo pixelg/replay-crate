@@ -8,6 +8,7 @@ import { strToU8, zipSync } from 'fflate'
 import { expect, fn, screen, waitFor, within } from 'storybook/test'
 import { createAppRouter } from './router.ts'
 import {
+  devices,
   gaps,
   importDone,
   importInProgress,
@@ -625,5 +626,134 @@ export const ImportMobile = meta.story({
   globals: { viewport: { value: 'mobile2', isRotated: false } },
   beforeEach({ msw }) {
     msw.use(http.get('/api/v1/imports/latest', () => HttpResponse.json({ import: importInProgress })))
+  },
+})
+
+const playerRequests = fn()
+
+/** Records each player command's body under its name. */
+const recordPlayerCommands = () => {
+  playerRequests.mockClear()
+  const record =
+    (name: string) =>
+    async ({ request, response }: { request: Request; response: (status: 204) => { empty: () => Response } }) => {
+      playerRequests(name, await request.json())
+      return response(204).empty()
+    }
+  return [
+    http.put('/api/v1/player/seek', record('seek')),
+    http.put('/api/v1/player/volume', record('volume')),
+    http.put('/api/v1/player/shuffle', record('shuffle')),
+    http.put('/api/v1/player/repeat', record('repeat')),
+    http.put('/api/v1/player/device', record('transfer')),
+  ]
+}
+
+export const Player = meta.story({
+  args: { path: '/player' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Player' })).toBeVisible()
+    const main = within(await canvas.findByRole('main'))
+    const panel = within(await main.findByRole('region', { name: 'Brass Monkey Business' }))
+    await expect(panel.getByText('Playing from Late Night Crate')).toBeVisible()
+    await expect(panel.getByRole('slider', { name: 'Seek' })).toHaveAttribute('aria-valuetext', expect.stringMatching(/^1:2\d of 3:33$/))
+    await expect(panel.getByRole('slider', { name: 'Volume' })).toHaveAttribute('aria-valuetext', '70%')
+    // Up next and the devices, the active one first.
+    await expect(await main.findByText('The History of the Breakbeat')).toBeVisible()
+    await expect(await main.findByText(/^Playing here/)).toBeVisible()
+    await expect(main.getByRole('button', { name: `Play on ${devices[1]!.name}` })).toBeEnabled()
+    // Player is in the sidebar and marked as the current page.
+    await expect(canvas.getAllByRole('link', { name: 'Player' }).find((link) => link.checkVisibility())).toHaveAttribute('aria-current', 'page')
+  },
+})
+
+export const PlayerControls = meta.story({
+  args: { path: '/player' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(...recordPlayerCommands())
+  },
+  play: async ({ canvas, userEvent }) => {
+    const panel = within(await within(await canvas.findByRole('main')).findByRole('region', { name: 'Brass Monkey Business' }))
+    await userEvent.click(panel.getByRole('button', { name: 'Shuffle' }))
+    await expect(panel.getByRole('button', { name: 'Shuffle' })).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(panel.getByRole('button', { name: 'Repeat: off' }))
+    await expect(panel.getByRole('button', { name: 'Repeat: all' })).toBeVisible()
+
+    // Sliders by keyboard: one step each.
+    panel.getByRole('slider', { name: 'Volume' }).focus()
+    await userEvent.keyboard('{ArrowLeft}')
+    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('volume', { percent: 69 }))
+
+    await userEvent.click(canvas.getByRole('button', { name: `Play on ${devices[2]!.name}` }))
+    await waitFor(() =>
+      expect(playerRequests.mock.calls).toEqual(
+        expect.arrayContaining([
+          ['shuffle', { on: true }],
+          ['repeat', { state: 'context' }],
+          ['transfer', { deviceId: 'kitchen', play: true }],
+        ]),
+      ),
+    )
+  },
+})
+
+export const PlayerSeeks = meta.story({
+  args: { path: '/player' },
+  beforeEach({ msw }) {
+    msw.use(...recordPlayerCommands())
+  },
+  play: async ({ canvas, userEvent }) => {
+    const seek = await canvas.findByRole('slider', { name: 'Seek' })
+    seek.focus()
+    await userEvent.keyboard('{End}')
+    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('seek', { positionMs: 213_000 }))
+  },
+})
+
+export const PlayerNothingActive = meta.story({
+  args: { path: '/player' },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get('/api/v1/player', () => HttpResponse.json({ playback: null })),
+      ...recordPlayerCommands(),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await expect(await canvas.findByText(/Nothing is playing\. Open Spotify somewhere, or pick a device below/)).toBeVisible()
+    await expect(canvas.queryByRole('heading', { name: 'Up next' })).toBeNull()
+    // Picking a device starts playback there.
+    await userEvent.click(await canvas.findByRole('button', { name: `Play on ${devices[1]!.name}` }))
+    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('transfer', { deviceId: 'phone', play: true }))
+  },
+})
+
+export const PlayerWithoutPremium = meta.story({
+  args: { path: '/player' },
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/player', () => HttpResponse.json({ error: 'premium_required' }, { status: 403 })))
+  },
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('heading', { name: 'Spotify Premium needed' })).toBeVisible()
+    await expect(main.queryByRole('heading', { name: 'Devices' })).toBeNull()
+  },
+})
+
+export const PlayerOnPhone = meta.story({
+  args: { path: '/history' },
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  play: async ({ canvas, userEvent }) => {
+    // The bar above the tabs opens the player page...
+    const bar = await canvas.findByRole('region', { name: 'Now playing' })
+    await userEvent.click(within(bar).getByRole('link', { name: 'Brass Monkey Business' }))
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Player' })).toBeVisible()
+    await expect(canvas.getByRole('slider', { name: 'Seek' })).toBeVisible()
+    // ...and so does the header, when nothing is playing. Player isn't a tab.
+    const header = within(canvas.getByRole('banner'))
+    await expect(header.getByRole('link', { name: 'Player' })).toHaveAttribute('aria-current', 'page')
+    const tabs = canvas.getAllByRole('navigation', { name: 'Main' }).find((nav) => nav.checkVisibility())!
+    await expect(within(tabs).queryByRole('link', { name: 'Player' })).toBeNull()
   },
 })
