@@ -24,8 +24,9 @@ export default definePreview({
   },
   initialGlobals: { theme: 'light' },
   beforeEach() {
-    // Forget a theme an earlier story picked (the preference lives in localStorage).
+    // Forget what earlier stories picked: the theme and the lists' page sizes live in localStorage.
     setThemePreference('system')
+    for (const key of Object.keys(localStorage)) if (key.startsWith('rc:page-size:')) localStorage.removeItem(key)
   },
   decorators: [
     (Story, { globals }) => {

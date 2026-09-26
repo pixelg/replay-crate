@@ -13,6 +13,8 @@ import {
   importDone,
   importInProgress,
   libraryPage,
+  manyPlays,
+  manyTracks,
   pausedPlayback,
   pixelg,
   playlistDetail,
@@ -21,7 +23,7 @@ import {
   statsOverview,
   statsTop,
 } from './test/fixtures.ts'
-import { defaultHandlers, http } from './test/handlers.ts'
+import { defaultHandlers, http, pageBy } from './test/handlers.ts'
 
 /** The whole app (real route tree + shell) at a given URL. */
 function App({ path }: { path: string }) {
@@ -1069,7 +1071,8 @@ export const TracksSorts = meta.story({
 })
 
 export const TracksLoadsMore = meta.story({
-  args: { path: '/tracks' },
+  // All: the whole library in one list, a page at a time.
+  args: { path: '/tracks?size=all' },
   beforeEach({ msw }) {
     libraryRequests.mockClear()
     msw.use(
@@ -1137,7 +1140,7 @@ export const TracksOnPhone = meta.story({
   play: async ({ canvas, userEvent }) => {
     const navs = await canvas.findAllByRole('navigation', { name: 'Main' })
     const tabs = within(navs.find((nav) => nav.checkVisibility())!)
-    await expect(tabs.getAllByRole('link').map((link) => link.textContent)).toEqual(['History', 'Tracks', 'Playlists', 'Stats', 'Settings'])
+    await expect(tabs.getAllByRole('link').map((link: HTMLElement) => link.textContent)).toEqual(['History', 'Tracks', 'Playlists', 'Stats', 'Settings'])
     await userEvent.click(tabs.getByRole('link', { name: 'Tracks' }))
     await expect(await canvas.findByRole('heading', { level: 1, name: 'Tracks' })).toBeVisible()
   },
@@ -1339,5 +1342,147 @@ export const NewPlaylistTopRated = meta.story({
     await expect(await canvas.findByText('Tracks you rated, best first, then the ones you play most.')).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: '5★ only' }))
     await waitFor(() => expect(ruleRequests).toHaveBeenLastCalledWith({ kind: 'top_rated', minRating: 5, limit: 50 }))
+  },
+})
+
+// Numbered pages.
+
+const longLibrary = manyTracks(23)
+const libraryPages = fn()
+const longLibraryHandler = http.get('/api/v1/tracks', ({ query, response }) => {
+  libraryPages(query.get('offset'), query.get('limit'))
+  const { items, rest } = pageBy(longLibrary, query)
+  return response(200).json({ items, nextCursor: null, total: longLibrary.length, ...rest })
+})
+const rowNames = (main: ReturnType<typeof within>) =>
+  main.getAllByRole('link', { name: /^Crate Cut \d+$/ }).map((link: HTMLElement) => link.textContent)
+
+export const TracksPages = meta.story({
+  args: { path: '/tracks?size=5' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    libraryPages.mockClear()
+    msw.use(longLibraryHandler)
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByText('1–5 of 23')).toBeVisible()
+    await expect(rowNames(main)).toEqual(['Crate Cut 01', 'Crate Cut 02', 'Crate Cut 03', 'Crate Cut 04', 'Crate Cut 05'])
+    const pages = within(main.getByRole('navigation', { name: 'Pages' }))
+    await expect(pages.getByRole('link', { name: 'Page 1' })).toHaveAttribute('aria-current', 'page')
+    await expect(pages.getByRole('link', { name: 'Page 5' })).toHaveAttribute('href', expect.stringMatching(/[?&]page=5(&|$)/))
+    // Nothing before the first page.
+    await expect(pages.queryByRole('link', { name: 'Previous page' })).toBeNull()
+
+    await userEvent.click(pages.getByRole('link', { name: 'Page 3' }))
+    await expect(await main.findByText('11–15 of 23')).toBeVisible()
+    await expect(rowNames(main)[0]).toBe('Crate Cut 11')
+    await expect(libraryPages).toHaveBeenLastCalledWith('10', '5')
+
+    await userEvent.click(pages.getByRole('link', { name: 'Next page' }))
+    await expect(await main.findByText('16–20 of 23')).toBeVisible()
+    await userEvent.click(pages.getByRole('link', { name: 'Page 5' }))
+    await expect(await main.findByText('21–23 of 23')).toBeVisible()
+    await expect(pages.queryByRole('link', { name: 'Next page' })).toBeNull()
+  },
+})
+
+export const TracksPageSize = meta.story({
+  args: { path: '/tracks?size=5&page=3' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(longLibraryHandler)
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByText('11–15 of 23')).toBeVisible()
+
+    // 10 per page keeps the first row that was showing (Crate Cut 11) in view: page 2.
+    await userEvent.click(main.getByRole('combobox', { name: 'Per page' }))
+    await userEvent.click(await screen.findByRole('option', { name: '10' }))
+    await expect(await main.findByText('11–20 of 23')).toBeVisible()
+    await expect(localStorage.getItem('rc:page-size:tracks')).toBe('10')
+
+    // All: one list with "Load more", and no page links.
+    await userEvent.click(main.getByRole('combobox', { name: 'Per page' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'All' }))
+    await expect(await main.findByRole('link', { name: 'Crate Cut 23' })).toBeVisible()
+    await expect(main.queryByRole('navigation', { name: 'Pages' })).toBeNull()
+    await expect(localStorage.getItem('rc:page-size:tracks')).toBe('all')
+  },
+})
+
+export const TracksPagesOnPhone = meta.story({
+  args: { path: '/tracks?size=5&page=2' },
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(longLibraryHandler)
+  },
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    const pages = within(await main.findByRole('navigation', { name: 'Pages' }))
+    // Arrows and "Page 2 of 5" in place of the numbers.
+    await expect(pages.getByText('Page 2 of 5')).toBeVisible()
+    await expect(pages.getByRole('link', { name: 'Previous page' })).toBeVisible()
+    await expect(pages.getByRole('link', { name: 'Next page' })).toBeVisible()
+    await expect(pages.getByRole('link', { name: 'Page 3', hidden: true })).not.toBeVisible()
+  },
+})
+
+export const TracksSelectAcrossPages = meta.story({
+  args: { path: '/tracks?size=5' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(longLibraryHandler)
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await userEvent.click(await main.findByRole('button', { name: 'Select' }))
+    await userEvent.click(main.getByRole('checkbox', { name: 'Select Crate Cut 02' }))
+    await userEvent.click(main.getByRole('link', { name: 'Page 2' }))
+    await userEvent.click(await main.findByRole('checkbox', { name: 'Select Crate Cut 07' }))
+    // Picks on other pages still count.
+    await expect(canvas.getByRole('toolbar', { name: 'Selected tracks' })).toHaveTextContent('2 tracks selected')
+    await userEvent.click(main.getByRole('link', { name: 'Page 1' }))
+    await expect(await main.findByRole('checkbox', { name: 'Select Crate Cut 02' })).toBeChecked()
+  },
+})
+
+const longHistory = manyPlays(12)
+
+export const HistoryPages = meta.story({
+  args: { path: '/history?size=5' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get('/api/v1/history/plays', ({ query, response }) => {
+        const { items, rest, next } = pageBy(longHistory, query)
+        return response(200).json({ items, nextCursor: null, lastSyncedAt: null, ...rest, olderPlayedAt: next?.playedAt ?? null })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByText('1–5 of 12')).toBeVisible()
+    // The present tops the first page only.
+    await expect(await main.findByRole('group', { name: 'Now playing' })).toBeVisible()
+    await userEvent.click(main.getByRole('link', { name: 'Page 2' }))
+    await expect(await main.findByText('6–10 of 12')).toBeVisible()
+    await expect(main.queryByRole('group', { name: 'Now playing' })).toBeNull()
+    await expect(rowNames(main)).toEqual(['Crate Cut 06', 'Crate Cut 07', 'Crate Cut 08', 'Crate Cut 09', 'Crate Cut 10'])
+  },
+})
+
+export const PlaylistPages = meta.story({
+  args: { path: '/playlists/p1?size=5' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  play: async ({ canvas, userEvent }) => {
+    const tracks = within(await canvas.findByRole('region', { name: 'Tracks' }))
+    const total = (await tracks.findAllByRole('listitem')).length
+    await expect(total).toBeLessThanOrEqual(5)
+    // Sorting lives in the URL now, and starts again from page 1.
+    await userEvent.click(tracks.getByRole('button', { name: 'Most played' }))
+    await expect(tracks.getByRole('button', { name: 'Most played' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(tracks.getByRole('combobox', { name: 'Per page' })).toHaveTextContent('5')
   },
 })

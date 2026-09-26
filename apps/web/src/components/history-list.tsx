@@ -18,14 +18,15 @@ type Entry = { kind: 'play'; play: PlayItem; at: string } | { kind: 'gap'; gap: 
  * Newest-first plays, with a marker wherever plays may be missing: a gap sits between the
  * oldest play of the sync that found it (`before`) and the last play we had (`after`).
  */
-function withGaps(plays: PlayItem[], gaps: HistoryGap[]): Entry[] {
+function withGaps(plays: PlayItem[], gaps: HistoryGap[], olderPlayedAt: string | null): Entry[] {
   const entries: Entry[] = []
   plays.forEach((play, index) => {
     entries.push({ kind: 'play', play, at: play.playedAt })
-    const older = plays[index + 1]
+    // The last play on a page compares with the first on the next one.
+    const older = plays[index + 1]?.playedAt ?? olderPlayedAt
     if (!older) return
     const newerAt = new Date(play.playedAt).getTime()
-    const olderAt = new Date(older.playedAt).getTime()
+    const olderAt = new Date(older).getTime()
     for (const gap of gaps) {
       if (new Date(gap.before).getTime() <= newerAt && new Date(gap.after).getTime() >= olderAt) {
         entries.push({ kind: 'gap', gap, at: play.playedAt })
@@ -36,7 +37,7 @@ function withGaps(plays: PlayItem[], gaps: HistoryGap[]): Entry[] {
 }
 
 /** Which plays are picked, by `playedAt` (unique per user); present while selecting. */
-export type PlaySelection = { selected: ReadonlySet<string>; toggle: (playedAt: string) => void }
+export type PlaySelection = { selected: { has(playedAt: string): boolean }; toggle: (play: PlayItem) => void }
 
 /** Plays grouped under sticky day headings, with gap markers where plays may be missing. */
 export function HistoryList({
@@ -45,16 +46,19 @@ export function HistoryList({
   now = new Date(),
   selection,
   playingTrackId = null,
+  olderPlayedAt = null,
 }: {
   plays: PlayItem[]
   gaps?: HistoryGap[]
+  /** When the play just after the last one here was played, if it's on another page. */
+  olderPlayedAt?: string | null
   now?: Date
   /** When set, rows get checkboxes instead of their menus. */
   selection?: PlaySelection
   /** Rows of the track Spotify is playing right now are marked (it's also shown by `NowPlayingSection`). */
   playingTrackId?: string | null
 }) {
-  const days = groupByDay(withGaps(plays, gaps), (entry) => new Date(entry.at))
+  const days = groupByDay(withGaps(plays, gaps, olderPlayedAt), (entry) => new Date(entry.at))
 
   return (
     <div className="flex flex-col gap-6">
@@ -170,7 +174,7 @@ function PlayRow({ play, selection, playing }: { play: PlayItem; selection?: Pla
           type="checkbox"
           aria-label={`Select ${track.name}, played at ${time}`}
           checked={selection.selected.has(play.playedAt)}
-          onChange={() => selection.toggle(play.playedAt)}
+          onChange={() => selection.toggle(play)}
           className="size-5 shrink-0 accent-primary"
         />
       )}

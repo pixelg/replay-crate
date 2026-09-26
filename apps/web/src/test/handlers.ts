@@ -25,6 +25,18 @@ import {
  */
 export const http = createOpenApiHttp<paths>()
 
+/**
+ * A page of `items` the way the API pages them: `limit` and `offset` (numbered pages, which add
+ * `total`), or everything at once with no more pages when the app asks by cursor.
+ */
+export function pageBy<T>(items: T[], query: { get(name: 'offset' | 'limit'): string | null }) {
+  const offset = query.get('offset')
+  if (offset === null) return { items, rest: {} }
+  const start = Number(offset)
+  const limit = Number(query.get('limit') ?? 50)
+  return { items: items.slice(start, start + limit), rest: { total: items.length }, next: items[start + limit] }
+}
+
 /** A signed-in user with some history: every endpoint the app reads answers with fixtures. */
 export const handlers = {
   system: [http.get('/api/v1/system/health', ({ response }) => response(200).json({ ok: true }))],
@@ -33,14 +45,21 @@ export const handlers = {
     http.post('/api/v1/auth/logout', ({ response }) => response(204).empty()),
   ],
   history: [
-    http.get('/api/v1/history/plays', ({ response }) => response(200).json(playsPage)),
+    http.get('/api/v1/history/plays', ({ query, response }) => {
+      const { items, rest, next } = pageBy(playsPage.items, query)
+      const older = 'total' in rest ? { olderPlayedAt: next?.playedAt ?? null } : {}
+      return response(200).json({ ...playsPage, items, ...rest, ...older })
+    }),
     http.post('/api/v1/history/sync', ({ response }) =>
       response(200).json({ status: 'skipped', inserted: 0, lastSyncedAt: playsPage.lastSyncedAt!, missedPlays: false }),
     ),
     http.get('/api/v1/history/gaps', ({ response }) => response(200).json({ gaps: [] })),
   ],
   tracks: [
-    http.get('/api/v1/tracks', ({ response }) => response(200).json(libraryPage)),
+    http.get('/api/v1/tracks', ({ query, response }) => {
+      const { items, rest } = pageBy(libraryPage.items, query)
+      return response(200).json({ ...libraryPage, ...rest, items })
+    }),
     http.get('/api/v1/tracks/{id}', ({ response }) => response(200).json(trackDetail)),
   ],
   playlists: [

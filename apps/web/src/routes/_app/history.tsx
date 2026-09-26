@@ -1,50 +1,103 @@
-import { gapsQueryOptions, playsInfiniteQueryOptions } from '@replay-crate/api-client'
-import { formatRelative } from '@replay-crate/core'
-import { useQuery, useSuspenseInfiniteQuery } from '@tanstack/react-query'
+import { gapsQueryOptions, playsInfiniteQueryOptions, playsPageQueryOptions, type PlayItem } from '@replay-crate/api-client'
+import { formatRelative, pageCount, type PageSize } from '@replay-crate/core'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { CircleDashed, History, ListChecks, RefreshCw } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { EmptyState } from '../../components/empty-state.tsx'
 import { HistoryList, NowPlayingSection } from '../../components/history-list.tsx'
 import { InlineError } from '../../components/inline-error.tsx'
+import { ListPagination } from '../../components/list-pagination.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
 import { SelectionBar } from '../../components/selection-bar.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { api } from '../../lib/api.ts'
 import { cn } from 'cn'
+import { pageSearch, resizedPage, storedPageSize, storePageSize } from '../../lib/page-size.ts'
 import { useNowPlaying, usePlayingTrackId } from '../../lib/use-player.ts'
 import { useSync } from '../../lib/use-sync.ts'
 
 export const Route = createFileRoute('/_app/history')({
-  loader: ({ context }) => context.queryClient.ensureInfiniteQueryData(playsInfiniteQueryOptions(api)),
+  validateSearch: pageSearch,
+  loaderDeps: ({ search }) => ({ page: search.page ?? 1, size: search.size ?? storedPageSize('history') }),
+  loader: ({ context, deps: { page, size } }) =>
+    size === 'all'
+      ? context.queryClient.ensureInfiniteQueryData(playsInfiniteQueryOptions(api))
+      : context.queryClient.ensureQueryData(playsPageQueryOptions(api, { page, size })),
   component: HistoryPage,
 })
 
+/**
+ * The plays to show: one numbered page, or with All every page loaded so far ("Load older
+ * plays"). Only the view in use fetches; the loader has already filled it.
+ */
+function useHistoryPlays(page: number, size: PageSize) {
+  const all = size === 'all'
+  const infinite = useInfiniteQuery({ ...playsInfiniteQueryOptions(api), enabled: all })
+  const paged = useQuery({ ...playsPageQueryOptions(api, { page, size: all ? 0 : size }), enabled: !all })
+  if (all) {
+    const pages = infinite.data?.pages ?? []
+    return {
+      plays: pages.flatMap((p) => p.items),
+      lastSyncedAt: pages[0]?.lastSyncedAt ?? null,
+      total: undefined,
+      olderPlayedAt: null,
+      loadMore: infinite.hasNextPage ? () => void infinite.fetchNextPage() : undefined,
+      isLoadingMore: infinite.isFetchingNextPage,
+      isPlaceholder: false,
+    }
+  }
+  return {
+    plays: paged.data?.items ?? [],
+    lastSyncedAt: paged.data?.lastSyncedAt ?? null,
+    total: paged.data?.total,
+    olderPlayedAt: paged.data?.olderPlayedAt ?? null,
+    loadMore: undefined,
+    isLoadingMore: false,
+    isPlaceholder: paged.isPlaceholderData,
+  }
+}
+
 function HistoryPage() {
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useSuspenseInfiniteQuery(
-    playsInfiniteQueryOptions(api),
-  )
+  const search = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const page = search.page ?? 1
+  const size = search.size ?? storedPageSize('history')
+  const { plays, lastSyncedAt, total, olderPlayedAt, loadMore, isLoadingMore, isPlaceholder } = useHistoryPlays(page, size)
   const { sync, isSyncing, error: syncError } = useSync()
   const { data: gaps = [] } = useQuery(gapsQueryOptions(api))
   const playingTrackId = usePlayingTrackId()
   const nowPlaying = useNowPlaying()
-  const plays = data.pages.flatMap((page) => page.items)
-  const lastSyncedAt = data.pages[0]?.lastSyncedAt
 
-  // Select mode: picked plays by `playedAt`; the tracks they hold, each once, in history order.
-  const [selected, setSelected] = useState<Set<string> | null>(null)
+  // A page past the end (history shrank, or a hand-edited URL): go to the last one.
+  const lastPage = total !== undefined && size !== 'all' ? pageCount(total, size) : undefined
+  useEffect(() => {
+    if (lastPage !== undefined && page > lastPage) {
+      void navigate({ search: (prev) => ({ ...prev, page: lastPage > 1 ? lastPage : undefined }), replace: true })
+    }
+  }, [page, lastPage, navigate])
+
+  // Select mode: picked plays by `playedAt`, kept across pages; the tracks they hold, each once,
+  // in history order.
+  const [selected, setSelected] = useState<Map<string, PlayItem> | null>(null)
   const pickedTracks = useMemo(() => {
     if (!selected) return []
     const tracks = new Map<string, { id: string; name: string }>()
-    for (const play of plays) if (selected.has(play.playedAt)) tracks.set(play.track.id, play.track)
+    const newestFirst = [...selected.values()].toSorted((a, b) => b.playedAt.localeCompare(a.playedAt))
+    for (const play of newestFirst) tracks.set(play.track.id, play.track)
     return [...tracks.values()]
-  }, [plays, selected])
-  const toggle = (playedAt: string) =>
+  }, [selected])
+  const toggle = (play: PlayItem) =>
     setSelected((current) => {
-      const next = new Set(current)
-      if (!next.delete(playedAt)) next.add(playedAt)
+      const next = new Map(current)
+      if (!next.delete(play.playedAt)) next.set(play.playedAt, play)
       return next
     })
+
+  const setSize = (next: PageSize) => {
+    storePageSize('history', next)
+    void navigate({ search: (prev) => ({ ...prev, size: next, page: resizedPage(page, size, next) }) })
+  }
 
   return (
     <>
@@ -56,7 +109,7 @@ function HistoryPage() {
             <p className="text-xs text-muted-foreground">Synced {formatRelative(new Date(lastSyncedAt))}</p>
           )}
           {plays.length > 0 && (
-            <Button variant="secondary" size="sm" onClick={() => setSelected(selected ? null : new Set())} aria-pressed={selected !== null}>
+            <Button variant="secondary" size="sm" onClick={() => setSelected(selected ? null : new Map())} aria-pressed={selected !== null}>
               <ListChecks aria-hidden className="size-4" /> {selected ? 'Done' : 'Select'}
             </Button>
           )}
@@ -81,23 +134,34 @@ function HistoryPage() {
         </p>
       )}
 
-      {nowPlaying && <NowPlayingSection {...nowPlaying} selecting={selected !== null} />}
+      {/* The present sits above the newest plays, so only on the first page. */}
+      {nowPlaying && page === 1 && <NowPlayingSection {...nowPlaying} selecting={selected !== null} />}
 
       {plays.length ? (
         <>
-          <HistoryList
-            plays={plays}
-            gaps={gaps}
-            selection={selected ? { selected, toggle } : undefined}
-            playingTrackId={playingTrackId}
-          />
-          {hasNextPage && (
+          <div className={cn('transition-opacity', isPlaceholder && 'opacity-60')} aria-busy={isPlaceholder}>
+            <HistoryList
+              plays={plays}
+              gaps={gaps}
+              olderPlayedAt={olderPlayedAt}
+              selection={selected ? { selected, toggle } : undefined}
+              playingTrackId={playingTrackId}
+            />
+          </div>
+          {loadMore && (
             <div className="mt-6 flex justify-center">
-              <Button variant="ghost" onClick={() => void fetchNextPage()} disabled={isFetchingNextPage}>
-                {isFetchingNextPage ? 'Loading…' : 'Load older plays'}
+              <Button variant="ghost" onClick={loadMore} disabled={isLoadingMore}>
+                {isLoadingMore ? 'Loading…' : 'Load older plays'}
               </Button>
             </div>
           )}
+          <ListPagination
+            page={page}
+            size={size}
+            total={total}
+            onSizeChange={setSize}
+            linkTo={(to) => <Link from={Route.fullPath} to="." search={(prev) => ({ ...prev, page: to > 1 ? to : undefined })} />}
+          />
         </>
       ) : (
         <EmptyState icon={History} title="No plays yet">

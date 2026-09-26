@@ -403,3 +403,25 @@ export const libraryPage: LibraryPage = {
   nextCursor: null,
   total: 4,
 }
+
+// Long lists, for paging. Names count up ("Crate Cut 01", …) so a page's rows are easy to name.
+const pad = (n: number) => String(n).padStart(2, '0')
+
+/** `count` plays, newest first, three a day starting yesterday evening. */
+export const manyPlays = (count: number): PlayItem[] =>
+  Array.from({ length: count }, (_, i) => ({
+    playedAt: dayAt(1 + Math.floor(i / 3), 21 - (i % 3)),
+    msPlayed: null,
+    source: 'poll' as const,
+    context: null,
+    track: track(`cut-${pad(i + 1)}`, `Crate Cut ${pad(i + 1)}`, ['The Loop Collective'], 'Deep Crates'),
+  }))
+
+/** `count` library tracks, most played first. */
+export const manyTracks = (count: number): LibraryPage['items'] =>
+  manyPlays(count).map((play, i) => ({
+    track: play.track,
+    playCount: count - i,
+    firstPlayedAt: play.playedAt,
+    lastPlayedAt: play.playedAt,
+  }))
