@@ -1,6 +1,6 @@
-import { createPlaylist, previewRule, type PlaylistRule, type RulePreview } from '@replay-crate/api-client'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { previewRule, type PlaylistRule, type RulePreview } from '@replay-crate/api-client'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { ArrowLeft, ListMusic } from 'lucide-react'
 import { useState } from 'react'
 import { AlbumArt } from '../../components/album-art.tsx'
@@ -11,6 +11,7 @@ import { Button } from '../../components/ui/button.tsx'
 import { Segmented } from '../../components/ui/segmented.tsx'
 import { TextField } from '../../components/ui/text-field.tsx'
 import { api } from '../../lib/api.ts'
+import { useCreatePlaylist } from '../../lib/use-create-playlist.ts'
 
 export const Route = createFileRoute('/_app/playlists/new')({
   component: NewPlaylistPage,
@@ -69,8 +70,6 @@ function NewPlaylistPage() {
   const [range, setRange] = useState<Range>('30d')
   const [size, setSize] = useState<(typeof sizes)[number]['value']>('50')
   const [name, setName] = useState<string | null>(null)
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
 
   const rule = toRule(kind, range, Number(size))
   const preview = useQuery({
@@ -83,14 +82,7 @@ function NewPlaylistPage() {
   const suggestedName = rule ? (preview.data?.suggestedName ?? '') : 'New playlist'
   const finalName = (name ?? suggestedName).trim()
 
-  const create = useMutation({
-    mutationFn: () =>
-      createPlaylist(api, { name: finalName, trackIds: tracks.map((track) => track.id) }),
-    onSuccess: async ({ id }) => {
-      await queryClient.invalidateQueries({ queryKey: ['playlists'] })
-      await navigate({ to: '/playlists/$playlistId', params: { playlistId: id } })
-    },
-  })
+  const create = useCreatePlaylist()
 
   const canCreate = finalName.length > 0 && (kind === 'empty' || tracks.length > 0) && !create.isPending
 
@@ -131,7 +123,7 @@ function NewPlaylistPage() {
           Spotify makes playlists created by apps public. You can make it private in the Spotify app afterwards.
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={() => create.mutate()} disabled={!canCreate}>
+          <Button onClick={() => create.mutate({ name: finalName, trackIds: tracks.map((track) => track.id) })} disabled={!canCreate}>
             {create.isPending ? 'Creating…' : kind === 'empty' ? 'Create playlist' : `Create with ${tracks.length} tracks`}
           </Button>
           {create.error && <InlineError error={create.error} action="Creating the playlist" />}

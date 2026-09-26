@@ -38,6 +38,25 @@ test('builds a playlist from listening history', async ({ page }) => {
   await expect(page.getByRole('region', { name: 'Tracks' }).getByRole('link', { name: 'Brass Monkey Business' })).toBeVisible()
 })
 
+test('makes a playlist from plays picked in History', async ({ page }) => {
+  await signIn(page)
+  await page.getByRole('button', { name: 'Select', exact: true }).click()
+  await page.getByRole('checkbox', { name: /^Select Searched And Played/ }).first().check()
+  await page.getByRole('checkbox', { name: /^Select Sunday Morning Static/ }).first().check()
+  const bar = page.getByRole('toolbar', { name: 'Selected tracks' })
+  await expect(bar.getByRole('status')).toHaveText('2 tracks selected')
+
+  await bar.getByRole('button', { name: 'Create playlist…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Create playlist' })
+  await dialog.getByRole('textbox', { name: 'Name' }).fill('E2E picks')
+  await dialog.getByRole('button', { name: 'Create playlist' }).click()
+
+  await expect(page.getByRole('heading', { level: 1, name: 'E2E picks' })).toBeVisible()
+  const tracks = page.getByRole('region', { name: 'Tracks' })
+  await expect(tracks.getByRole('link', { name: 'Sunday Morning Static' })).toBeVisible()
+  await expect(tracks.getByRole('link', { name: 'Searched And Played' })).toBeVisible()
+})
+
 test('unknown pages and signing out', async ({ page }) => {
   await signIn(page)
   await page.goto('/no-such-page')

@@ -821,3 +821,106 @@ export const PlaylistRowHasTrackActions = meta.story({
     await expect(items).toContain('Remove from playlist…')
   },
 })
+
+/** Turns on select mode and picks rows by their checkbox labels. */
+const pick = async (
+  canvas: { findByRole: (role: string, options: object) => Promise<HTMLElement>; getAllByRole: (role: string, options: object) => HTMLElement[] },
+  userEvent: { click: (element: Element) => Promise<void> },
+  names: RegExp[],
+) => {
+  await userEvent.click(await canvas.findByRole('button', { name: 'Select' }))
+  for (const name of names) await userEvent.click(canvas.getAllByRole('checkbox', { name })[0]!)
+  return within(await canvas.findByRole('toolbar', { name: 'Selected tracks' }))
+}
+
+export const HistorySelectCreatesPlaylist = meta.story({
+  beforeEach({ msw }) {
+    requests.mockClear()
+    msw.use(
+      http.post('/api/v1/playlists', async ({ request }) => {
+        requests(await request.json())
+        return HttpResponse.json({ id: 'p1' }, { status: 201 })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    // Brass Monkey Business twice (today and yesterday) and Sunday Morning Static: two tracks.
+    const bar = await pick(canvas, userEvent, [/^Select Brass Monkey Business/, /^Select Sunday Morning Static/])
+    await userEvent.click(canvas.getAllByRole('checkbox', { name: /^Select Brass Monkey Business/ })[1]!)
+    await expect(bar.getByRole('status')).toHaveTextContent('2 tracks selected')
+    // Row menus make way for the checkboxes.
+    await expect(canvas.queryByRole('button', { name: /^Actions for/ })).toBeNull()
+
+    await userEvent.click(bar.getByRole('button', { name: 'Create playlist…' }))
+    const dialog = within(await screen.findByRole('dialog', { name: 'Create playlist' }))
+    await waitFor(() => expect(dialog.getByText('With 2 tracks')).toBeVisible())
+    const name = dialog.getByRole('textbox', { name: 'Name' })
+    await userEvent.clear(name)
+    await userEvent.type(name, 'Sunday picks')
+    await userEvent.click(dialog.getByRole('button', { name: 'Create playlist' }))
+
+    await waitFor(() => expect(requests).toHaveBeenCalledWith({ name: 'Sunday picks', trackIds: ['t1', 't2'] }))
+    // Opens the new playlist.
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Late Night Crate' })).toBeVisible()
+  },
+})
+
+export const HistorySelectQueues = meta.story({
+  beforeEach({ msw }) {
+    playerRequests.mockClear()
+    msw.use(
+      http.post('/api/v1/player/queue', async ({ request, response }) => {
+        playerRequests('queue', await request.json())
+        return response(204).empty()
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const bar = await pick(canvas, userEvent, [/^Select Sunday Morning Static/, /^Select Searched And Played/])
+    await userEvent.click(bar.getByRole('button', { name: 'Add to queue' }))
+    // One request per track, in the order shown.
+    await waitFor(() =>
+      expect(playerRequests.mock.calls).toEqual([
+        ['queue', { uri: 'spotify:track:t2' }],
+        ['queue', { uri: 'spotify:track:t4' }],
+      ]),
+    )
+    const toast = await screen.findByText('Added 2 tracks to the queue')
+    await waitFor(() => expect(toast).toBeVisible())
+    // Done: back out of select mode.
+    await expect(await canvas.findByRole('button', { name: 'Select' })).toBeVisible()
+    await expect(canvas.queryByRole('toolbar', { name: 'Selected tracks' })).toBeNull()
+  },
+})
+
+export const HistorySelectAddsToPlaylist = meta.story({
+  beforeEach({ msw }) {
+    requests.mockClear()
+    msw.use(
+      http.post('/api/v1/playlists/{id}/items', async ({ request, params }) => {
+        requests(params.id, await request.json())
+        return HttpResponse.json({ ok: true })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const bar = await pick(canvas, userEvent, [/^Select Sunday Morning Static/, /^Select Searched And Played/])
+    await userEvent.click(bar.getByRole('button', { name: 'Add to playlist…' }))
+    const dialog = within(await screen.findByRole('dialog', { name: 'Add to playlist' }))
+    await waitFor(() => expect(dialog.getByText('2 tracks')).toBeVisible())
+    await userEvent.click(await dialog.findByRole('button', { name: /Road Trip/ }))
+    await waitFor(() => expect(requests).toHaveBeenCalledWith('p3', { trackIds: ['t2', 't4'] }))
+  },
+})
+
+export const HistorySelectOnPhone = meta.story({
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  play: async ({ canvas, userEvent }) => {
+    const bar = await pick(canvas, userEvent, [/^Select Sunday Morning Static/])
+    await expect(bar.getByRole('status')).toHaveTextContent('1 track selected')
+    // Above the player bar and the tabs.
+    const player = await canvas.findByRole('region', { name: 'Now playing' })
+    const toolbar = canvas.getByRole('toolbar', { name: 'Selected tracks' })
+    await expect(toolbar.getBoundingClientRect().bottom).toBeLessThanOrEqual(player.getBoundingClientRect().top)
+  },
+})
