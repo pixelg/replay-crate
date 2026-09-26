@@ -17,7 +17,8 @@
     "e2e:build": "SPOTIFY_CLIENT_ID=e2e-client SPOTIFY_REDIRECT_URI=http://127.0.0.1:4174/callback vite build --outDir dist-e2e --emptyOutDir",
     "e2e:server": "pnpm e2e:build && WEB_DIST_DIR=\"$PWD/dist-e2e\" pnpm --filter @replay-crate/api e2e:server",
     "test:e2e": "playwright test",
-    "api-types": "openapi-typescript ../api/openapi.json --output src/test/api.gen.ts"
+    "api-types": "openapi-typescript ../api/openapi.json --output src/test/api.gen.ts",
+    "icons": "node scripts/icons.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
