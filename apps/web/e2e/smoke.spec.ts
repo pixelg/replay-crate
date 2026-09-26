@@ -145,3 +145,18 @@ test('links and serves the app icons', async ({ page, request }) => {
   await page.goto('/favicon.svg')
   expect(await page.evaluate('document.documentElement.tagName')).toBe('svg')
 })
+
+test('describes itself for link previews', async ({ page, request, baseURL }) => {
+  await page.goto('/connect')
+  const meta = (selector: string) => page.locator(`head meta[${selector}]`)
+  await expect(meta('name="description"')).toHaveAttribute('content', /Every Spotify play, counted/)
+  await expect(meta('property="og:title"')).toHaveAttribute('content', 'Replay Crate')
+  await expect(meta('name="twitter:card"')).toHaveAttribute('content', 'summary_large_image')
+  // Absolute, on the app's origin (the E2E build's redirect URI is on the test server).
+  await expect(meta('property="og:url"')).toHaveAttribute('content', `${baseURL}/`)
+  await expect(meta('property="og:image"')).toHaveAttribute('content', `${baseURL}/og-image.png`)
+
+  const image = await request.get('/og-image.png')
+  expect(image.status()).toBe(200)
+  expect(image.headers()['content-type']).toBe('image/png')
+})

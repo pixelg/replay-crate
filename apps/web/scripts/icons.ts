@@ -1,6 +1,6 @@
 /**
- * Renders the PNG app icons in public/ from the logo: the Apple touch icon and the web
- * manifest's icons. The logo in brand orange on the dark background, since home screens and
+ * Renders the PNG app icons in public/ from the logo: the Apple touch icon, the web
+ * manifest's icons, and the Open Graph image used for link previews. The logo in brand orange on the dark background, since home screens and
  * launchers don't follow the page's colour scheme. Re-run after changing the logo:
  *
  *   node scripts/icons.ts
@@ -27,6 +27,17 @@ const icons = [
   { file: 'icon-512-maskable.png', size: 512, scale: 0.5 },
 ]
 
+/** 1200×630 link preview: the logo, the name and the tagline. */
+const ogImage = `
+  <body style="margin:0;width:1200px;height:630px;background:#161412;color:#f5efe8;display:flex;align-items:center;gap:64px;padding:0 110px;box-sizing:border-box;font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="300" height="300"
+      fill="none" stroke="#f28e42" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${DISC}</svg>
+    <div>
+      <div style="font-size:96px;font-weight:700;letter-spacing:-0.03em">Replay Crate</div>
+      <div style="margin-top:20px;font-size:40px;color:#b5aca3">Every Spotify play, counted.</div>
+    </div>
+  </body>`
+
 const browser = await chromium.launch()
 for (const { file, size, scale } of icons) {
   const page = await browser.newPage({ viewport: { width: size, height: size } })
@@ -34,4 +45,8 @@ for (const { file, size, scale } of icons) {
   await page.screenshot({ path: new URL(`../public/${file}`, import.meta.url).pathname })
   console.log(`wrote public/${file}`)
 }
+const page = await browser.newPage({ viewport: { width: 1200, height: 630 } })
+await page.setContent(ogImage)
+await page.screenshot({ path: new URL('../public/og-image.png', import.meta.url).pathname })
+console.log('wrote public/og-image.png')
 await browser.close()
