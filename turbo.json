@@ -32,7 +32,9 @@
       "dependsOn": ["transit", "api-types"]
     },
     "test": {
-      "dependsOn": ["transit"]
+      "dependsOn": ["transit"],
+      // The API's Elasticsearch suite runs only when this is set.
+      "env": ["ELASTICSEARCH_URL"]
     },
     "build": {
       "dependsOn": ["transit"],
@@ -57,7 +59,8 @@
         "API_PORT",
         "SYNC_INTERVAL_MINUTES",
         "WEB_DIST_DIR",
-        "MUSICBRAINZ_USER_AGENT"
+        "MUSICBRAINZ_USER_AGENT",
+        "ELASTICSEARCH_URL"
       ]
     }
   }

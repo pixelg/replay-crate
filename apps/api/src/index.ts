@@ -6,8 +6,8 @@ import { createServer } from './server.ts'
 import { createSpotifyGateway } from './spotify/gateway.ts'
 import { startJobRunner } from './jobs/runner.ts'
 import { startSyncScheduler } from './sync/scheduler.ts'
-import { startSearchIndexer } from './search/indexer.ts'
-import { createSearchIndex } from './search/engine.ts'
+import { enqueueEverything, startSearchIndexer } from './search/indexer.ts'
+import { createSearchIndex, isElastic } from './search/engine.ts'
 
 const db = createDb(ENV.DATABASE_URL)
 const deps = {
@@ -16,7 +16,7 @@ const deps = {
   spotify: createSpotifyGateway(ENV.SPOTIFY_CLIENT_ID),
   redirectUri: ENV.SPOTIFY_REDIRECT_URI,
   cronSecret: ENV.CRON_SECRET,
-  search: createSearchIndex(db),
+  search: createSearchIndex(db, { elasticsearchUrl: ENV.ELASTICSEARCH_URL }),
 }
 
 const server = createServer(deps, { webDistDir: ENV.WEB_DIST_DIR })
@@ -34,4 +34,15 @@ if (ENV.SYNC_INTERVAL_MINUTES > 0) {
 // Background Spotify lookups (e.g. tracks named in an import), one at a time.
 startJobRunner(deps)
 // Keeps the search index in step with what syncs and imports write.
+if (isElastic(deps.search)) {
+  try {
+    const { created, stale } = await deps.search.ensureIndex()
+    // A brand-new index starts empty: queue the whole library for the indexer.
+    if (created) console.log(`Search: created ${deps.search.readAlias}; indexing ${await enqueueEverything(deps)} documents`)
+    if (stale) console.warn('Search: the Elasticsearch index layout changed; run `pnpm search:reindex` to rebuild it')
+  } catch (error) {
+    console.error(`Search: Elasticsearch at ${ENV.ELASTICSEARCH_URL} isn't answering (\`pnpm search:up\`?)`, error)
+  }
+}
+console.log(`Search: ${deps.search.engine}`)
 startSearchIndexer(deps)

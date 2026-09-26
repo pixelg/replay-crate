@@ -79,13 +79,21 @@ export type CoercedEnvSchema = {
    */
   LASTFM_API_KEY?: string;
   
+  /**
+   * **ELASTICSEARCH_URL**  
+   * Elasticsearch for search, e.g. http://127.0.0.1:9200 once `pnpm search:up` has started it.  
+   * Empty: search runs on Postgres (pg_trgm) instead. Both engines behave the same.  
+   * ![icon](data:image/svg+xml;utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%23808080%22%20d%3D%22M24%2021V9h-2v14h8v-2zm-4-6v-4c0-1.103-.897-2-2-2h-6v14h2v-6h1.48l2.335%206h2.145l-2.333-6H18c1.103%200%202-.897%202-2m-6-4h4v4h-4zM8%2023H4c-1.103%200-2-.897-2-2V9h2v12h4V9h2v12c0%201.103-.897%202-2%202%22%2F%3E%3C%2Fsvg%3E)   
+   */
+  ELASTICSEARCH_URL?: string;
+  
 };
 
-type _CoercedEnvSchema_609f9c31 = CoercedEnvSchema;
+type _CoercedEnvSchema_591cafbf = CoercedEnvSchema;
 
 declare module 'varlock/env' {
-  export interface TypedEnvSchema extends Readonly<_CoercedEnvSchema_609f9c31> {}
-  export interface PublicTypedEnvSchema extends Readonly<Pick<_CoercedEnvSchema_609f9c31, 'API_PORT' | 'SYNC_INTERVAL_MINUTES' | 'WEB_DIST_DIR' | 'MUSICBRAINZ_USER_AGENT' | 'SPOTIFY_CLIENT_ID' | 'SPOTIFY_REDIRECT_URI'>> {}
+  export interface TypedEnvSchema extends Readonly<_CoercedEnvSchema_591cafbf> {}
+  export interface PublicTypedEnvSchema extends Readonly<Pick<_CoercedEnvSchema_591cafbf, 'API_PORT' | 'SYNC_INTERVAL_MINUTES' | 'WEB_DIST_DIR' | 'MUSICBRAINZ_USER_AGENT' | 'SPOTIFY_CLIENT_ID' | 'SPOTIFY_REDIRECT_URI' | 'ELASTICSEARCH_URL'>> {}
 }
 
 
@@ -95,17 +103,17 @@ export type EnvSchemaAsStrings = {
       : (NonNullable<CoercedEnvSchema[Property]> extends boolean ? ('true' | 'false') : string)
 };
 
-type _EnvSchemaAsStrings_609f9c31 = EnvSchemaAsStrings;
+type _EnvSchemaAsStrings_591cafbf = EnvSchemaAsStrings;
 declare global {
 
   // add types for global import.meta.env
-  interface ImportMetaEnv extends _EnvSchemaAsStrings_609f9c31 {}
+  interface ImportMetaEnv extends _EnvSchemaAsStrings_591cafbf {}
   interface ImportMeta {
     readonly env: ImportMetaEnv;
   }
 
   // add types for global process.env
   namespace NodeJS {
-    interface ProcessEnv extends _EnvSchemaAsStrings_609f9c31 {}
+    interface ProcessEnv extends _EnvSchemaAsStrings_591cafbf {}
   }
 }

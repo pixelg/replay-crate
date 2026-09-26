@@ -7,12 +7,13 @@ A personal Spotify companion that remembers everything you play.
 - **Genres**: from Last.fm and MusicBrainz, since Spotify no longer provides them
 - **Playlists**: see play counts inside each playlist and which of your other playlists a track is on; build new playlists from your history
 - **Stats**: top tracks, artists, albums and genres over any time range
+- **Search**: everything in your library as you type (⌘K), typo-tolerant, with a small query language and facets, on Elasticsearch or plain Postgres
 
 Status and roadmap: [project board](https://github.com/users/pixelg/projects/4) · [milestones](https://github.com/pixelg/replay-crate/milestones)
 
 ## Stack
 
-React 19 · Vite · TypeScript · Tailwind CSS 4 · TanStack Router + Query · Base UI · Hono · Drizzle + Postgres (Docker locally, Neon when deployed) · varlock · Vitest · Storybook · pnpm workspaces + Turborepo · Node 24
+React 19 · Vite · TypeScript · Tailwind CSS 4 · TanStack Router + Query · Base UI · Hono · Drizzle + Postgres (Docker locally, Neon when deployed) · Elasticsearch + Kibana (optional) · varlock · Vitest · Storybook · pnpm workspaces + Turborepo · Node 24
 
 ## Getting started
 
@@ -96,6 +97,45 @@ The zip is read in your browser. Only each play's time, length and track id are 
 
 Spotify no longer offers batch lookups, so tracks new to Replay Crate are fetched one at a time in the background while the app runs. For a large export this can take hours. The import page shows progress, and imported plays appear in History and Stats as their tracks arrive.
 
+## Search
+
+Press **⌘K** (Ctrl+K) or **/** anywhere, or use the box at the top of the sidebar. Results come in as you type, grouped by type with the best match on top: tracks, artists, albums, playlists, and plays in your history. They're ranked by how well they match, then by how much you play and rate them. Enter opens a result, Shift+Enter plays it, Alt+Enter queues it, and ⌘Enter opens the full search page with facets.
+
+Plain words match the start of any word in a name, artist or album, and forgive a typo or two ("pete rok", "beyonse"). Filters narrow things down:
+
+| Filter | Example |
+|---|---|
+| `artist:` `album:` | `artist:"pete rock"` |
+| `in:` (on a playlist) / `from:` (played from) | `in:"road trip"` |
+| `rating:` `plays:` | `rating:>=4`, `plays:>10`, `rating:3..4` |
+| `year:` | `year:1994`, `year:1990..1995`, `year:90s` |
+| `type:` | `type:artist` (track, artist, album, playlist, play) |
+| `-` excludes | `-type:play` |
+
+### How it works
+
+```
+sync · import · rating · playlist edit
+        │
+        ▼
+    Postgres ── triggers ──► search_outbox ── indexer (in the API) ──► search engine ◄── GET /api/v1/search
+ (source of truth)            what changed      claim, rebuild docs       Elasticsearch,
+                                                from SQL, write           or Postgres pg_trgm
+```
+
+- **Postgres is the source of truth.** The search index is a projection of it, per user, with your own play counts and ratings folded in for ranking.
+- **Triggers feed an outbox.** Every change that could alter a search document is recorded in `search_outbox` by a database trigger, so nothing slips past: bulk imports, playlist resyncs, cascades, even edits made in `psql`. The API's indexer claims rows (`delete … for update skip locked returning`), rebuilds the affected documents from SQL, and retries failed batches with backoff.
+- **Two engines, one contract.** With `ELASTICSEARCH_URL` set, search runs on Elasticsearch (`search_as_you_type` fields, fuzzy matching, `function_score` ranking, aggregations for facets, and the phrase suggester for "did you mean"). Without it, it runs on Postgres (`pg_trgm` + `unaccent`). One test suite (`apps/api/src/search/contract.ts`) must pass on both; CI runs it against a real Elasticsearch.
+- **Zero-downtime rebuilds.** Elasticsearch reads go through the `rc-library` alias and writes through `rc-library-write`. `pnpm search:reindex` builds a fresh index behind the write alias while search keeps answering from the old one, then swaps the read alias atomically. Every write carries the time its document was built as an external version, so the live indexer and the rebuild can write at once and the newest data always wins.
+
+### Run it with Elasticsearch
+
+```bash
+pnpm search:up
+```
+
+That starts Elasticsearch 9 and Kibana on 127.0.0.1 (the `search` profile in `compose.yaml`; `pnpm db:up` alone doesn't). Then add `ELASTICSEARCH_URL=http://127.0.0.1:9200` to `.env.local` and restart `pnpm dev` or `pnpm serve`. On first start the API creates the index and indexes your whole library in the background. `pnpm search:reindex` rebuilds it any time; `pnpm search:down` stops the containers. Without Elasticsearch, search works the same on Postgres.
+
 ## Scripts
 
 | Command | What it does |
@@ -107,6 +147,8 @@ Spotify no longer offers batch lookups, so tracks new to Replay Crate are fetche
 | `pnpm build` | Production build of the web app |
 | `pnpm serve` | Built app + API + scheduled sync on http://127.0.0.1:4173 |
 | `pnpm storybook` | Component workshop at http://127.0.0.1:6006 |
+| `pnpm search:up` / `search:down` | Elasticsearch + Kibana in Docker (optional; see [Search](#search)) |
+| `pnpm search:reindex` | Rebuild the search index from Postgres |
 
 ## API
 
