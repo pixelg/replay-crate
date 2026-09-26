@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { ENV } from 'varlock/env'
 import { AppErrorBoundary } from './components/app-error-boundary.tsx'
 import { urlOnAppOrigin } from './lib/app-origin.ts'
+import { startThemeSync } from './lib/theme.ts'
 import { createAppRouter } from './router.ts'
 import './styles.css'
 
@@ -14,6 +15,7 @@ if (appUrl) window.location.replace(appUrl)
 else render()
 
 function render() {
+  startThemeSync()
   const queryClient = new QueryClient()
   const router = createAppRouter({ queryClient })
 

@@ -1,13 +1,15 @@
 import { CircleCheckIcon, InfoIcon, Loader2Icon, OctagonXIcon, TriangleAlertIcon } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
+import { useTheme } from '../../lib/theme.ts'
 
-// shadcn's sonner, adapted: the app follows the system colour scheme (no next-themes), and the
-// loading spinner respects reduced motion.
+// shadcn's sonner, adapted: it follows the app's own theme (src/lib/theme.ts, no next-themes), and
+// the loading spinner respects reduced motion.
 const Toaster = ({ ...props }: ToasterProps) => {
+  const { theme } = useTheme()
   return (
     <Sonner
-      theme="system"
+      theme={theme}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,

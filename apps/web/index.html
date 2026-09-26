@@ -6,8 +6,17 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#faf8f5" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#161412" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#faf8f5" />
+    <script>
+      // Theme before first paint, so a dark page never flashes light (see src/lib/theme.ts).
+      ;(function () {
+        var pref
+        try { pref = localStorage.getItem('rc:theme') } catch (e) {}
+        var theme = pref === 'light' || pref === 'dark' ? pref : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        document.documentElement.dataset.theme = theme
+        if (theme === 'dark') document.querySelector('meta[name="theme-color"]').setAttribute('content', '#161412')
+      })()
+    </script>
     <title>Replay Crate</title>
     <meta name="description" content="Every Spotify play, counted: your full listening history, play counts, playlists, stats and a player." />
     <!-- Link previews (site-wide: the app is a single page). URLs are absolute, from the app's origin. -->
