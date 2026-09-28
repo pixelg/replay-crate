@@ -1505,6 +1505,37 @@
           "queue"
         ]
       },
+      "ListedDevice": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Device"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "isAvailable": {
+                "type": "boolean",
+                "description": "Listed by Spotify now. Other devices were played on before; playback can be sent to them, but Spotify refuses until they have Spotify open."
+              },
+              "lastSeenAt": {
+                "type": "string",
+                "format": "date-time",
+                "example": "2026-09-21T12:00:00.000Z",
+                "description": "When the app last saw the device, in playback or the device list."
+              },
+              "rememberedId": {
+                "type": "integer",
+                "description": "The app's id for the device, to forget it with."
+              }
+            },
+            "required": [
+              "isAvailable",
+              "lastSeenAt",
+              "rememberedId"
+            ]
+          }
+        ]
+      },
       "SearchType": {
         "type": "string",
         "enum": [
@@ -5468,6 +5499,7 @@
         ],
         "operationId": "getPlayerDevices",
         "summary": "Devices you can play on",
+        "description": "The devices Spotify lists now (`isAvailable`), then the others you have played on, most recent first.",
         "security": [
           {
             "session": []
@@ -5487,7 +5519,7 @@
                     "devices": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Device"
+                        "$ref": "#/components/schemas/ListedDevice"
                       }
                     }
                   },
@@ -5574,6 +5606,82 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/player/devices/{id}": {
+      "delete": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "forgetPlayerDevice",
+        "summary": "Forget a device",
+        "description": "Takes a device you played on before off the list, until it's seen again.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "description": "The device's `rememberedId`."
+            },
+            "required": true,
+            "description": "The device's `rememberedId`.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Forgotten."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
                 }
               }
             }
@@ -6701,6 +6809,7 @@
         ],
         "operationId": "transferPlayback",
         "summary": "Move playback to a device",
+        "description": "Spotify only reaches devices it lists now: one played on before (`isAvailable: false`) fails with not_found until it has Spotify open.",
         "security": [
           {
             "session": []

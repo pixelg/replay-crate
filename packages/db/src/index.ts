@@ -8,6 +8,7 @@ export type {
   Play,
   PlayContext,
   Playlist,
+  PlayerDevice,
   PlaylistItem,
   Session,
   SyncGap,

@@ -69,6 +69,13 @@ export const devicesQueryOptions = (api: ApiClient) =>
     },
   })
 
+/** Forgets a device played on before (by its `rememberedId`), until it's seen again. */
+export async function forgetDevice(api: ApiClient, rememberedId: number): Promise<void> {
+  const endpoint = `DELETE /api/v1/player/devices/${rememberedId}`
+  const res = await send(endpoint, () => api.player.devices[':id'].$delete({ param: { id: String(rememberedId) } }))
+  if (!res.ok) throw await ApiError.fromResponse(res, endpoint)
+}
+
 /**
  * Where playback is now, from the last answer and when it arrived: Spotify reports the position
  * when asked, and it keeps moving while playing. Never past the item's end.

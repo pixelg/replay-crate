@@ -147,6 +147,12 @@ describe('responses match the spec', () => {
     ctx.player.deactivate()
     await call('GET', '/player')
     await call('PUT', '/player/play', {}, { uris: ['spotify:track:b'] })
+    // A device played on before, then gone from Spotify's list, then forgotten.
+    ctx.player.disconnect('phone')
+    const { devices } = await call('GET', '/player/devices')
+    const phone = { id: String(devices.find((d: { id: string }) => d.id === 'phone').rememberedId) }
+    await call('DELETE', '/player/devices/{id}', phone)
+    await call('DELETE', '/player/devices/{id}', phone)
     await call('DELETE', '/tracks/{id}/rating', { id: '4uLU6hMCjMI75M1A2tKUQC' })
     await call('POST', '/system/cron/poll', {}, undefined, { Authorization: `Bearer ${CRON_SECRET}` })
     await call('POST', '/auth/logout')

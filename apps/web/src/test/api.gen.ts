@@ -552,11 +552,34 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Devices you can play on */
+        /**
+         * Devices you can play on
+         * @description The devices Spotify lists now (`isAvailable`), then the others you have played on, most recent first.
+         */
         get: operations["getPlayerDevices"];
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/player/devices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Forget a device
+         * @description Takes a device you played on before off the list, until it's seen again.
+         */
+        delete: operations["forgetPlayerDevice"];
         options?: never;
         head?: never;
         patch?: never;
@@ -715,7 +738,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Move playback to a device */
+        /**
+         * Move playback to a device
+         * @description Spotify only reaches devices it lists now: one played on before (`isAvailable: false`) fails with not_found until it has Spotify open.
+         */
         put: operations["transferPlayback"];
         post?: never;
         delete?: never;
@@ -1225,6 +1251,18 @@ export interface components {
             currentlyPlaying: components["schemas"]["PlayerItem"];
             /** @description Up next: the user's queue, then the rest of the context. */
             queue: components["schemas"]["PlayerItem"][];
+        };
+        ListedDevice: components["schemas"]["Device"] & {
+            /** @description Listed by Spotify now. Other devices were played on before; playback can be sent to them, but Spotify refuses until they have Spotify open. */
+            isAvailable: boolean;
+            /**
+             * Format: date-time
+             * @description When the app last saw the device, in playback or the device list.
+             * @example 2026-09-21T12:00:00.000Z
+             */
+            lastSeenAt: string;
+            /** @description The app's id for the device, to forget it with. */
+            rememberedId: number;
         };
         /** @enum {string} */
         SearchType: "track" | "artist" | "album" | "playlist" | "play";
@@ -3448,7 +3486,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        devices: components["schemas"]["Device"][];
+                        devices: components["schemas"]["ListedDevice"][];
                     };
                 };
             };
@@ -3504,6 +3542,63 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedError"];
+                };
+            };
+        };
+    };
+    forgetPlayerDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The device's `rememberedId`. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forgotten. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
                 };
             };
         };

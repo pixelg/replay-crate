@@ -11,7 +11,8 @@ import { jsonBody, jsonResponse } from '../lib/schemas.ts'
 import { getAccessToken } from '../spotify/access-token.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
-import { Device, Playback, Queue, ratingsFor, toDevice, toItem, toPlayback } from './present.ts'
+import { forgetDevice, rememberDevices, rememberedDevices } from './devices.ts'
+import { ListedDevice, Playback, Queue, ratingsFor, toItem, toListedDevice, toPlayback, toRememberedDevice } from './present.ts'
 
 /** Scopes the player needs; users who connected before it existed lack them. */
 const PLAYER_SCOPES = ['user-read-playback-state', 'user-read-currently-playing', 'user-modify-playback-state']
@@ -74,7 +75,24 @@ const getPlayback = read(
   "The active device, the item and how far in, shuffle and repeat. The item's track is added to the catalog, so it can be linked and rated.",
 )
 const getQueue = read('/player/queue', 'getPlayerQueue', 'Up next', Queue)
-const getDevices = read('/player/devices', 'getPlayerDevices', 'Devices you can play on', z.object({ devices: z.array(Device) }))
+const getDevices = read(
+  '/player/devices',
+  'getPlayerDevices',
+  'Devices you can play on',
+  z.object({ devices: z.array(ListedDevice) }),
+  'The devices Spotify lists now (`isAvailable`), then the others you have played on, most recent first.',
+)
+const forget = createRoute({
+  method: 'delete',
+  path: '/player/devices/{id}',
+  tags: ['Player'],
+  operationId: 'forgetPlayerDevice',
+  summary: 'Forget a device',
+  description: "Takes a device you played on before off the list, until it's seen again.",
+  security: signedIn,
+  request: { params: z.object({ id: z.coerce.number().int().positive().openapi({ description: "The device's `rememberedId`." }) }) },
+  responses: { 204: { description: 'Forgotten.' }, ...errorResponses('invalid_request', 'unauthorized', 'not_found') },
+})
 
 const play = command(
   'put',
@@ -130,6 +148,7 @@ const transfer = command(
     deviceId: z.string().min(1),
     play: z.boolean().optional().openapi({ description: 'Start playing there; otherwise keep the current state.' }),
   }),
+  "Spotify only reaches devices it lists now: one played on before (`isAvailable: false`) fails with not_found until it has Spotify open.",
 )
 
 /** Maps what Spotify's player can refuse to our error codes; null for anything else. */
@@ -147,6 +166,7 @@ function playerErrorResponse(c: Context, error: unknown) {
 export function playerRoutes(deps: AppDeps) {
   const { db, spotify } = deps
   const auth = requireUser(deps)
+  const now = deps.now ?? (() => new Date())
 
   /**
    * Runs a Spotify call as the signed-in user: checks they granted the player scopes, gets a
@@ -172,6 +192,10 @@ export function playerRoutes(deps: AppDeps) {
         if (result.response) return result.response
         const state = result.value
         if (!state) return c.json({ playback: null }, 200)
+        // Remembering the device is a side job: it mustn't fail the poll everything else relies on.
+        await rememberDevices(db, c.var.user.id, [state.device], now()).catch((error: unknown) =>
+          console.error('[player] remembering the active device failed:', error),
+        )
 
         // New tracks join the catalog so the app can link and rate what's playing.
         const item = state.item
@@ -198,7 +222,23 @@ export function playerRoutes(deps: AppDeps) {
 
       .openapi({ ...getDevices, middleware: auth }, async (c) => {
         const result = await withSpotify(c, (token) => spotify.getDevices(token))
-        return result.response ?? c.json({ devices: result.value.map(toDevice) }, 200)
+        if (result.response) return result.response
+        const userId = c.var.user.id
+        // A poll recording the same device at the same moment can win a race for its id; a second
+        // pass sees its row.
+        const listed = await rememberDevices(db, userId, result.value, now()).catch(() =>
+          rememberDevices(db, userId, result.value, now()),
+        )
+        const available = new Set(listed.map((row) => row.id))
+        const others = (await rememberedDevices(db, userId)).filter((row) => !available.has(row.id))
+        return c.json(
+          { devices: [...result.value.map((device, i) => toListedDevice(device, listed[i]!)), ...others.map(toRememberedDevice)] },
+          200,
+        )
+      })
+      .openapi({ ...forget, middleware: auth }, async (c) => {
+        const forgotten = await forgetDevice(db, c.var.user.id, c.req.valid('param').id)
+        return forgotten ? c.body(null, 204) : c.json({ error: 'not_found' as const }, 404)
       })
 
       .openapi({ ...play, middleware: auth }, async (c) => {

@@ -95,6 +95,7 @@ export const handlers = {
     http.get('/api/v1/player', ({ response }) => response(200).json({ playback })),
     http.get('/api/v1/player/queue', ({ response }) => response(200).json(queue)),
     http.get('/api/v1/player/devices', ({ response }) => response(200).json({ devices })),
+    http.delete('/api/v1/player/devices/{id}', ({ response }) => response(204).empty()),
     ...(['/api/v1/player/play', '/api/v1/player/pause', '/api/v1/player/seek', '/api/v1/player/shuffle', '/api/v1/player/repeat', '/api/v1/player/volume', '/api/v1/player/device'] as const).map((path) =>
       http.put(path, ({ response }) => response(204).empty()),
     ),

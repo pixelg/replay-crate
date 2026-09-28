@@ -343,18 +343,36 @@ export const importDone: ImportStatus = {
 }
 
 // Player. The laptop is playing "Brass Monkey Business" from Late Night Crate, 1:21 in.
+// Three devices have Spotify open; two more were played on before.
+
+const laptop: Playback['device'] = {
+  id: 'laptop',
+  name: 'Studio Laptop',
+  type: 'Computer',
+  isActive: true,
+  isRestricted: false,
+  isPrivateSession: false,
+  volumePercent: 70,
+  supportsVolume: true,
+}
+
+/** What the player shows of a device Spotify doesn't list now. */
+const rememberedDevice = (rememberedId: number, id: string | null, name: string, type: string, lastSeenAt: string): Device => ({
+  id,
+  name,
+  type,
+  isActive: false,
+  isRestricted: false,
+  isPrivateSession: false,
+  volumePercent: null,
+  supportsVolume: false,
+  isAvailable: false,
+  lastSeenAt,
+  rememberedId,
+})
 
 export const devices: Device[] = [
-  {
-    id: 'laptop',
-    name: 'Studio Laptop',
-    type: 'Computer',
-    isActive: true,
-    isRestricted: false,
-    isPrivateSession: false,
-    volumePercent: 70,
-    supportsVolume: true,
-  },
+  { ...laptop, isAvailable: true, lastSeenAt: hoursAgo(0), rememberedId: 1 },
   {
     id: 'phone',
     name: 'Pixel Phone',
@@ -364,6 +382,9 @@ export const devices: Device[] = [
     isPrivateSession: false,
     volumePercent: 100,
     supportsVolume: false,
+    isAvailable: true,
+    lastSeenAt: hoursAgo(0),
+    rememberedId: 2,
   },
   {
     id: 'kitchen',
@@ -374,7 +395,13 @@ export const devices: Device[] = [
     isPrivateSession: false,
     volumePercent: 35,
     supportsVolume: true,
+    isAvailable: true,
+    lastSeenAt: hoursAgo(0),
+    rememberedId: 3,
   },
+  rememberedDevice(4, 'living-room', 'Living Room TV', 'TV', dayAt(2, 21)),
+  // Spotify can't address this one, so there's no trying it.
+  rememberedDevice(5, null, 'Car Stereo', 'Automobile', dayAt(12, 8)),
 ]
 
 const playerTrack = (id: string, name: string, artists: string[], album: string): PlayerItem => ({
@@ -392,7 +419,7 @@ const playerTrack = (id: string, name: string, artists: string[], album: string)
 export const nowPlaying = playerTrack('t1', 'Brass Monkey Business', ['The Loop Collective', 'MC Vinyl'], 'Dusty Grooves')
 
 export const playback: Playback = {
-  device: devices[0]!,
+  device: laptop,
   isPlaying: true,
   progressMs: 81_000,
   shuffle: false,
