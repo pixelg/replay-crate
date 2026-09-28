@@ -144,7 +144,7 @@ export function NowPlayingSection({
             <AudioLines aria-hidden className="size-4 motion-safe:animate-pulse" />
             Playing
           </span>
-          {track && <TrackRating track={track} className="hidden md:inline-flex" />}
+          {track && <TrackRating track={track} compactOnPhones />}
         </div>
         {track && !selecting ? (
           <TrackActions track={track} context={context} />
@@ -205,7 +205,7 @@ function PlayRow({ play, selection, playing }: { play: PlayItem; selection?: Pla
         <time dateTime={play.playedAt} className="text-xs text-muted-foreground tabular-nums">
           {time}
         </time>
-        <TrackRating track={track} className="hidden md:inline-flex" />
+        <TrackRating track={track} compactOnPhones />
       </div>
       {!selection && <TrackActions track={track} context={play.context} />}
     </div>

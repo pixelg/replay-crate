@@ -55,7 +55,7 @@ export function TrackLibraryList({
               </Link>
               <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
             </div>
-            <TrackRating track={track} className="hidden md:inline-flex" />
+            <TrackRating track={track} compactOnPhones />
             <div className="shrink-0 text-right text-xs text-muted-foreground tabular-nums">
               {playing ? (
                 <p className="flex items-center justify-end gap-1 text-primary">
