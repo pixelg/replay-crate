@@ -1,6 +1,6 @@
 import { schema } from '@replay-crate/db'
 import { SpotifyApiError } from '@replay-crate/spotify'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ReauthRequiredError } from '../spotify/access-token.ts'
 import { createTestContext, tokens, track } from '../testing.ts'
@@ -117,6 +117,13 @@ describe('player', () => {
     it('remembers the active device from playback', async () => {
       await get('')
       expect(await remembered()).toMatchObject([{ deviceId: 'laptop', name: 'Laptop', type: 'Computer', lastSeenAt: new Date('2026-09-21T12:00:00Z') }])
+    })
+
+    it("doesn't fail playback when remembering the device does", async () => {
+      await ctx.db.execute(sql`drop table player_devices`)
+      const res = await get('')
+      expect(res.status).toBe(200)
+      expect((await json(res)).playback).toMatchObject({ device: { id: 'laptop' } })
     })
 
     it('remembers every listed device, and marks them available', async () => {

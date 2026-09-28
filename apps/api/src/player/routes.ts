@@ -192,7 +192,10 @@ export function playerRoutes(deps: AppDeps) {
         if (result.response) return result.response
         const state = result.value
         if (!state) return c.json({ playback: null }, 200)
-        await rememberDevices(db, c.var.user.id, [state.device], now())
+        // Remembering the device is a side job: it mustn't fail the poll everything else relies on.
+        await rememberDevices(db, c.var.user.id, [state.device], now()).catch((error: unknown) =>
+          console.error('[player] remembering the active device failed:', error),
+        )
 
         // New tracks join the catalog so the app can link and rate what's playing.
         const item = state.item
@@ -221,7 +224,11 @@ export function playerRoutes(deps: AppDeps) {
         const result = await withSpotify(c, (token) => spotify.getDevices(token))
         if (result.response) return result.response
         const userId = c.var.user.id
-        const listed = await rememberDevices(db, userId, result.value, now())
+        // A poll recording the same device at the same moment can win a race for its id; a second
+        // pass sees its row.
+        const listed = await rememberDevices(db, userId, result.value, now()).catch(() =>
+          rememberDevices(db, userId, result.value, now()),
+        )
         const available = new Set(listed.map((row) => row.id))
         const others = (await rememberedDevices(db, userId)).filter((row) => !available.has(row.id))
         return c.json(
