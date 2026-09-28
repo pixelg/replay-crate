@@ -19,10 +19,18 @@ import { usePlayingTrackId } from '../../../lib/use-player.ts'
 const sorts = [
   { value: 'plays', label: 'Most played' },
   { value: 'last_played', label: 'Recently played' },
+  // Newest discoveries first; `firstPlayedOrders` offers the earliest first too.
+  { value: 'first_played', label: 'First played' },
   { value: 'name', label: 'A–Z' },
   { value: 'rating', label: 'Rating' },
 ] as const satisfies ReadonlyArray<{ value: TrackSort; label: string }>
-const isSort = (value: unknown): value is TrackSort => sorts.some((sort) => sort.value === value)
+const firstPlayedOrders = [
+  { value: 'first_played', label: 'Newest first' },
+  { value: 'first_played_oldest', label: 'Oldest first' },
+] as const satisfies ReadonlyArray<{ value: TrackSort; label: string }>
+const isSort = (value: unknown): value is TrackSort =>
+  sorts.some((sort) => sort.value === value) || value === 'first_played_oldest'
+const byFirstPlay = (sort: TrackSort) => sort === 'first_played' || sort === 'first_played_oldest'
 
 const ratingFilters = [
   { value: 'any', label: 'Any rating' },
@@ -147,7 +155,20 @@ function TracksPage() {
       {items.length || min ? (
         <div className="mb-4 flex flex-wrap gap-2 overflow-x-auto">
           {/* A new sort or filter starts again from page 1. */}
-          <Segmented label="Sort by" value={sort} onChange={(next) => void navigate({ search: (prev) => ({ ...prev, sort: next, page: undefined }) })} options={sorts} />
+          <Segmented
+            label="Sort by"
+            value={byFirstPlay(sort) ? 'first_played' : sort}
+            onChange={(next) => void navigate({ search: (prev) => ({ ...prev, sort: next, page: undefined }) })}
+            options={sorts}
+          />
+          {byFirstPlay(sort) && (
+            <Segmented
+              label="First played order"
+              value={sort}
+              onChange={(next) => void navigate({ search: (prev) => ({ ...prev, sort: next, page: undefined }) })}
+              options={firstPlayedOrders}
+            />
+          )}
           <Segmented<RatingFilter>
             label="Filter by rating"
             value={min ? (String(min) as RatingFilter) : 'any'}
@@ -168,6 +189,7 @@ function TracksPage() {
               items={items}
               selection={selected ? { selected, toggle } : undefined}
               playingTrackId={playingTrackId}
+              firstPlayedOnPhones={byFirstPlay(sort)}
             />
           </div>
           {loadMore && (

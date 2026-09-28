@@ -1497,6 +1497,53 @@ export const TracksSorts = meta.story({
   },
 })
 
+export const TracksFirstPlayed = meta.story({
+  args: { path: '/tracks' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    libraryRequests.mockClear()
+    msw.use(
+      http.get('/api/v1/tracks', ({ query, response }) => {
+        libraryRequests(query.get('sort'))
+        return response(200).json(libraryPage)
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    // Every row says when it was first played, whatever the sort.
+    const first = (await main.findAllByRole('listitem'))[0]!
+    await expect(within(first).getByText('Mar 2019')).toHaveAttribute('datetime', '2019-03-14T20:00:00.000Z')
+    await expect(first).toHaveTextContent(/12 plays\s*since Mar 2019/)
+    await userEvent.click(main.getByRole('button', { name: 'First played' }))
+    await waitFor(() => expect(libraryRequests).toHaveBeenLastCalledWith('first_played'))
+    await waitFor(() => expect(main.getByRole('button', { name: 'First played' })).toHaveAttribute('aria-pressed', 'true'))
+    // Newest finds first; the earliest ones are a click away.
+    const order = within(main.getByRole('group', { name: 'First played order' }))
+    await expect(order.getByRole('button', { name: 'Newest first' })).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(order.getByRole('button', { name: 'Oldest first' }))
+    await waitFor(() => expect(libraryRequests).toHaveBeenLastCalledWith('first_played_oldest'))
+    // Still the First played sort, just the other way round.
+    await expect(main.getByRole('button', { name: 'First played' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(main.queryByRole('group', { name: 'First played order' })).toBeVisible()
+  },
+})
+
+export const TracksFirstPlayedOnPhone = meta.story({
+  args: { path: '/tracks' },
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    const row = async () => (await main.findAllByRole('listitem'))[0]!
+    // Phones show only the play count, and the month of the first play when sorting by it.
+    await expect(within(await row()).getByText('Mar 2019')).not.toBeVisible()
+    await userEvent.click(main.getByRole('button', { name: 'First played' }))
+    await waitFor(async () => expect(within(await row()).getByText('Mar 2019')).toBeVisible())
+    // Five sorts scroll inside their row, never the page.
+    await expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth)
+  },
+})
+
 export const TracksLoadsMore = meta.story({
   // All: the whole library in one list, a page at a time.
   args: { path: '/tracks?size=all' },
