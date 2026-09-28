@@ -60,7 +60,7 @@ export function upNext(queue: PlayerItem[], playback: Pick<Playback, 'context' |
   return queue.slice(0, end)
 }
 
-export const devicesQueryOptions =(api: ApiClient) =>
+export const devicesQueryOptions = (api: ApiClient) =>
   queryOptions({
     queryKey: ['player', 'devices'],
     queryFn: async (): Promise<Device[]> => {
