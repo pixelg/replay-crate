@@ -25,6 +25,13 @@ const PLAYBACK_KEY = playbackQueryOptions(api).queryKey
  */
 const SETTLE_MS = [600, 2_500] as const
 
+/** A refused command's message goes after this long, if playback hasn't moved on before then. */
+export const REFUSAL_SHOWN_MS = 10_000
+
+/** Where and what is playing: once this changes, an earlier refusal is old news. */
+const situationOf = (playback: Playback | null | undefined) =>
+  playback ? `${playback.device.id}|${playback.item?.uri ?? ''}|${playback.isPlaying}` : 'none'
+
 /**
  * What Spotify is playing, polled every few seconds while music plays (less when idle, never
  * in a background tab), with the position ticking along locally in between.
@@ -97,6 +104,8 @@ export function useDevices({ enabled = true } = {}) {
  */
 export function usePlayerControls() {
   const queryClient = useQueryClient()
+  // What playback looked like when the last command was refused.
+  const refusedIn = useRef<string | null>(null)
   const lateLook = useRef<{ timer?: ReturnType<typeof setTimeout>; kinds: Set<PlayerCommand['kind']> }>({ kinds: new Set() })
   const mutation = useMutation({
     mutationKey: ['player', 'command'],
@@ -110,6 +119,7 @@ export function usePlayerControls() {
     },
     onError: (error, _command, context) => {
       if (context?.previous !== undefined) queryClient.setQueryData(PLAYBACK_KEY, context.previous)
+      refusedIn.current = situationOf(queryClient.getQueryData<Playback | null>(PLAYBACK_KEY))
       // A reconnect or re-auth banner may need to show now.
       if (isApiError(error) && (error.code === 'reauth_required' || error.code === 'missing_scopes')) {
         void queryClient.invalidateQueries({ queryKey: ['me'] })
@@ -134,6 +144,21 @@ export function usePlayerControls() {
       )
     },
   })
+
+  // A refusal explains a moment, not a lasting state: it goes once playback has moved on (music
+  // playing somewhere after "no active device", say), and after a while regardless.
+  // Read from the cache only: this hook runs in every track row, and mustn't poll from each.
+  const situation = useQuery({ ...playbackQueryOptions(api), enabled: false, select: situationOf }).data
+  const { error, reset } = mutation
+  useEffect(() => {
+    if (error && situation !== undefined && situation !== refusedIn.current) reset()
+  }, [error, situation, reset])
+  useEffect(() => {
+    if (!error) return
+    const timer = setTimeout(reset, REFUSAL_SHOWN_MS)
+    return () => clearTimeout(timer)
+  }, [error, reset])
+
   return {
     send: mutation.mutate,
     error: mutation.error,
