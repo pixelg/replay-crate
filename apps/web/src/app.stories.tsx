@@ -969,6 +969,35 @@ export const HistoryRowActions = meta.story({
   },
 })
 
+/** The chip under a row starts its album or playlist at that track, so Up next is the rest of it. */
+export const HistoryPlaysFromContext = meta.story({
+  beforeEach({ msw }) {
+    playerRequests.mockClear()
+    msw.use(http.put('/api/v1/player/play', async ({ request, response }) => {
+      playerRequests('play', await request.json())
+      return response(204).empty()
+    }))
+  },
+  play: async ({ canvas, userEvent }) => {
+    const today = await canvas.findByRole('region', { name: 'Today' })
+    await userEvent.click(within(today).getByRole('button', { name: 'Play Sunday Morning Static from Sunday Sessions' }))
+    await waitFor(() =>
+      expect(playerRequests).toHaveBeenCalledWith('play', { contextUri: 'spotify:album:a2', offset: { uri: 'spotify:track:t2' } }),
+    )
+    const toast = await screen.findByText('Playing “Sunday Morning Static” from Sunday Sessions')
+    await waitFor(() => expect(toast).toBeVisible())
+
+    // Liked Songs can't start at a given track, and a play from search has no context at all.
+    const main = within(canvas.getByRole('main'))
+    await expect(main.queryByRole('button', { name: /^Play A Very Long Track Title/ })).toBeNull()
+    await expect(main.queryByRole('button', { name: /^Play Searched And Played/ })).toBeNull()
+    // Now playing is already playing from its context: nothing to start there.
+    const nowPlaying = within(await main.findByRole('group', { name: 'Now playing' }))
+    await expect(nowPlaying.getByText('Late Night Crate')).toBeVisible()
+    await expect(nowPlaying.queryByRole('button', { name: /^Play .* from / })).toBeNull()
+  },
+})
+
 export const PlaylistRowHasTrackActions = meta.story({
   args: { path: '/playlists/p1' },
   play: async ({ canvas, userEvent }) => {
@@ -1008,8 +1037,9 @@ export const HistorySelectCreatesPlaylist = meta.story({
     const bar = await pick(canvas, userEvent, [/^Select Brass Monkey Business/, /^Select Sunday Morning Static/])
     await userEvent.click(canvas.getAllByRole('checkbox', { name: /^Select Brass Monkey Business/ })[1]!)
     await expect(bar.getByRole('status')).toHaveTextContent('2 tracks selected')
-    // Row menus make way for the checkboxes.
+    // Row menus and the chips' play buttons make way for the checkboxes.
     await expect(canvas.queryByRole('button', { name: /^Actions for/ })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: /^Play .* from / })).toBeNull()
 
     await userEvent.click(bar.getByRole('button', { name: 'Create playlist…' }))
     const dialog = within(await screen.findByRole('dialog', { name: 'Create playlist' }))
@@ -1242,6 +1272,12 @@ export const TrackPagePlaysAndQueues = meta.story({
     await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('queue', { uri: 'spotify:track:t1' }))
     // The buttons do what the ⋯ menu did, so there's no menu here.
     await expect(main.queryByRole('button', { name: /^Actions for/ })).toBeNull()
+
+    // Each place it was played from can start there.
+    await userEvent.click(main.getByRole('button', { name: 'Play Brass Monkey Business from Late Night Crate' }))
+    await waitFor(() =>
+      expect(playerRequests).toHaveBeenCalledWith('play', { contextUri: 'spotify:playlist:p1', offset: { uri: 'spotify:track:t1' } }),
+    )
   },
 })
 

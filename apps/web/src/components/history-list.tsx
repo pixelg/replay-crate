@@ -199,7 +199,7 @@ function PlayRow({ play, selection, playing }: { play: PlayItem; selection?: Pla
           {track.name}
         </Link>
         <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
-        {play.context && <ContextChip context={play.context} className="mt-1" />}
+        {play.context && <ContextChip context={play.context} track={selection ? undefined : track} className="mt-1" />}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1 self-start pt-0.5">
         <time dateTime={play.playedAt} className="text-xs text-muted-foreground tabular-nums">
