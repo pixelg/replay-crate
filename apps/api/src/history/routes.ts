@@ -1,11 +1,12 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import { schema } from '@replay-crate/db'
 import { SpotifyApiError } from '@replay-crate/spotify'
-import { and, count, desc, eq, isNull, lt } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
 import { ArtistRef, ContextRef, IsoDateTime, jsonResponse, Rating } from '../lib/schemas.ts'
+import { timeZone } from '../stats/ranges.ts'
 import { loadRatings } from '../tracks/ratings.ts'
 import { ReauthRequiredError } from '../spotify/access-token.ts'
 import { syncRecentlyPlayed } from '../sync/recently-played.ts'
@@ -41,12 +42,15 @@ const listPlays = createRoute({
   operationId: 'listPlays',
   summary: 'Play history',
   description:
-    'Newest first. Two ways to page: pass `nextCursor` back as `before` for the next page (infinite scroll), ' +
-    'or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`. Not both at once.',
+    'Newest first. Three ways to page, one at a time: pass `nextCursor` back as `before` for older plays (infinite ' +
+    'scroll); pass `after` for the plays just newer than a time, to scroll back up from a point in the past (still ' +
+    'listed newest first, and their `nextCursor` goes back in as `after` for newer ones still); or pass `offset` for ' +
+    'numbered pages, which also returns `total` and `olderPlayedAt`.',
   security: signedIn,
   request: {
     query: z.object({
       before: IsoDateTime.optional().openapi({ description: 'Only plays strictly older than this.' }),
+      after: IsoDateTime.optional().openapi({ description: 'Only plays strictly newer than this: the `limit` closest to it.' }),
       limit: z.coerce.number().int().min(1).max(100).default(50),
       offset: z.coerce.number().int().min(0).optional().openapi({ description: 'Plays to skip, for numbered pages.' }),
     }),
@@ -55,7 +59,9 @@ const listPlays = createRoute({
     200: jsonResponse(
       z.object({
         items: z.array(PlayItem),
-        nextCursor: IsoDateTime.nullable().openapi({ description: 'null on the last page.' }),
+        nextCursor: IsoDateTime.nullable().openapi({
+          description: 'Where the next page starts, in the direction paged (older, or newer with `after`); null on the last page.',
+        }),
         lastSyncedAt: IsoDateTime.nullable(),
         total: z.number().int().optional().openapi({ description: 'All of the user’s plays. With `offset` only.' }),
         olderPlayedAt: IsoDateTime.nullable().optional().openapi({
@@ -92,6 +98,37 @@ const sync = createRoute({
       'Synced, or skipped because the last sync was moments ago.',
     ),
     ...errorResponses('unauthorized', 'reauth_required', 'rate_limited'),
+  },
+})
+
+const getTimeline = createRoute({
+  method: 'get',
+  path: '/history/timeline',
+  tags: ['History'],
+  operationId: 'getHistoryTimeline',
+  summary: 'Plays per month',
+  description:
+    'How many plays each calendar month holds, newest first, for jumping around the history: a month is the plays ' +
+    '`before` the start of the next one. Months are counted in `tz` (pass the zone the history is shown in); months ' +
+    'without plays are left out.',
+  security: signedIn,
+  request: {
+    query: z.object({
+      tz: timeZone.default('UTC').openapi({ description: 'IANA time zone for month boundaries.', example: 'Europe/Berlin' }),
+    }),
+  },
+  responses: {
+    200: jsonResponse(
+      z.object({
+        months: z.array(
+          z
+            .object({ month: z.string().openapi({ description: 'YYYY-MM.', example: '2019-03' }), plays: z.number().int() })
+            .openapi('TimelineMonth'),
+        ),
+      }),
+      'Months with plays.',
+    ),
+    ...errorResponses('invalid_request', 'unauthorized'),
   },
 })
 
@@ -171,11 +208,35 @@ export function historyRoutes(deps: AppDeps) {
       )
     })
 
+    .openapi({ ...getTimeline, middleware: auth }, async (c) => {
+      const { tz } = c.req.valid('query')
+      // One grouped pass over the user's plays (about 0.1 s for 125k in PGlite). Grouping by the
+      // month's start rather than its text lets Postgres hash the groups instead of sorting every play.
+      const byMonth = db
+        .select({
+          start: sql<string>`date_trunc('month', ${plays.playedAt} at time zone ${tz})`.as('start'),
+          plays: count().as('plays'),
+        })
+        .from(plays)
+        .where(eq(plays.userId, c.var.user.id))
+        // By position: the expression carries a parameter, so repeating it wouldn't match.
+        .groupBy(sql`1`)
+        .as('by_month')
+      const months = await db
+        .select({ month: sql<string>`to_char(${byMonth.start}, 'YYYY-MM')`, plays: byMonth.plays })
+        .from(byMonth)
+        .orderBy(desc(byMonth.start))
+      return c.json({ months }, 200)
+    })
+
     .openapi({ ...listPlays, middleware: auth }, async (c) => {
       const user = c.var.user
-      const { before, limit, offset } = c.req.valid('query')
+      const { before, after, limit, offset } = c.req.valid('query')
       if (before !== undefined && offset !== undefined) {
         return c.json(invalidRequest({ issues: [{ path: ['offset'], message: 'Pass either before or offset, not both' }] }), 400)
+      }
+      if (after !== undefined && (before !== undefined || offset !== undefined)) {
+        return c.json(invalidRequest({ issues: [{ path: ['after'], message: 'Pass after on its own, not with before or offset' }] }), 400)
       }
       const mine = eq(plays.userId, user.id)
 
@@ -215,12 +276,20 @@ export function historyRoutes(deps: AppDeps) {
         .innerJoin(albums, eq(tracks.albumId, albums.id))
         .leftJoin(contexts, eq(plays.contextUri, contexts.uri))
         .$dynamic()
+      // With `after`, the plays closest to it are the oldest of the newer ones: fetch upwards, list newest first.
       const rows = await (window ? query.innerJoin(window, eq(plays.playedAt, window.playedAt)) : query)
-        .where(and(mine, before ? lt(plays.playedAt, new Date(before)) : undefined))
-        .orderBy(desc(plays.playedAt))
+        .where(
+          and(
+            mine,
+            before ? lt(plays.playedAt, new Date(before)) : undefined,
+            after ? gt(plays.playedAt, new Date(after)) : undefined,
+          ),
+        )
+        .orderBy(after ? asc(plays.playedAt) : desc(plays.playedAt))
         .limit(limit + 1)
 
-      const page = rows.slice(0, limit)
+      const page = after ? rows.slice(0, limit).reverse() : rows.slice(0, limit)
+      const more = rows.length > limit
       const artistsByTrack = await loadTrackArtists(
         db,
         page.map((row) => row.trackId),
@@ -248,7 +317,7 @@ export function historyRoutes(deps: AppDeps) {
               rating: ratings.get(row.trackId) ?? null,
             },
           })),
-          nextCursor: rows.length > limit ? page.at(-1)!.playedAt.toISOString() : null,
+          nextCursor: more ? (after ? page[0]! : page.at(-1)!).playedAt.toISOString() : null,
           lastSyncedAt: user.lastSyncedAt?.toISOString() ?? null,
           ...(offset !== undefined && {
             // plays.track_id is a foreign key, so the joins above drop nothing: this counts the same rows.

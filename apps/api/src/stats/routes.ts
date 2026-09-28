@@ -1,15 +1,22 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
-import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
+import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
 import { jsonResponse, Rating } from '../lib/schemas.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { overview } from './overview.ts'
-import { range, timeZone } from './ranges.ts'
+import { period, range, timeZone, type Range, type Span } from './ranges.ts'
 import { spotifyTop } from './spotify-top.ts'
 import { top } from './top.ts'
 
-const Range = range.openapi('StatsRange', { description: 'A rolling window ending now.' })
+const Range = range.openapi('StatsRange', { description: 'A rolling window ending now. `30d` unless `period` is given.' })
+const Period = period.openapi('StatsPeriod', {
+  description: 'A calendar year (`2019`) or month (`2019-03`), in local days of `tz`. Not with `range`.',
+  example: '2019-03',
+})
+const Tz = timeZone.default('UTC').openapi({ description: 'IANA time zone for day boundaries.', example: 'America/Los_Angeles' })
+/** Echoes what the numbers cover: the query's `range` (or the default) or its `period`. */
+const Scope = { range: Range.optional(), period: Period.optional() }
 
 const Listening = z.object({ plays: z.number().int(), minutes: z.number().int() }).openapi('Listening')
 
@@ -21,19 +28,17 @@ const getOverview = createRoute({
   summary: 'Totals and listening over time',
   description:
     "Each point splits plays into new tracks (a track's first-ever play) and replays, and by artist: the " +
-    "range's top 5 artists by plays (first-credited artist) and everyone else, in plays and minutes. Ranges over 90 days " +
-    "are bucketed by week, shorter ones by day, in the user's time zone; empty buckets are zeros.",
+    "span's top 5 artists by plays (first-credited artist) and everyone else, in plays and minutes. Spans over 90 days " +
+    "(a year, all time) are bucketed by week, shorter ones (a month) by day, in the user's time zone; empty buckets are " +
+    'zeros. A period still going ends at today.',
   security: signedIn,
   request: {
-    query: z.object({
-      range: Range.default('30d'),
-      tz: timeZone.default('UTC').openapi({ description: 'IANA time zone for day boundaries.', example: 'America/Los_Angeles' }),
-    }),
+    query: z.object({ ...Scope, tz: Tz }),
   },
   responses: {
     200: jsonResponse(
       z.object({
-        range: Range,
+        ...Scope,
         tz: z.string(),
         bucket: z.enum(['day', 'week']),
         totals: z.object({
@@ -45,7 +50,7 @@ const getOverview = createRoute({
         }),
         artists: z
           .array(z.object({ id: z.string(), name: z.string(), ...Listening.shape }))
-          .openapi({ description: "The range's top artists by plays (not time), most first." }),
+          .openapi({ description: "The span's top artists by plays (not time), most first." }),
         series: z.array(
           z.object({
             date: z.string().openapi({ description: 'Bucket start, YYYY-MM-DD.' }),
@@ -56,7 +61,7 @@ const getOverview = createRoute({
             others: Listening.openapi({ description: 'Everyone else.' }),
           }),
         ),
-        openGaps: z.number().int().openapi({ description: 'Unfilled history gaps in the range.' }),
+        openGaps: z.number().int().openapi({ description: 'Unfilled history gaps reaching into the span.' }),
       }),
       'The overview.',
     ),
@@ -66,7 +71,8 @@ const getOverview = createRoute({
 
 const TopQuery = z.object({
   type: z.enum(['tracks', 'artists', 'albums']).default('tracks'),
-  range: Range.default('30d'),
+  ...Scope,
+  tz: Tz,
   metric: z.enum(['plays', 'minutes']).default('plays'),
   limit: z.coerce.number().int().min(1).max(50).default(10),
 })
@@ -77,7 +83,9 @@ const getTop = createRoute({
   tags: ['Stats'],
   operationId: 'getStatsTop',
   summary: 'Most played tracks, artists or albums',
-  description: 'Ranked by play count or listening time. Plays without a known duration count the track length.',
+  description:
+    'Ranked by play count or listening time, over a rolling `range` or a calendar `period`. Plays without a known ' +
+    'duration count the track length.',
   security: signedIn,
   request: { query: TopQuery },
   responses: {
@@ -117,7 +125,9 @@ const getSpotifyTop = createRoute({
   tags: ['Stats'],
   operationId: 'getSpotifyTop',
   summary: "Spotify's own top tracks or artists",
-  description: "Spotify's ranking, next to the plays Replay Crate has recorded for each, for comparison.",
+  description:
+    "Spotify's ranking, next to the plays Replay Crate has recorded for each (all time), for comparison. Spotify only " +
+    'offers its own fixed windows: there is no range or period here.',
   security: signedIn,
   request: { query: SpotifyTopQuery },
   responses: {
@@ -142,20 +152,31 @@ const getSpotifyTop = createRoute({
   },
 })
 
+/** What a query covers: its period, or its rolling range (30 days by default). Null when it names both. */
+function spanOf({ range, period }: { range?: Range; period?: string }): Span | null {
+  if (range !== undefined && period !== undefined) return null
+  return period === undefined ? { range: range ?? '30d' } : { period }
+}
+const bothGiven = () => invalidRequest({ issues: [{ path: ['period'], message: 'Pass either range or period, not both' }] })
+
 export function statsRoutes(deps: AppDeps) {
   const auth = requireUser(deps)
   const now = deps.now ?? (() => new Date())
 
   return createRouter()
     .openapi({ ...getOverview, middleware: auth }, async (c) => {
-      const { range: r, tz } = c.req.valid('query')
-      return c.json(await overview(deps.db, c.var.user.id, { range: r, tz, now: now() }), 200)
+      const query = c.req.valid('query')
+      const span = spanOf(query)
+      if (!span) return c.json(bothGiven(), 400)
+      return c.json(await overview(deps.db, c.var.user.id, { span, tz: query.tz, now: now() }), 200)
     })
 
     .openapi({ ...getTop, middleware: auth }, async (c) => {
-      const query = c.req.valid('query')
-      const items = await top(deps.db, c.var.user.id, { ...query, now: now() })
-      return c.json({ ...query, items }, 200)
+      const { type, range, period, tz, metric, limit } = c.req.valid('query')
+      const span = spanOf({ range, period })
+      if (!span) return c.json(bothGiven(), 400)
+      const items = await top(deps.db, c.var.user.id, { type, span, tz, metric, limit, now: now() })
+      return c.json({ type, ...span, tz, metric, limit, items }, 200)
     })
 
     .openapi({ ...getSpotifyTop, middleware: auth }, async (c) => {

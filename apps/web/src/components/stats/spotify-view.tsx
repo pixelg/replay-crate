@@ -13,13 +13,19 @@ const timeRanges = [
   { value: 'long_term', label: 'About a year' },
 ] as const satisfies ReadonlyArray<{ value: SpotifyTimeRange; label: string }>
 
-/** Spotify's own ranking of the user's top tracks/artists, with the plays we've recorded. */
+/**
+ * Spotify's own ranking of the user's top tracks/artists, with the plays we've recorded. It has
+ * Spotify's fixed windows, whatever the rest of the page shows.
+ */
 export function SpotifyView({
   top,
+  period,
   onTypeChange,
   onTimeRangeChange,
 }: {
   top: SpotifyTop
+  /** The year or month the rest of the page shows ("2019", "March 2019"), which this can't follow. */
+  period?: string
   onTypeChange: (type: 'tracks' | 'artists') => void
   onTimeRangeChange: (timeRange: SpotifyTimeRange) => void
 }) {
@@ -27,7 +33,12 @@ export function SpotifyView({
     <Card>
       <CardHeader>
         <CardTitle>Spotify's view</CardTitle>
-        <CardDescription>How Spotify ranks your top {top.type}, next to the plays Replay Crate has recorded.</CardDescription>
+        <CardDescription>
+          How Spotify ranks your top {top.type}, next to the plays Replay Crate has recorded.
+          {period && (
+            <span className="mt-1 block text-xs">Spotify only shares its own recent windows, so this isn't for {period}.</span>
+          )}
+        </CardDescription>
         <CardAction className="flex flex-wrap justify-end gap-2">
           <ToggleGroup
             aria-label="Spotify top"

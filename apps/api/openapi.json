@@ -295,6 +295,23 @@
           "detectedAt"
         ]
       },
+      "TimelineMonth": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "description": "YYYY-MM.",
+            "example": "2019-03"
+          },
+          "plays": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "plays"
+        ]
+      },
       "PlayItem": {
         "type": "object",
         "properties": {
@@ -922,7 +939,13 @@
           "1y",
           "all"
         ],
-        "description": "A rolling window ending now."
+        "description": "A rolling window ending now. `30d` unless `period` is given."
+      },
+      "StatsPeriod": {
+        "type": "string",
+        "pattern": "^\\d{4}(-(0[1-9]|1[0-2]))?$",
+        "description": "A calendar year (`2019`) or month (`2019-03`), in local days of `tz`. Not with `range`.",
+        "example": "2019-03"
       },
       "Listening": {
         "type": "object",
@@ -2509,6 +2532,91 @@
         }
       }
     },
+    "/api/v1/history/timeline": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "operationId": "getHistoryTimeline",
+        "summary": "Plays per month",
+        "description": "How many plays each calendar month holds, newest first, for jumping around the history: a month is the plays `before` the start of the next one. Months are counted in `tz` (pass the zone the history is shown in); months without plays are left out.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "default": "UTC",
+              "description": "IANA time zone for month boundaries.",
+              "example": "Europe/Berlin"
+            },
+            "required": false,
+            "description": "IANA time zone for month boundaries.",
+            "name": "tz",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Months with plays.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "months": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TimelineMonth"
+                      }
+                    }
+                  },
+                  "required": [
+                    "months"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/history/plays": {
       "get": {
         "tags": [
@@ -2516,7 +2624,7 @@
         ],
         "operationId": "listPlays",
         "summary": "Play history",
-        "description": "Newest first. Two ways to page: pass `nextCursor` back as `before` for the next page (infinite scroll), or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`. Not both at once.",
+        "description": "Newest first. Three ways to page, one at a time: pass `nextCursor` back as `before` for older plays (infinite scroll); pass `after` for the plays just newer than a time, to scroll back up from a point in the past (still listed newest first, and their `nextCursor` goes back in as `after` for newer ones still); or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`.",
         "security": [
           {
             "session": []
@@ -2536,6 +2644,18 @@
             "required": false,
             "description": "Only plays strictly older than this.",
             "name": "before",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-09-21T12:00:00.000Z",
+              "description": "Only plays strictly newer than this: the `limit` closest to it."
+            },
+            "required": false,
+            "description": "Only plays strictly newer than this: the `limit` closest to it.",
+            "name": "after",
             "in": "query"
           },
           {
@@ -2585,7 +2705,7 @@
                       ],
                       "format": "date-time",
                       "example": "2026-09-21T12:00:00.000Z",
-                      "description": "null on the last page."
+                      "description": "Where the next page starts, in the direction paged (older, or newer with `after`); null on the last page."
                     },
                     "lastSyncedAt": {
                       "type": [
@@ -4294,7 +4414,7 @@
         ],
         "operationId": "getStatsOverview",
         "summary": "Totals and listening over time",
-        "description": "Each point splits plays into new tracks (a track's first-ever play) and replays, and by artist: the range's top 5 artists by plays (first-credited artist) and everyone else, in plays and minutes. Ranges over 90 days are bucketed by week, shorter ones by day, in the user's time zone; empty buckets are zeros.",
+        "description": "Each point splits plays into new tracks (a track's first-ever play) and replays, and by artist: the span's top 5 artists by plays (first-credited artist) and everyone else, in plays and minutes. Spans over 90 days (a year, all time) are bucketed by week, shorter ones (a month) by day, in the user's time zone; empty buckets are zeros. A period still going ends at today.",
         "security": [
           {
             "session": []
@@ -4309,8 +4429,17 @@
               "$ref": "#/components/schemas/StatsRange"
             },
             "required": false,
-            "description": "A rolling window ending now.",
+            "description": "A rolling window ending now. `30d` unless `period` is given.",
             "name": "range",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/StatsPeriod"
+            },
+            "required": false,
+            "description": "A calendar year (`2019`) or month (`2019-03`), in local days of `tz`. Not with `range`.",
+            "name": "period",
             "in": "query"
           },
           {
@@ -4336,6 +4465,9 @@
                   "properties": {
                     "range": {
                       "$ref": "#/components/schemas/StatsRange"
+                    },
+                    "period": {
+                      "$ref": "#/components/schemas/StatsPeriod"
                     },
                     "tz": {
                       "type": "string"
@@ -4399,7 +4531,7 @@
                           "minutes"
                         ]
                       },
-                      "description": "The range's top artists by plays (not time), most first."
+                      "description": "The span's top artists by plays (not time), most first."
                     },
                     "series": {
                       "type": "array",
@@ -4449,11 +4581,10 @@
                     },
                     "openGaps": {
                       "type": "integer",
-                      "description": "Unfilled history gaps in the range."
+                      "description": "Unfilled history gaps reaching into the span."
                     }
                   },
                   "required": [
-                    "range",
                     "tz",
                     "bucket",
                     "totals",
@@ -4505,7 +4636,7 @@
         ],
         "operationId": "getStatsTop",
         "summary": "Most played tracks, artists or albums",
-        "description": "Ranked by play count or listening time. Plays without a known duration count the track length.",
+        "description": "Ranked by play count or listening time, over a rolling `range` or a calendar `period`. Plays without a known duration count the track length.",
         "security": [
           {
             "session": []
@@ -4534,8 +4665,29 @@
               "$ref": "#/components/schemas/StatsRange"
             },
             "required": false,
-            "description": "A rolling window ending now.",
+            "description": "A rolling window ending now. `30d` unless `period` is given.",
             "name": "range",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/StatsPeriod"
+            },
+            "required": false,
+            "description": "A calendar year (`2019`) or month (`2019-03`), in local days of `tz`. Not with `range`.",
+            "name": "period",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "default": "UTC",
+              "description": "IANA time zone for day boundaries.",
+              "example": "America/Los_Angeles"
+            },
+            "required": false,
+            "description": "IANA time zone for day boundaries.",
+            "name": "tz",
             "in": "query"
           },
           {
@@ -4582,6 +4734,15 @@
                     },
                     "range": {
                       "$ref": "#/components/schemas/StatsRange"
+                    },
+                    "period": {
+                      "$ref": "#/components/schemas/StatsPeriod"
+                    },
+                    "tz": {
+                      "type": "string",
+                      "default": "UTC",
+                      "description": "IANA time zone for day boundaries.",
+                      "example": "America/Los_Angeles"
                     },
                     "metric": {
                       "type": "string",
@@ -4651,7 +4812,7 @@
         ],
         "operationId": "getSpotifyTop",
         "summary": "Spotify's own top tracks or artists",
-        "description": "Spotify's ranking, next to the plays Replay Crate has recorded for each, for comparison.",
+        "description": "Spotify's ranking, next to the plays Replay Crate has recorded for each (all time), for comparison. Spotify only offers its own fixed windows: there is no range or period here.",
         "security": [
           {
             "session": []

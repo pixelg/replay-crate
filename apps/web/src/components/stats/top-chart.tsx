@@ -44,12 +44,16 @@ function NameLabel(props: { x?: number | string; y?: number | string; value?: un
  */
 export function TopChart({
   top,
-  rangeLabel,
+  scope,
+  emptyText = 'Nothing played in this range yet.',
   onTypeChange,
   onMetricChange,
 }: {
   top: StatsTop
-  rangeLabel: string
+  /** What the ranking covers, to follow "By play count, …": "last 30 days", "in March 2019". */
+  scope: string
+  /** What to say when nothing was played in it. */
+  emptyText?: string
   onTypeChange: (type: TopType) => void
   onMetricChange: (metric: TopMetric) => void
 }) {
@@ -61,7 +65,7 @@ export function TopChart({
       <CardHeader>
         <CardTitle>Top {top.type}</CardTitle>
         <CardDescription>
-          By {top.metric === 'plays' ? 'play count' : 'listening time'}, {rangeLabel.toLowerCase()}
+          By {top.metric === 'plays' ? 'play count' : 'listening time'}, {scope}
         </CardDescription>
         <CardAction className="flex flex-wrap justify-end gap-2">
           <ToggleGroup
@@ -96,7 +100,7 @@ export function TopChart({
       </CardHeader>
       <CardContent>
         {data.length === 0 ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">Nothing played in this range yet.</p>
+          <p className="py-10 text-center text-sm text-muted-foreground">{emptyText}</p>
         ) : (
           <ChartContainer config={chartConfig} className="aspect-auto w-full" style={{ height: data.length * ROW_HEIGHT + 8 }}>
             <BarChart data={data} layout="vertical" margin={{ top: 16, right: 40 }} barSize={BAR_SIZE} accessibilityLayer>

@@ -1,8 +1,8 @@
 import { schema, type Db } from '@replay-crate/db'
-import { and, asc, count, countDistinct, desc, eq, gte, inArray, sql, sum } from 'drizzle-orm'
+import { and, asc, count, countDistinct, desc, eq, gte, inArray, lt, sql, sum } from 'drizzle-orm'
 import { loadTrackArtists } from '../history/queries.ts'
 import { loadRatings } from '../tracks/ratings.ts'
-import { rangeStart, type Range } from './ranges.ts'
+import { periodDays, rangeStart, type Span } from './ranges.ts'
 
 const { albumArtists, albums, artists, plays, trackArtists, tracks } = schema
 
@@ -19,14 +19,34 @@ export type TopItem = {
   rating: number | null
 }
 
-/** Most played tracks, artists or albums in a rolling range, by play count or listening time. */
+/**
+ * Most played tracks, artists or albums in a rolling range or a calendar year or month (local
+ * days in `tz`), by play count or listening time.
+ */
 export async function top(
   db: Db,
   userId: string,
-  { type, range, metric, limit, now }: { type: TopType; range: Range; metric: TopMetric; limit: number; now: Date },
+  {
+    type,
+    span,
+    tz,
+    metric,
+    limit,
+    now,
+  }: { type: TopType; span: Span; tz: string; metric: TopMetric; limit: number; now: Date },
 ): Promise<TopItem[]> {
-  const since = rangeStart(range, now)
-  const inRange = and(eq(plays.userId, userId), since ? gte(plays.playedAt, since) : undefined)
+  let inRange
+  if ('period' in span) {
+    const { from, to } = periodDays(span.period)
+    inRange = and(
+      eq(plays.userId, userId),
+      gte(plays.playedAt, sql`(${from}::timestamp at time zone ${tz})`),
+      lt(plays.playedAt, sql`(${to}::timestamp at time zone ${tz})`),
+    )
+  } else {
+    const since = rangeStart(span.range, now)
+    inRange = and(eq(plays.userId, userId), since ? gte(plays.playedAt, since) : undefined)
+  }
   const playCount = count()
   const ms = sum(sql`coalesce(${plays.msPlayed}, ${tracks.durationMs})`).mapWith(Number)
   const [first, second] = metric === 'plays' ? [playCount, ms] : [ms, playCount]

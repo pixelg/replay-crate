@@ -13,6 +13,8 @@ export type ApiClient = ReturnType<typeof hc<AppType>>['api']['v1']
 export type PlaysPage = InferResponseType<ApiClient['history']['plays']['$get'], 200>
 export type PlayItem = PlaysPage['items'][number]
 export type PlayContext = NonNullable<PlayItem['context']>
+export type HistoryTimeline = InferResponseType<ApiClient['history']['timeline']['$get'], 200>
+export type TimelineMonth = HistoryTimeline['months'][number]
 export type TrackDetail = InferResponseType<ApiClient['tracks'][':id']['$get'], 200>
 export type LibraryPage = InferResponseType<ApiClient['tracks']['$get'], 200>
 export type LibraryTrack = LibraryPage['items'][number]
@@ -76,20 +78,44 @@ export async function logout(api: ApiClient): Promise<void> {
   if (!res.ok) throw await ApiError.fromResponse(res, endpoint)
 }
 
+/** Where a page of plays starts: older than a time, newer than one, or (null) from the newest play. */
+export type PlaysCursor = { before: string } | { after: string } | null
+
 /**
- * Newest-first play history; each page's `nextCursor` fetches older plays. The "All" view.
- * Every plays query starts with `['plays']`, so invalidating that refreshes both views.
+ * Newest-first play history; each page's `nextCursor` fetches older plays. The "All" view, and with
+ * `from`, the view of the past that a timeline jump opens: plays before `from`, plus newer ones page
+ * by page above them (`fetchPreviousPage`), back up to the present.
+ * Every plays query starts with `['plays']`, so invalidating that refreshes every view.
  */
-export const playsInfiniteQueryOptions = (api: ApiClient) =>
+export const playsInfiniteQueryOptions = (api: ApiClient, from?: string) =>
   infiniteQueryOptions({
-    queryKey: ['plays', 'infinite'],
+    queryKey: ['plays', 'infinite', from ?? null],
     queryFn: async ({ pageParam }): Promise<PlaysPage> => {
       const endpoint = 'GET /api/v1/history/plays'
-      const res = await send(endpoint, () => api.history.plays.$get({ query: pageParam ? { before: pageParam } : {} }))
+      const res = await send(endpoint, () => api.history.plays.$get({ query: pageParam ?? {} }))
       return expectOk(res, endpoint)
     },
-    initialPageParam: null as string | null,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    initialPageParam: (from ? { before: from } : null) as PlaysCursor,
+    // The last page always went older: newer pages only ever go in front.
+    getNextPageParam: (lastPage): PlaysCursor | undefined => (lastPage.nextCursor ? { before: lastPage.nextCursor } : undefined),
+    getPreviousPageParam: (firstPage, _pages, firstPageParam): PlaysCursor | undefined => {
+      if (firstPageParam && 'after' in firstPageParam) return firstPage.nextCursor ? { after: firstPage.nextCursor } : undefined
+      // The page the jump opened. Nothing is newer than the newest play, or than a time still to come.
+      if (!from || Date.parse(from) > Date.now()) return undefined
+      const newest = firstPage.items[0]?.playedAt
+      // `after` is strict, like `before`: from just before `from` when the page is empty, so a play at `from` shows.
+      return { after: newest ?? new Date(Date.parse(from) - 1).toISOString() }
+    },
+  })
+
+/** Plays per calendar month in `tz`, newest first: the History timeline. */
+export const timelineQueryOptions = (api: ApiClient, tz: string) =>
+  queryOptions({
+    queryKey: ['plays', 'timeline', tz],
+    queryFn: async (): Promise<HistoryTimeline> => {
+      const endpoint = 'GET /api/v1/history/timeline'
+      return expectOk(await send(endpoint, () => api.history.timeline.$get({ query: { tz } })), endpoint)
+    },
   })
 
 /**
@@ -255,19 +281,22 @@ export type StatsTopItem = StatsTop['items'][number]
 export type SpotifyTop = InferResponseType<ApiClient['stats']['spotify-top']['$get'], 200>
 export type SpotifyTopItem = SpotifyTop['items'][number]
 
+/** What stats cover: a rolling window ending now, or a calendar year (`2019`) or month (`2019-03`). */
+export type StatsScope = { range: StatsRange } | { period: string }
+
 /** Totals + the "listening over time" series, bucketed in the viewer's time zone. */
-export const statsOverviewQueryOptions = (api: ApiClient, range: StatsRange, tz: string) =>
+export const statsOverviewQueryOptions = (api: ApiClient, scope: StatsScope, tz: string) =>
   queryOptions({
-    queryKey: ['stats', 'overview', range, tz],
+    queryKey: ['stats', 'overview', scope, tz],
     queryFn: async (): Promise<StatsOverview> => {
       const endpoint = 'GET /api/v1/stats/overview'
-      return expectOk(await send(endpoint, () => api.stats.overview.$get({ query: { range, tz } })), endpoint)
+      return expectOk(await send(endpoint, () => api.stats.overview.$get({ query: { ...scope, tz } })), endpoint)
     },
   })
 
 export const statsTopQueryOptions = (
   api: ApiClient,
-  query: { type: 'tracks' | 'artists' | 'albums'; range: StatsRange; metric: 'plays' | 'minutes' },
+  query: StatsScope & { type: 'tracks' | 'artists' | 'albums'; metric: 'plays' | 'minutes'; tz: string },
 ) =>
   queryOptions({
     queryKey: ['stats', 'top', query],

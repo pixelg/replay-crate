@@ -1,6 +1,6 @@
 import { schema, type Db } from '@replay-crate/db'
-import { and, count, countDistinct, eq, gte, inArray, isNull, min, sql, sum } from 'drizzle-orm'
-import { addDays, localDay, RANGE_DAYS, weekStart, type Range } from './ranges.ts'
+import { and, count, countDistinct, eq, gte, inArray, isNull, lt, min, sql, sum } from 'drizzle-orm'
+import { addDays, localDay, periodDays, RANGE_DAYS, weekStart, type Span } from './ranges.ts'
 
 const { artists, plays, syncGaps, trackArtists, tracks } = schema
 
@@ -23,27 +23,40 @@ export type OverviewPoint = {
 export type OverviewArtist = { id: string; name: string } & Listening
 
 /**
- * Totals and a "listening over time" series for a range, in the user's time zone. Each
- * point splits plays into new tracks (a track's first-ever play) and replays, and by artist:
- * the range's top artists and everyone else. Short ranges are bucketed by day, a year or more
- * by week; empty buckets are filled with zeros.
+ * Totals and a "listening over time" series for a rolling range or a calendar year or month, in
+ * the user's time zone. Each point splits plays into new tracks (a track's first-ever play) and
+ * replays, and by artist: the span's top artists and everyone else. Up to 90 days are bucketed by
+ * day, longer spans (a year, all time) by week; empty buckets are filled with zeros.
  *
  * Artists count by their first credit, so a play is counted once. The top artists are picked by
  * plays, not time: a long track doesn't outrank a short one; time is there to chart, not to rank.
  */
-export async function overview(db: Db, userId: string, { range, tz, now }: { range: Range; tz: string; now: Date }) {
-  const days = RANGE_DAYS[range]
-  const bucket: Bucket = days === null || days > 90 ? 'week' : 'day'
+export async function overview(db: Db, userId: string, { span, tz, now }: { span: Span; tz: string; now: Date }) {
   const today = localDay(now, tz)
+  const echo = 'period' in span ? { period: span.period } : { range: span.range }
 
-  let startDay: string | null = days === null ? null : addDays(today, -(days - 1))
-  if (startDay === null) {
-    const [first] = await db.select({ at: min(plays.playedAt) }).from(plays).where(eq(plays.userId, userId))
-    startDay = first?.at ? localDay(new Date(first.at), tz) : null
+  // The first local day, and the day after the last one (none for a rolling range: it ends now).
+  let startDay: string | null
+  let endDay: string | null = null
+  let bucket: Bucket
+  if ('period' in span) {
+    const days = periodDays(span.period)
+    startDay = days.from
+    endDay = days.to
+    // A month by day; a year by week, like the rolling year: 365 daily points are too spiky to read.
+    bucket = span.period.length === 4 ? 'week' : 'day'
+  } else {
+    const days = RANGE_DAYS[span.range]
+    bucket = days === null || days > 90 ? 'week' : 'day'
+    startDay = days === null ? null : addDays(today, -(days - 1))
+    if (startDay === null) {
+      const [first] = await db.select({ at: min(plays.playedAt) }).from(plays).where(eq(plays.userId, userId))
+      startDay = first?.at ? localDay(new Date(first.at), tz) : null
+    }
   }
   if (startDay === null) {
     return {
-      range,
+      ...echo,
       tz,
       bucket,
       totals: { plays: 0, minutes: 0, tracks: 0, artists: 0, newTracks: 0 },
@@ -53,10 +66,12 @@ export async function overview(db: Db, userId: string, { range, tz, now }: { ran
     }
   }
 
+  /** Local midnight at the start of `day`. */
+  const midnight = (day: string) => sql`(${day}::timestamp at time zone ${tz})`
   const inRange = and(
     eq(plays.userId, userId),
-    // Local midnight at the start of the first day.
-    gte(plays.playedAt, sql`(${startDay}::timestamp at time zone ${tz})`),
+    gte(plays.playedAt, midnight(startDay)),
+    endDay === null ? undefined : lt(plays.playedAt, midnight(endDay)),
   )
   const msPlayed = sql`coalesce(${plays.msPlayed}, ${tracks.durationMs})`
 
@@ -134,7 +149,8 @@ export async function overview(db: Db, userId: string, { range, tz, now }: { ran
       and(
         eq(syncGaps.userId, userId),
         isNull(syncGaps.filledAt),
-        gte(syncGaps.before, sql`(${startDay}::timestamp at time zone ${tz})`),
+        gte(syncGaps.before, midnight(startDay)),
+        endDay === null ? undefined : lt(syncGaps.after, midnight(endDay)),
       ),
     )
 
@@ -147,7 +163,9 @@ export async function overview(db: Db, userId: string, { range, tz, now }: { ran
   }
   const minutes = (ms: number) => Math.round(ms / 60_000)
   const step = bucket === 'week' ? 7 : 1
-  const last = bucket === 'week' ? weekStart(today) : today
+  // A period runs to its last day, or to today while it's still going.
+  const lastDay = endDay === null || addDays(endDay, -1) > today ? today : addDays(endDay, -1)
+  const last = bucket === 'week' ? weekStart(lastDay) : lastDay
   const series: OverviewPoint[] = []
   for (let date = bucket === 'week' ? weekStart(startDay) : startDay; date <= last; date = addDays(date, step)) {
     const row = byBucket.get(date)
@@ -169,7 +187,7 @@ export async function overview(db: Db, userId: string, { range, tz, now }: { ran
   }
 
   return {
-    range,
+    ...echo,
     tz,
     bucket,
     totals: {

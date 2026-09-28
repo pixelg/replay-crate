@@ -15,16 +15,19 @@ import {
   libraryPage,
   manyPlays,
   manyTracks,
+  march2019Plays,
   pausedPlayback,
   pixelg,
   playback,
   playlistDetail,
   playlistsList,
+  playsPage,
   rulePreview,
   statsOverview,
   statsTop,
 } from './test/fixtures.ts'
 import { defaultHandlers, http, pageBy } from './test/handlers.ts'
+import { dayCursor, formatMonth, monthCursor, monthOf } from './lib/months.ts'
 
 /** The whole app (real route tree + shell) at a given URL. */
 function App({ path }: { path: string }) {
@@ -679,6 +682,191 @@ export const StatsWithGap = meta.story({
   },
   play: async ({ canvas }) => {
     await expect(await canvas.findByText(/these are minimums/)).toBeVisible()
+  },
+})
+
+// Browsing the past: History's timeline and stats for a year or month.
+const marchPlays = march2019Plays(6)
+/** Played early in April 2019: what "Show newer plays" finds above the end of March. */
+const aprilPlay = { ...marchPlays[0]!, playedAt: new Date(2019, 3, 2, 20).toISOString(), track: { ...marchPlays[0]!.track, id: 'spring', name: 'Spring Newcomer' } }
+const playsCursors = fn()
+/** The end of March 2019 for a `before` cursor, the play just after it for `after`; the present otherwise. */
+const pastHandler = http.get('/api/v1/history/plays', ({ query, response }) => {
+  const before = query.get('before')
+  const after = query.get('after')
+  playsCursors({ before, after })
+  if (after) return response(200).json({ items: [aprilPlay], nextCursor: null, lastSyncedAt: playsPage.lastSyncedAt })
+  if (before) return response(200).json({ items: marchPlays, nextCursor: null, lastSyncedAt: playsPage.lastSyncedAt })
+  const { items, rest } = pageBy(playsPage.items, query)
+  return response(200).json({ ...playsPage, items, ...rest, ...('total' in rest && { olderPlayedAt: null }) })
+})
+
+export const HistoryTimelineJumpsToAMonth = meta.story({
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    playsCursors.mockClear()
+    msw.use(pastHandler)
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('heading', { name: 'Today' })).toBeVisible()
+    // Beside the list: this year open, and this month marked as the one being read.
+    const rail = within(await main.findByRole('navigation', { name: 'Timeline' }))
+    const thisMonth = new RegExp(`^${formatMonth(monthOf(new Date()))}, `)
+    await waitFor(() => expect(rail.getByRole('link', { name: thisMonth })).toHaveAttribute('data-in-view', 'true'))
+    await expect(rail.getByRole('button', { name: /^2019, / })).toHaveAttribute('aria-expanded', 'false')
+
+    await userEvent.click(rail.getByRole('button', { name: /^2019, / }))
+    await userEvent.click(rail.getByRole('link', { name: /^March 2019, / }))
+    // March's latest plays first: everything before the start of April.
+    await expect(await main.findByRole('link', { name: 'Old Favourite 01' })).toBeVisible()
+    await expect(playsCursors).toHaveBeenLastCalledWith({ before: monthCursor('2019-03'), after: null })
+    await expect(main.getByText('March 2019')).toBeVisible()
+    await waitFor(() => expect(rail.getByRole('link', { name: /^March 2019, / })).toHaveAttribute('data-in-view', 'true'))
+    // The past isn't headed by what's playing now, and reads by cursor, without pages.
+    await expect(main.queryByRole('group', { name: 'Now playing' })).toBeNull()
+    await expect(main.queryByRole('combobox', { name: 'Per page' })).toBeNull()
+
+    await userEvent.click(main.getByRole('link', { name: 'Back to now' }))
+    await expect(await main.findByRole('heading', { name: 'Today' })).toBeVisible()
+    await expect(main.queryByText('March 2019')).toBeNull()
+    await expect(await main.findByRole('group', { name: 'Now playing' })).toBeVisible()
+  },
+})
+
+export const HistoryJumpsToADay = meta.story({
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    playsCursors.mockClear()
+    msw.use(pastHandler)
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    const rail = within(await main.findByRole('navigation', { name: 'Timeline' }))
+    await userEvent.type(rail.getByLabelText('Go to a day'), '2019-03-12')
+    await userEvent.click(rail.getByRole('button', { name: 'Go' }))
+    // That day's latest plays first: everything before the next day starts, in the viewer's zone.
+    await expect(await main.findByRole('link', { name: 'Old Favourite 01' })).toBeVisible()
+    await expect(playsCursors).toHaveBeenLastCalledWith({ before: dayCursor('2019-03-12'), after: null })
+    await expect(main.getByText(new Date(2019, 2, 12).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }))).toBeVisible()
+  },
+})
+
+export const HistoryJumpShowsNewerPlays = meta.story({
+  args: { path: `/history?before=${monthCursor('2019-03')}` },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    playsCursors.mockClear()
+    msw.use(pastHandler)
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    const oldest = await main.findByRole('link', { name: 'Old Favourite 01' })
+    await expect(main.getByText('March 2019')).toBeVisible()
+
+    await userEvent.click(main.getByRole('button', { name: 'Show newer plays' }))
+    const newer = await main.findByRole('link', { name: 'Spring Newcomer' })
+    // Newer plays go on top, fetched from the newest one showing.
+    await expect(newer.compareDocumentPosition(oldest)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    await expect(playsCursors).toHaveBeenLastCalledWith({ before: null, after: marchPlays[0]!.playedAt })
+    // That was all of them.
+    await waitFor(() => expect(main.queryByRole('button', { name: 'Show newer plays' })).toBeNull())
+  },
+})
+
+export const HistoryJumpOnPhone = meta.story({
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(pastHandler)
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('heading', { name: 'Today' })).toBeVisible()
+    // No rail on a phone: a button opens a year → month grid instead.
+    await expect(main.queryByRole('navigation', { name: 'Timeline' })).toBeNull()
+    await userEvent.click(await main.findByRole('button', { name: 'Jump to…' }))
+    const picker = within(await screen.findByRole('dialog', { name: 'Jump to a month' }))
+
+    // A year with a quiet stretch: its empty months are there, but not links.
+    await userEvent.click(picker.getByRole('button', { name: /^2014, / }))
+    const months2014 = within(picker.getByRole('list', { name: 'Months of 2014' }))
+    await expect(months2014.getAllByRole('listitem')).toHaveLength(12)
+    await expect(months2014.queryByRole('link', { name: /^February 2014/ })).toBeNull()
+    await expect(months2014.getByRole('link', { name: /^September 2014, / })).toBeVisible()
+
+    await userEvent.click(picker.getByRole('button', { name: /^2019, / }))
+    await userEvent.click(picker.getByRole('link', { name: /^March 2019, / }))
+    await expect(await main.findByRole('link', { name: 'Old Favourite 01' })).toBeVisible()
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Jump to a month' })).toBeNull())
+    await expect(main.getByText('March 2019')).toBeVisible()
+    await expect(main.getByRole('link', { name: 'Back to now' })).toBeVisible()
+  },
+})
+
+const overviewPeriods = fn()
+/** Records the period each overview asks for, then lets the default handler answer. */
+const overviewSpy = http.get('/api/v1/stats/overview', ({ query }) => {
+  overviewPeriods(query.get('period'))
+})
+
+export const StatsForAYear = meta.story({
+  args: { path: '/stats?year=2019' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    overviewPeriods.mockClear()
+    msw.use(overviewSpy)
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Your 2019' })).toBeVisible()
+    await expect(overviewPeriods).toHaveBeenCalledWith('2019')
+    const topCard = (await canvas.findByText('Top tracks')).closest('[data-slot=card]') as HTMLElement
+    await expect(within(topCard).getByText('By play count, in 2019')).toBeVisible()
+    // No rolling window is on, and Spotify's own lists say they can't follow.
+    for (const button of within(canvas.getByRole('group', { name: 'Time range' })).getAllByRole('button')) {
+      await expect(button).toHaveAttribute('aria-pressed', 'false')
+    }
+    await expect(canvas.getByRole('combobox', { name: 'Year' })).toHaveTextContent('2019')
+    await expect(canvas.getByRole('combobox', { name: 'Month' })).toHaveTextContent('All of 2019')
+    await expect(await canvas.findByText("Spotify only shares its own recent windows, so this isn't for 2019.")).toBeVisible()
+  },
+})
+
+export const StatsPicksAYearAndMonth = meta.story({
+  args: { path: '/stats' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    overviewPeriods.mockClear()
+    msw.use(overviewSpy)
+  },
+  play: async ({ canvas, userEvent }) => {
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Stats' })).toBeVisible()
+    await userEvent.click(await canvas.findByRole('combobox', { name: 'Year' }))
+    await userEvent.click(await screen.findByRole('option', { name: '2019' }))
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Your 2019' })).toBeVisible()
+
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Month' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'March' }))
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Your March 2019' })).toBeVisible()
+    await expect(overviewPeriods).toHaveBeenLastCalledWith('2019-03')
+
+    // A rolling window again.
+    await userEvent.click(within(canvas.getByRole('group', { name: 'Time range' })).getByRole('button', { name: '30 days' }))
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Stats' })).toBeVisible()
+    await expect(canvas.queryByRole('combobox', { name: 'Month' })).toBeNull()
+  },
+})
+
+export const StatsMonthOnPhone = meta.story({
+  args: { path: '/stats?year=2014&month=9' },
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  play: async ({ canvas, userEvent }) => {
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Your September 2014' })).toBeVisible()
+    // Months without plays are listed but can't be picked.
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Month' }))
+    await expect(await screen.findByRole('option', { name: 'February' })).toHaveAttribute('aria-disabled', 'true')
+    await expect(screen.getByRole('option', { name: 'October' })).not.toHaveAttribute('aria-disabled', 'true')
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull())
   },
 })
 
