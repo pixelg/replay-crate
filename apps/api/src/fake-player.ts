@@ -237,6 +237,16 @@ export function createFakePlayer({
     deactivate() {
       changed({ activeDeviceId: null, isPlaying: false })
     },
+    /** Spotify opens on a device: it's listed, and can be played on. */
+    connect(added: FakeDevice) {
+      devices.push(added)
+    },
+    /** Spotify closes on a device: it drops out of the list (and stops, if it was playing). */
+    disconnect(id: string) {
+      const at = devices.findIndex((d) => d.id === id)
+      if (at >= 0) devices.splice(at, 1)
+      if (state.activeDeviceId === id) changed({ activeDeviceId: null, isPlaying: false })
+    },
   }
 }
 

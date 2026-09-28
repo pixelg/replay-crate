@@ -108,6 +108,119 @@ describe('player', () => {
     })
   })
 
+  describe('devices', () => {
+    const DAY = 24 * 60 * 60_000
+    const listed = async () =>
+      (await json(await get('/devices'))).devices as { id: string | null; name: string; isAvailable: boolean; lastSeenAt: string; rememberedId: number }[]
+    const remembered = () => ctx.db.select().from(schema.playerDevices).orderBy(schema.playerDevices.id)
+
+    it('remembers the active device from playback', async () => {
+      await get('')
+      expect(await remembered()).toMatchObject([{ deviceId: 'laptop', name: 'Laptop', type: 'Computer', lastSeenAt: new Date('2026-09-21T12:00:00Z') }])
+    })
+
+    it('remembers every listed device, and marks them available', async () => {
+      const devices = await listed()
+      expect(devices).toMatchObject([
+        { id: 'laptop', isActive: true, isAvailable: true, lastSeenAt: '2026-09-21T12:00:00.000Z' },
+        { id: 'phone', isActive: false, isAvailable: true, lastSeenAt: '2026-09-21T12:00:00.000Z' },
+      ])
+      expect((await remembered()).map((row) => [row.id, row.deviceId])).toEqual(devices.map((d) => [d.rememberedId, d.id]))
+    })
+
+    it('lists devices played on before after the available ones, most recent first', async () => {
+      ctx.player.connect({ id: 'kitchen', name: 'Kitchen', type: 'Speaker', volume_percent: 40, supports_volume: true })
+      await get('/devices')
+      ctx.player.disconnect('kitchen')
+      ctx.advance(DAY)
+      await get('/devices')
+      ctx.player.disconnect('phone')
+      ctx.advance(DAY)
+
+      expect(await listed()).toEqual([
+        expect.objectContaining({ id: 'laptop', isAvailable: true, lastSeenAt: '2026-09-23T12:00:00.000Z' }),
+        {
+          id: 'phone',
+          name: 'Phone',
+          type: 'Smartphone',
+          isActive: false,
+          isRestricted: false,
+          isPrivateSession: false,
+          volumePercent: null,
+          supportsVolume: false,
+          isAvailable: false,
+          lastSeenAt: '2026-09-22T12:00:00.000Z',
+          rememberedId: expect.any(Number),
+        },
+        expect.objectContaining({ id: 'kitchen', isAvailable: false, lastSeenAt: '2026-09-21T12:00:00.000Z' }),
+      ])
+    })
+
+    it('keeps one entry for a device that gets a new id each session', async () => {
+      const webPlayer = { name: 'Web Player (Chrome)', type: 'Computer', volume_percent: 100, supports_volume: true }
+      ctx.player.connect({ id: 'web-1', ...webPlayer })
+      await get('/devices')
+      ctx.player.disconnect('web-1')
+      ctx.player.connect({ id: 'web-2', ...webPlayer })
+
+      const devices = await listed()
+      expect(devices.map((d) => [d.id, d.isAvailable])).toEqual([
+        ['laptop', true],
+        ['phone', true],
+        ['web-2', true],
+      ])
+      expect((await remembered()).map((row) => row.deviceId)).toEqual(['laptop', 'phone', 'web-2'])
+    })
+
+    it('keeps devices apart that share a name and are listed together', async () => {
+      ctx.player.connect({ id: 'phone-2', name: 'Phone', type: 'Smartphone', volume_percent: 100, supports_volume: false })
+      await get('/devices')
+      await get('/devices')
+      expect((await remembered()).map((row) => row.deviceId)).toEqual(['laptop', 'phone', 'phone-2'])
+    })
+
+    it('remembers a device Spotify cannot address, without a way to play on it', async () => {
+      ctx.spotify.getDevices.mockResolvedValueOnce([
+        { id: null, name: 'Car', type: 'Automobile', is_active: false, is_private_session: false, is_restricted: true, volume_percent: null, supports_volume: false },
+      ])
+      await get('/devices')
+      expect((await listed()).find((d) => d.name === 'Car')).toMatchObject({ id: null, isAvailable: false })
+    })
+
+    it('keeps last seen current without writing on every poll', async () => {
+      await get('')
+      ctx.advance(30_000)
+      await get('')
+      expect((await remembered())[0]!.lastSeenAt).toEqual(new Date('2026-09-21T12:00:00Z'))
+      ctx.advance(60_000)
+      await get('')
+      expect((await remembered())[0]!.lastSeenAt).toEqual(new Date('2026-09-21T12:01:30Z'))
+    })
+
+    it('are forgotten on request, until seen again', async () => {
+      await get('/devices')
+      ctx.player.disconnect('phone')
+      const phone = (await listed()).find((d) => d.id === 'phone')!
+
+      const forget = () =>
+        ctx.app.request(`/api/v1/player/devices/${phone.rememberedId}`, { method: 'DELETE', headers: { Cookie: cookie, Origin: ORIGIN } })
+      expect((await forget()).status).toBe(204)
+      expect((await listed()).map((d) => d.id)).toEqual(['laptop'])
+      const res = await forget()
+      expect(res.status).toBe(404)
+      expect(await json(res)).toEqual({ error: 'not_found' })
+    })
+
+    it("can't be played on while Spotify doesn't list them", async () => {
+      await get('/devices')
+      ctx.player.disconnect('phone')
+      const res = await send('PUT', '/device', { deviceId: 'phone', play: true })
+      expect(res.status).toBe(404)
+      expect(await json(res)).toEqual({ error: 'not_found' })
+      expect(ctx.player.state.activeDeviceId).toBe('laptop')
+    })
+  })
+
   describe('commands', () => {
     it('play tracks, then pause, skip, seek and queue', async () => {
       expect((await send('PUT', '/play', { uris: ['spotify:track:a', 'spotify:track:b'] })).status).toBe(204)

@@ -1,8 +1,8 @@
 import { z } from '@hono/zod-openapi'
-import { schema, type Db } from '@replay-crate/db'
+import { schema, type Db, type PlayerDevice } from '@replay-crate/db'
 import { pickImage, type SpotifyDevice, type SpotifyPlaybackState, type SpotifyPlayable } from '@replay-crate/spotify'
 import { eq } from 'drizzle-orm'
-import { ArtistRef, ContextRef, Rating } from '../lib/schemas.ts'
+import { ArtistRef, ContextRef, IsoDateTime, Rating } from '../lib/schemas.ts'
 import { loadRatings } from '../tracks/ratings.ts'
 
 // The player's view of Spotify objects: camelCase, images picked, only what the app shows.
@@ -19,6 +19,15 @@ export const Device = z
     supportsVolume: z.boolean(),
   })
   .openapi('Device')
+
+/** A device in the player's list: one Spotify lists now, or one played on before. */
+export const ListedDevice = Device.extend({
+  isAvailable: z.boolean().openapi({
+    description: 'Listed by Spotify now. Other devices were played on before; playback can be sent to them, but Spotify refuses until they have Spotify open.',
+  }),
+  lastSeenAt: IsoDateTime.openapi({ description: 'When the app last saw the device, in playback or the device list.' }),
+  rememberedId: z.number().int().openapi({ description: "The app's id for the device, to forget it with." }),
+}).openapi('ListedDevice')
 
 const TrackItem = z
   .object({
@@ -83,6 +92,28 @@ export function toDevice(device: SpotifyDevice): z.infer<typeof Device> {
     isPrivateSession: device.is_private_session,
     volumePercent: device.volume_percent,
     supportsVolume: device.supports_volume,
+  }
+}
+
+/** A device Spotify lists now, with what the app remembers of it. */
+export function toListedDevice(device: SpotifyDevice, remembered: PlayerDevice): z.infer<typeof ListedDevice> {
+  return { ...toDevice(device), isAvailable: true, lastSeenAt: remembered.lastSeenAt.toISOString(), rememberedId: remembered.id }
+}
+
+/** A device played on before that Spotify doesn't list now: nothing about its state is known. */
+export function toRememberedDevice(remembered: PlayerDevice): z.infer<typeof ListedDevice> {
+  return {
+    id: remembered.deviceId,
+    name: remembered.name,
+    type: remembered.type,
+    isActive: false,
+    isRestricted: false,
+    isPrivateSession: false,
+    volumePercent: null,
+    supportsVolume: false,
+    isAvailable: false,
+    lastSeenAt: remembered.lastSeenAt.toISOString(),
+    rememberedId: remembered.id,
   }
 }
 

@@ -1,11 +1,13 @@
 import {
   devicesQueryOptions,
   expectedPlayback,
+  forgetDevice,
   isApiError,
   playbackQueryOptions,
   progressAt,
   queueQueryOptions,
   sendPlayerCommand,
+  type Device,
   type Playback,
   type PlayContext,
   type PlayerItem,
@@ -123,7 +125,23 @@ export function usePlayerControls() {
         }, SETTLE_MS),
       ),
   })
-  return { send: mutation.mutate, error: mutation.error, isSending: mutation.isPending, reset: mutation.reset }
+  return {
+    send: mutation.mutate,
+    error: mutation.error,
+    /** The last command sent, which `error` belongs to. */
+    command: mutation.variables,
+    isSending: mutation.isPending,
+    reset: mutation.reset,
+  }
+}
+
+/** Forgets a device played on before, then lists devices again. */
+export function useForgetDevice() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (device: Device) => forgetDevice(api, device.rememberedId),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: devicesQueryOptions(api).queryKey }),
+  })
 }
 
 /** The current time, re-read every half second while `ticking`. */

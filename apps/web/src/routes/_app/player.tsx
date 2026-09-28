@@ -11,7 +11,7 @@ import { isPlayable } from '@/components/player/items'
 import { QueueList } from '@/components/player/queue-list'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { api } from '@/lib/api'
-import { useDevices, usePlayback, usePlayerControls, useQueue } from '@/lib/use-player'
+import { useDevices, useForgetDevice, usePlayback, usePlayerControls, useQueue } from '@/lib/use-player'
 
 export const Route = createFileRoute('/_app/player')({
   // Prefetch without blocking: Premium and permission problems belong on the page, not an error route.
@@ -25,6 +25,10 @@ function PlayerPage() {
   const item = playback?.item ?? null
   const queue = useQueue(item?.uri ?? null)
   const devices = useDevices({ enabled: !error })
+  const forget = useForgetDevice()
+  // A device that won't take playback says so on its own row, not for the whole page.
+  const refusal =
+    controls.error && controls.command?.kind === 'transfer' ? { deviceId: controls.command.deviceId, error: controls.error } : null
 
   return (
     <>
@@ -47,7 +51,7 @@ function PlayerPage() {
               </div>
             )
           )}
-          {controls.error && <InlineError error={controls.error} action="Player" />}
+          {controls.error && !refusal && <InlineError error={controls.error} action="Player" />}
 
           <div className="grid gap-6 md:grid-cols-2">
             {item && (
@@ -82,11 +86,16 @@ function PlayerPage() {
               </CardHeader>
               <CardContent>
                 {devices.data ? (
-                  <DeviceList
-                    devices={devices.data}
-                    // Keep playing (or start, when nothing was) on the new device.
-                    onPlayHere={(deviceId) => controls.send({ kind: 'transfer', deviceId, play: playback?.isPlaying ?? true })}
-                  />
+                  <>
+                    <DeviceList
+                      devices={devices.data}
+                      // Keep playing (or start, when nothing was) on the new device.
+                      onPlayHere={(deviceId) => controls.send({ kind: 'transfer', deviceId, play: playback?.isPlaying ?? true })}
+                      onForget={(device) => forget.mutate(device)}
+                      refusal={refusal}
+                    />
+                    {forget.error && <InlineError error={forget.error} action="Removing the device" />}
+                  </>
                 ) : devices.error ? (
                   <InlineError error={devices.error} action="Loading devices" />
                 ) : null}

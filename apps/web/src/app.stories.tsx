@@ -913,6 +913,57 @@ export const PlayerNothingActive = meta.story({
   },
 })
 
+export const PlayerTriesDevicePlayedOnBefore = meta.story({
+  args: { path: '/player' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    playerRequests.mockClear()
+    // Spotify isn't open on the TV, so Spotify can't find it.
+    msw.use(
+      http.put('/api/v1/player/device', async ({ request, response }) => {
+        playerRequests('transfer', await request.json())
+        return response(404).json({ error: 'not_found' })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    const before = within(await main.findByRole('region', { name: 'Played on before' }))
+    await expect(before.getByText('TV · Last used 2 days ago')).toBeVisible()
+    await userEvent.click(before.getByRole('button', { name: 'Try playing on Living Room TV' }))
+    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('transfer', { deviceId: 'living-room', play: true }))
+    // Said on the TV's row, not as a failure of the whole player.
+    const row = before.getByText('Living Room TV').closest('li')!
+    await expect(await within(row).findByRole('alert')).toHaveTextContent('Open Spotify on Living Room TV first.')
+    await expect(main.queryByText(/^Player failed/)).toBeNull()
+  },
+})
+
+export const PlayerForgetsDevice = meta.story({
+  args: { path: '/player' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    let forgotten: string | null = null
+    msw.use(
+      http.delete('/api/v1/player/devices/{id}', ({ params, response }) => {
+        forgotten = params.id
+        return response(204).empty()
+      }),
+      http.get('/api/v1/player/devices', ({ response }) =>
+        response(200).json({ devices: devices.filter((device) => String(device.rememberedId) !== forgotten) }),
+      ),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await userEvent.click(await main.findByRole('button', { name: 'Options for Living Room TV' }))
+    // The menu renders in a portal, outside the page's main.
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove' }))
+    await waitFor(() => expect(main.queryByText('Living Room TV')).toBeNull())
+    await expect(main.getByText('Car Stereo')).toBeVisible()
+  },
+})
+
 export const PlayerWithoutPremium = meta.story({
   args: { path: '/player' },
   beforeEach({ msw }) {
