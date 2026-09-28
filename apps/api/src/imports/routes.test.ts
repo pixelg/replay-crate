@@ -82,7 +82,7 @@ describe('streaming history import', () => {
     let status = (await json(await send('GET', '/api/v1/imports/latest'))).import
     expect(status).toMatchObject({ id, playCount: 2, waitingPlays: 2, tracksToFetch: 1, done: false })
 
-    await runJobs(ctx.deps, { pauseMs: 0 })
+    await runJobs(ctx.deps, { intervalMs: 0 })
     expect(ctx.spotify.getTrack).toHaveBeenCalledWith('access-1', NEW)
     const [song] = await ctx.db.select().from(schema.tracks).where(eq(schema.tracks.id, NEW))
     expect(song!.name).toBe('Imported Song')
@@ -104,7 +104,7 @@ describe('streaming history import', () => {
       { ts: '2025-01-01T12:00:00Z', trackId: GONE },
       { ts: '2025-01-03T12:00:00Z', trackId: GONE },
     ])
-    await runJobs(ctx.deps, { pauseMs: 0 })
+    await runJobs(ctx.deps, { intervalMs: 0 })
     const status = (await json(await send('GET', '/api/v1/imports/latest'))).import
     expect(status).toMatchObject({ unavailable: 2, waitingPlays: 0, done: true })
   })

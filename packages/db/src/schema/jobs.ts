@@ -27,3 +27,16 @@ export const jobs = pgTable(
 )
 
 export type Job = typeof jobs.$inferSelect
+
+/**
+ * Who does the background Spotify work (the job runner, the scheduled sync). `pnpm dev` and the
+ * serve service can run at once against one database; only the process holding a lease does its
+ * work, so Spotify never gets the same calls twice. A lease lapses at `expires_at` unless renewed,
+ * and then another process takes over.
+ */
+export const workerLeases = pgTable('worker_leases', {
+  name: text('name').primaryKey(),
+  /** The holding process, e.g. `host:pid:random`. */
+  holder: text('holder').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+})

@@ -85,6 +85,13 @@
       "when": 1790576635784,
       "tag": "0011_player_devices",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790582060458,
+      "tag": "0012_worker_leases",
+      "breakpoints": true
     }
   ]
 }

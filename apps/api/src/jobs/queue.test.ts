@@ -5,7 +5,7 @@ import { createTestContext, track } from '../testing.ts'
 import { enqueue, jobStatus, runJobs } from './queue.ts'
 
 const MINUTE = 60_000
-const noPause = { pauseMs: 0 }
+const noPause = { intervalMs: 0 }
 
 describe('job queue', () => {
   let ctx: Awaited<ReturnType<typeof createTestContext>>
@@ -50,10 +50,47 @@ describe('job queue', () => {
     expect(result).toMatchObject({ done: 0, remaining: 2, rateLimitedUntil: new Date('2026-09-21T12:00:30Z') })
     expect(ctx.spotify.getTrack).toHaveBeenCalledOnce()
 
-    // Not due until Retry-After has passed.
-    expect(await runJobs(ctx.deps, noPause)).toMatchObject({ done: 1 }) // "second" was never tried
+    // Neither is due until Retry-After has passed: "second" wasn't tried, and doesn't jump the wait.
+    expect(await runJobs(ctx.deps, noPause)).toMatchObject({ done: 0, remaining: 2 })
     ctx.advance(31_000)
-    expect(await runJobs(ctx.deps, noPause)).toMatchObject({ done: 1, remaining: 0 })
+    expect(await runJobs(ctx.deps, noPause)).toMatchObject({ done: 2, remaining: 0 })
+    expect(ctx.spotify.getTrack).toHaveBeenCalledTimes(3)
+  })
+
+  it('never gives the same job to two runners', async () => {
+    const refs = Array.from({ length: 30 }, (_, i) => `t${i}`)
+    ctx.library.remember(refs.map((ref) => track(ref)))
+    await enqueue(ctx.db, refs.map(trackJob), ctx.deps.now!())
+
+    const [a, b] = await Promise.all([runJobs(ctx.deps, noPause), runJobs(ctx.deps, noPause)])
+    expect(a.done + b.done).toBe(30)
+    // Each track fetched exactly once between them.
+    const fetched = ctx.spotify.getTrack.mock.calls.map(([, id]) => id)
+    expect(fetched.toSorted()).toEqual(refs.toSorted())
+  })
+
+  it('keeps a steady pace between Spotify calls', async () => {
+    ctx.library.remember(['a', 'b', 'c'].map((ref) => track(ref)))
+    await enqueue(ctx.db, ['a', 'b', 'c'].map(trackJob), ctx.deps.now!())
+    const waits: number[] = []
+    await runJobs(ctx.deps, { intervalMs: 300, sleep: async (ms) => void waits.push(ms) })
+    // No wait before the first call; before each of the others, what's left of 300ms.
+    expect(waits).toHaveLength(2)
+    for (const ms of waits) expect(ms).toBeGreaterThan(200)
+  })
+
+  it('hands back jobs it reserved but ran out of time for', async () => {
+    ctx.library.remember(['a', 'b', 'c'].map((ref) => track(ref)))
+    await enqueue(ctx.db, ['a', 'b', 'c'].map(trackJob), ctx.deps.now!())
+    // The first call outlasts the budget.
+    ctx.spotify.getTrack.mockImplementationOnce(async (_token, id) => {
+      await new Promise((resolve) => setTimeout(resolve, 60))
+      return track(id)
+    })
+    expect(await runJobs(ctx.deps, { budgetMs: 30, intervalMs: 0 })).toMatchObject({ done: 1, remaining: 2 })
+    // The other two are due again now, not held for the reservation's five minutes.
+    const left = await queued()
+    expect(left.map((job) => job.runAfter)).toEqual([ctx.deps.now!(), ctx.deps.now!()])
   })
 
   it('retries other failures with growing backoff', async () => {
@@ -85,7 +122,7 @@ describe('job queue', () => {
 
   it('respects the time budget', async () => {
     await enqueue(ctx.db, ['a', 'b', 'c'].map(trackJob), ctx.deps.now!())
-    expect(await runJobs(ctx.deps, { budgetMs: -1, pauseMs: 0 })).toMatchObject({ done: 0, remaining: 3 })
+    expect(await runJobs(ctx.deps, { budgetMs: -1, intervalMs: 0 })).toMatchObject({ done: 0, remaining: 3 })
   })
 
   it('reports queue status per user', async () => {
