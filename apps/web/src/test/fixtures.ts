@@ -455,7 +455,8 @@ export const queue: PlayerQueue = {
 // Tracks library: every track played, most played first.
 export const libraryPage: LibraryPage = {
   items: [
-    { track: plays[0]!.track, playCount: 12, firstPlayedAt: hoursAgo(24 * 40), lastPlayedAt: plays[0]!.playedAt },
+    // Found years ago, from the imported history.
+    { track: plays[0]!.track, playCount: 12, firstPlayedAt: '2019-03-14T20:00:00.000Z', lastPlayedAt: plays[0]!.playedAt },
     { track: plays[4]!.track, playCount: 7, firstPlayedAt: hoursAgo(24 * 20), lastPlayedAt: plays[4]!.playedAt },
     { track: plays[1]!.track, playCount: 3, firstPlayedAt: hoursAgo(24 * 9), lastPlayedAt: plays[1]!.playedAt },
     { track: plays[2]!.track, playCount: 1, firstPlayedAt: plays[2]!.playedAt, lastPlayedAt: plays[2]!.playedAt },

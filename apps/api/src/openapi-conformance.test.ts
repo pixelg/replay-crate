@@ -104,6 +104,8 @@ describe('responses match the spec', () => {
     await call('GET', `/tracks?sort=name&cursor=${nextCursor}`)
     await call('GET', '/tracks?cursor=nope')
     await call('GET', '/tracks?sort=rating&limit=1&offset=1')
+    const { nextCursor: firstPlayed } = await call('GET', '/tracks?sort=first_played&limit=1')
+    await call('GET', `/tracks?sort=first_played&cursor=${firstPlayed}`)
     await call('GET', '/tracks/{id}', { id: '4uLU6hMCjMI75M1A2tKUQC' })
     await call('GET', '/tracks/{id}', { id: 'nope' })
     await call('GET', '/playlists')

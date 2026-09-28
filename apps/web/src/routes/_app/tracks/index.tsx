@@ -19,6 +19,8 @@ import { usePlayingTrackId } from '../../../lib/use-player.ts'
 const sorts = [
   { value: 'plays', label: 'Most played' },
   { value: 'last_played', label: 'Recently played' },
+  // Newest discoveries first.
+  { value: 'first_played', label: 'First played' },
   { value: 'name', label: 'A–Z' },
   { value: 'rating', label: 'Rating' },
 ] as const satisfies ReadonlyArray<{ value: TrackSort; label: string }>
@@ -168,6 +170,7 @@ function TracksPage() {
               items={items}
               selection={selected ? { selected, toggle } : undefined}
               playingTrackId={playingTrackId}
+              firstPlayedOnPhones={sort === 'first_played'}
             />
           </div>
           {loadMore && (
