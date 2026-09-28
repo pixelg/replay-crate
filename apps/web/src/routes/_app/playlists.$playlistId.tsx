@@ -173,7 +173,7 @@ function TrackRow({ item, actions }: { item: PlaylistTrack; actions: ReactNode }
           </p>
         )}
       </div>
-      <TrackRating track={track} className="hidden md:inline-flex" />
+      <TrackRating track={track} compactOnPhones />
       <div className="shrink-0 text-right">
         <p className="font-semibold tabular-nums">{item.playCount}</p>
         <p className="text-xs text-muted-foreground">

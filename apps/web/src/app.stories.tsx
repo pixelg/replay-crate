@@ -375,6 +375,12 @@ export const PlaylistSortedByPlays = meta.story({
 export const PlaylistMobile = meta.story({
   args: { path: '/playlists/p1' },
   globals: { viewport: { value: 'mobile2', isRotated: false } },
+  play: async ({ canvas }) => {
+    const tracks = within(await canvas.findByRole('region', { name: 'Tracks' }))
+    // No room for five stars: each row shows its rating as a number.
+    await expect(await tracks.findAllByRole('button', { name: /^Rating for / })).toHaveLength(4)
+    await expect(tracks.queryAllByRole('radiogroup')).toEqual([])
+  },
 })
 
 export const ApiDown = meta.story({
@@ -1208,6 +1214,8 @@ export const TracksOnPhone = meta.story({
     await expect(tabs.getAllByRole('link').map((link: HTMLElement) => link.textContent)).toEqual(['History', 'Tracks', 'Playlists', 'Stats'])
     await userEvent.click(tabs.getByRole('link', { name: 'Tracks' }))
     await expect(await canvas.findByRole('heading', { level: 1, name: 'Tracks' })).toBeVisible()
+    const first = (await within(canvas.getByRole('main')).findAllByRole('listitem'))[0]!
+    await expect(within(first).getByRole('button', { name: 'Rating for Brass Monkey Business: 4 stars' })).toBeVisible()
   },
 })
 
@@ -1308,12 +1316,40 @@ export const RatingShowsEverywhereAtOnce = meta.story({
   play: async ({ canvas, userEvent }) => {
     // Brass Monkey Business: the header player, History's now-playing row and two plays, all ★4.
     await waitFor(() => expect(ratingsShown(canvas, 'Brass Monkey Business')).toEqual([4, 4, 4, 4]))
+    // The phones' compact ratings stay hidden.
+    await expect(canvas.queryAllByRole('button', { name: /^Rating for / })).toEqual([])
     const main = within(canvas.getByRole('main'))
     const firstRow = main.getAllByRole('radiogroup', { name: 'Rating for Brass Monkey Business' })[0]!
     await userEvent.click(within(firstRow).getByRole('radio', { name: '2 stars' }))
     // Every copy changes before the (slow) API answers.
     await expect(ratingsShown(canvas, 'Brass Monkey Business')).toEqual([2, 2, 2, 2])
     await waitFor(() => expect(ratingRequests).toHaveBeenCalledWith('put', 't1', 2))
+  },
+})
+
+/** The compact "Rating for Brass Monkey Business: {shown}" buttons phones show in place of stars. */
+const ratingButtons = (canvas: { queryAllByRole: (role: string, options: object) => HTMLElement[] }, shown: string) =>
+  canvas.queryAllByRole('button', { name: `Rating for Brass Monkey Business: ${shown}` })
+
+export const RatingOnPhone = meta.story({
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(...recordRatings())
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    // History's now-playing row and two plays: ★4 as a number, no stars.
+    await waitFor(() => expect(ratingButtons(main, '4 stars')).toHaveLength(3))
+    await expect(main.queryAllByRole('radiogroup')).toEqual([])
+    // A tap opens the stars, on the current rating.
+    await userEvent.click(ratingButtons(main, '4 stars')[1]!)
+    const card = within(await screen.findByRole('dialog', { name: 'Rate Brass Monkey Business' }))
+    await waitFor(() => expect(card.getByRole('radio', { name: '4 stars' })).toHaveFocus())
+    // Picking one saves it, closes the card, and every copy shows the new number.
+    await userEvent.click(card.getByRole('radio', { name: '5 stars' }))
+    await waitFor(() => expect(ratingRequests).toHaveBeenCalledWith('put', 't1', 5))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Rate Brass Monkey Business' })).toBeNull())
+    await expect(ratingButtons(main, '5 stars')).toHaveLength(3)
   },
 })
 

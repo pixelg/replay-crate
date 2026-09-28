@@ -4,6 +4,7 @@ import { Star } from 'lucide-react'
 import { cn } from 'cn'
 import { useState } from 'react'
 import { useRateTrack } from '../lib/use-rate-track.ts'
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover.tsx'
 
 const STARS = [1, 2, 3, 4, 5] as const
 
@@ -66,24 +67,85 @@ export function StarRating({
   )
 }
 
-/** The signed-in user's rating of a track, saved as it changes. */
+type RatedTrack = { id: string; name: string; rating: number | null }
+
+/**
+ * The signed-in user's rating of a track, saved as it changes. With `compactOnPhones`, rows too
+ * narrow for five stars show `CompactTrackRating` below `md` and the stars from `md` up.
+ */
 export function TrackRating({
   track,
   size,
+  compactOnPhones,
   className,
 }: {
-  track: { id: string; name: string; rating: number | null }
+  track: RatedTrack
   size?: 'sm' | 'md'
+  compactOnPhones?: boolean
   className?: string
 }) {
   const rate = useRateTrack()
-  return (
+  const stars = (
     <StarRating
       label={`Rating for ${track.name}`}
       rating={track.rating}
       onChange={(rating) => rate.mutate({ trackId: track.id, rating })}
       size={size}
-      className={className}
+      className={cn(compactOnPhones && 'hidden md:inline-flex', className)}
     />
+  )
+  if (!compactOnPhones) return stars
+  return (
+    <>
+      <CompactTrackRating track={track} className={cn('md:hidden', className)} />
+      {stars}
+    </>
+  )
+}
+
+/**
+ * A track's rating as a number and a star (`4 ★`, or `– ☆` unrated). Tapping it opens the five
+ * stars in a popover; picking one saves it and closes the popover, as do Esc, Enter and a tap
+ * outside. Arrow keys move the rating without closing, like the inline stars.
+ */
+export function CompactTrackRating({ track, className }: { track: RatedTrack; className?: string }) {
+  const rate = useRateTrack()
+  const [open, setOpen] = useState(false)
+  const { rating } = track
+  const label = `Rating for ${track.name}`
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        aria-label={`${label}: ${rating === null ? 'not rated' : rating === 1 ? '1 star' : `${rating} stars`}`}
+        // 24px tall to sit in a row's corner; the ::after stretches the tap target to 36px.
+        className={cn(
+          'relative inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-1.5 text-sm tabular-nums after:absolute after:-inset-y-1.5 after:inset-x-0 hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring data-popup-open:bg-accent',
+          rating === null ? 'text-muted-foreground' : 'font-medium',
+          className,
+        )}
+      >
+        {rating ?? '–'}
+        <Star aria-hidden className={cn('size-4', rating === null ? 'text-muted-foreground' : 'fill-primary text-primary')} />
+      </PopoverTrigger>
+      <PopoverContent
+        aria-label={`Rate ${track.name}`}
+        align="end"
+        className="w-auto p-3"
+        // A click on a star (a tap, or Space) is a pick; arrow keys change the rating without one.
+        onClick={(event) => {
+          if ((event.target as Element).closest('[role=radio]')) setOpen(false)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') setOpen(false)
+        }}
+      >
+        <StarRating
+          label={label}
+          rating={rating}
+          onChange={(next) => rate.mutate({ trackId: track.id, rating: next })}
+          size="md"
+        />
+      </PopoverContent>
+    </Popover>
   )
 }
