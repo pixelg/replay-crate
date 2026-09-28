@@ -1,6 +1,6 @@
-import { schema, type Db } from '@replay-crate/db'
+import { schema, type Db, type Job } from '@replay-crate/db'
 import { pickImage, SpotifyApiError } from '@replay-crate/spotify'
-import { and, asc, count, eq, gt, lte, sql } from 'drizzle-orm'
+import { and, asc, count, eq, gt, inArray, lte, sql } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
 import { getAccessToken, ReauthRequiredError } from '../spotify/access-token.ts'
 import { discardTrack, promote } from '../imports/service.ts'
@@ -70,75 +70,115 @@ export type RunResult = {
   remaining: number
 }
 
+/** At most one Spotify call per this long: a steady ~3 a second, well inside Spotify's limits. */
+export const CALL_INTERVAL_MS = 300
+/** Jobs reserved per round trip; unreached ones are handed back when a run stops early. */
+const CLAIM_BATCH = 20
+/** A reserved job that's neither done nor handed back (the process died) is due again after this. */
+const CLAIM_MS = 5 * MINUTE
+
 /**
- * Works through due jobs one at a time until the time budget or `limit` runs out, pausing
- * briefly between Spotify calls. Stops early if Spotify rate-limits us.
+ * Works through due jobs one at a time until the time budget or `limit` runs out, one Spotify
+ * call per `intervalMs` at most. Stops early if Spotify rate-limits us. Jobs are reserved before
+ * they're worked on (their `run_after` pushed out in the same statement that picks them), so two
+ * runners can never take the same job.
  */
 export async function runJobs(
   deps: AppDeps,
   {
     budgetMs = 20_000,
     limit = 500,
-    pauseMs = 50,
+    intervalMs = CALL_INTERVAL_MS,
     sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
-  }: { budgetMs?: number; limit?: number; pauseMs?: number; sleep?: (ms: number) => Promise<void> } = {},
+  }: { budgetMs?: number; limit?: number; intervalMs?: number; sleep?: (ms: number) => Promise<void> } = {},
 ): Promise<RunResult> {
   const { db } = deps
   const now = () => deps.now?.() ?? new Date()
   const startedAt = Date.now()
   const result: RunResult = { done: 0, retrying: 0, dropped: 0, rateLimitedUntil: null, remaining: 0 }
-
-  const due = await db
-    .select()
-    .from(jobs)
-    .where(lte(jobs.runAfter, now()))
-    .orderBy(asc(jobs.runAfter), asc(jobs.id))
-    .limit(limit)
-
   const tokens = new Map<string, string>()
-  for (const job of due) {
-    if (Date.now() - startedAt > budgetMs) break
-    const handler = handlers[job.kind as JobKind]
-    try {
-      if (!handler) throw new Error(`Unknown job kind "${job.kind}"`)
-      let token = tokens.get(job.userId)
-      if (!token) {
-        token = await getAccessToken(deps, job.userId)
-        tokens.set(job.userId, token)
+  let taken = 0
+  let lastCall = Number.NEGATIVE_INFINITY
+
+  run: while (taken < limit && Date.now() - startedAt <= budgetMs) {
+    const batch = await claim(db, Math.min(CLAIM_BATCH, limit - taken), now())
+    if (!batch.length) break
+    taken += batch.length
+    for (const [i, job] of batch.entries()) {
+      if (Date.now() - startedAt > budgetMs) {
+        await release(db, batch.slice(i), now())
+        break run
       }
-      await handler.run(deps, token, job.ref)
-      await db.delete(jobs).where(eq(jobs.id, job.id))
-      result.done++
-    } catch (error) {
-      if (error instanceof SpotifyApiError && (error.status === 404 || error.status === 400)) {
-        await handler?.gone?.(deps, job.ref)
+      const wait = lastCall + intervalMs - Date.now()
+      if (wait > 0) await sleep(wait)
+      lastCall = Date.now()
+      const handler = handlers[job.kind as JobKind]
+      try {
+        if (!handler) throw new Error(`Unknown job kind "${job.kind}"`)
+        let token = tokens.get(job.userId)
+        if (!token) {
+          token = await getAccessToken(deps, job.userId)
+          tokens.set(job.userId, token)
+        }
+        await handler.run(deps, token, job.ref)
         await db.delete(jobs).where(eq(jobs.id, job.id))
-        result.dropped++
-      } else if (error instanceof SpotifyApiError && error.status === 429) {
-        const until = new Date(now().getTime() + (error.retryAfter ?? 60) * 1000)
-        await db.update(jobs).set({ runAfter: until }).where(eq(jobs.id, job.id))
-        result.rateLimitedUntil = until
-        break
-      } else {
-        // Includes a user needing to reconnect: their jobs wait (with backoff) until they do.
-        const attempts = job.attempts + 1
-        await db
-          .update(jobs)
-          .set({
-            attempts,
-            runAfter: new Date(now().getTime() + (error instanceof ReauthRequiredError ? 6 * 60 * MINUTE : backoff(attempts))),
-            lastError: error instanceof Error ? error.message : String(error),
-          })
-          .where(eq(jobs.id, job.id))
-        result.retrying++
+        result.done++
+      } catch (error) {
+        if (error instanceof SpotifyApiError && (error.status === 404 || error.status === 400)) {
+          await handler?.gone?.(deps, job.ref)
+          await db.delete(jobs).where(eq(jobs.id, job.id))
+          result.dropped++
+        } else if (error instanceof SpotifyApiError && error.status === 429) {
+          // This job and the rest of the batch wait out Spotify's Retry-After.
+          const until = new Date(now().getTime() + (error.retryAfter ?? 60) * 1000)
+          await release(db, batch.slice(i), until)
+          result.rateLimitedUntil = until
+          break run
+        } else {
+          // Includes a user needing to reconnect: their jobs wait (with backoff) until they do.
+          const attempts = job.attempts + 1
+          await db
+            .update(jobs)
+            .set({
+              attempts,
+              runAfter: new Date(now().getTime() + (error instanceof ReauthRequiredError ? 6 * 60 * MINUTE : backoff(attempts))),
+              lastError: error instanceof Error ? error.message : String(error),
+            })
+            .where(eq(jobs.id, job.id))
+          result.retrying++
+        }
       }
     }
-    if (pauseMs > 0) await sleep(pauseMs)
   }
 
   const [left] = await db.select({ n: count() }).from(jobs)
   result.remaining = left?.n ?? 0
   return result
+}
+
+/**
+ * Reserves up to `n` due jobs, oldest due first: one statement picks them (skipping any another
+ * runner is reserving right now) and pushes their `run_after` out by `CLAIM_MS`.
+ */
+async function claim(db: Db, n: number, now: Date): Promise<Job[]> {
+  const due = db
+    .select({ id: jobs.id })
+    .from(jobs)
+    .where(lte(jobs.runAfter, now))
+    .orderBy(asc(jobs.runAfter), asc(jobs.id))
+    .limit(n)
+    .for('update', { skipLocked: true })
+  const claimed = await db
+    .update(jobs)
+    .set({ runAfter: new Date(now.getTime() + CLAIM_MS) })
+    .where(inArray(jobs.id, due))
+    .returning()
+  return claimed.toSorted((a, b) => a.id - b.id)
+}
+
+/** Hands reserved jobs back, due at `at`. */
+async function release(db: Db, batch: Job[], at: Date): Promise<void> {
+  if (batch.length) await db.update(jobs).set({ runAfter: at }).where(inArray(jobs.id, batch.map((job) => job.id)))
 }
 
 /** Queue size for progress displays: everything pending, and how much of it has failed at least once. */

@@ -41,6 +41,22 @@ describe('scheduled sync', () => {
     expect(ctx.spotify.getRecentlyPlayed).toHaveBeenCalledTimes(callsWhenStopped)
   })
 
+  it('syncs from one process only when two are up (dev and serve)', async () => {
+    const other = { info: vi.fn<(message: string) => void>(), error: vi.fn<(message: string, error: unknown) => void>() }
+    stop = startSyncScheduler(ctx.deps, { intervalMs: 100, firstRunAfterMs: 0, holder: 'dev', log })
+    const stopOther = startSyncScheduler(ctx.deps, { intervalMs: 100, firstRunAfterMs: 0, holder: 'serve', log: other })
+    try {
+      await sleep(350)
+      const runs = [...log.info.mock.calls, ...other.info.mock.calls].filter(([message]) => message.startsWith('[sync] 1 user'))
+      // One recently-played call per interval, not two.
+      expect(ctx.spotify.getRecentlyPlayed).toHaveBeenCalledTimes(runs.length)
+      expect(other.info).toHaveBeenCalledWith('[sync] another process runs the scheduled sync; standing by')
+      expect(other.info).not.toHaveBeenCalledWith(expect.stringMatching(/^\[sync\] 1 user/))
+    } finally {
+      stopOther()
+    }
+  })
+
   it('never overlaps a slow run', async () => {
     let finish: () => void = () => {}
     ctx.spotify.getRecentlyPlayed.mockImplementationOnce(

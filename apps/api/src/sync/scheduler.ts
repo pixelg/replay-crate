@@ -1,23 +1,39 @@
 import type { AppDeps } from '../deps.ts'
+import { holdLease, PROCESS_ID, releaseLease } from '../jobs/lease.ts'
 import { syncAllUsers } from './all-users.ts'
+
+/** Only the process holding this lease runs the scheduled sync; see `workerLeases`. */
+export const SYNC_LEASE = 'sync'
 
 type Logger = Pick<Console, 'info' | 'error'>
 
 /**
  * Runs `syncAllUsers` every `intervalMs` while the API process is up, so plays are
  * recorded even with no browser open. The first run happens shortly after start, and
- * a slow run is never overlapped by the next. Returns a function that stops it.
+ * a slow run is never overlapped by the next. With `pnpm dev` and the serve service both up,
+ * only the process holding the sync lease syncs; it renews the lease each run, and it lapses
+ * after two intervals without one, so the other takes over. Returns a function that stops it.
  */
 export function startSyncScheduler(
   deps: AppDeps,
-  { intervalMs, firstRunAfterMs = 5_000, log = console }: { intervalMs: number; firstRunAfterMs?: number; log?: Logger },
+  {
+    intervalMs,
+    firstRunAfterMs = 5_000,
+    holder = PROCESS_ID,
+    log = console,
+  }: { intervalMs: number; firstRunAfterMs?: number; holder?: string; log?: Logger },
 ): () => void {
   let running = false
+  let holding: boolean | undefined
 
   async function tick() {
     if (running) return
     running = true
     try {
+      const held = await holdLease(deps.db, SYNC_LEASE, holder, intervalMs * 2, deps.now?.())
+      if (held !== holding && !held) log.info('[sync] another process runs the scheduled sync; standing by')
+      holding = held
+      if (!held) return
       const results = await syncAllUsers(deps)
       const inserted = results.reduce((sum, result) => sum + ('inserted' in result ? result.inserted : 0), 0)
       const failed = results.filter((result) => 'error' in result).length
@@ -34,5 +50,6 @@ export function startSyncScheduler(
   return () => {
     clearTimeout(first)
     clearInterval(timer)
+    if (holding) void releaseLease(deps.db, SYNC_LEASE, holder).catch(() => {})
   }
 }
