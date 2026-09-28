@@ -27,6 +27,24 @@ describe('history', () => {
   const songB = track('b', { name: 'Song B', album: ['alb-1', 'First Album'], artists: [['art-1', 'Band']] })
 
   describe('POST /api/v1/history/sync', () => {
+    it("waits out Spotify's Retry-After without asking it again", async () => {
+      ctx.spotify.getRecentlyPlayed.mockRejectedValueOnce(new SpotifyApiError(429, 'slow down', 3_600))
+      const refused = await sync()
+      expect(refused.status).toBe(503)
+      expect(await json(refused)).toEqual({ error: 'rate_limited', retryAfter: 3_600 })
+
+      // The app syncs again on its own (a track change, coming back to the tab): no call to Spotify.
+      ctx.advance(10 * MINUTE)
+      const waiting = await sync()
+      expect(waiting.status).toBe(503)
+      expect(await json(waiting)).toEqual({ error: 'rate_limited', retryAfter: 50 * 60 })
+      expect(ctx.spotify.getRecentlyPlayed).toHaveBeenCalledOnce()
+
+      ctx.advance(51 * MINUTE)
+      ctx.spotify.getRecentlyPlayed.mockResolvedValue({ items: [], cursors: null })
+      expect((await sync()).status).toBe(200)
+    })
+
     it('records plays and the catalog, and is idempotent', async () => {
       ctx.spotify.getRecentlyPlayed.mockResolvedValue({
         items: [

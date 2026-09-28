@@ -5,6 +5,7 @@ import type { AppDeps } from '../deps.ts'
 import { getAccessToken, ReauthRequiredError } from '../spotify/access-token.ts'
 import { discardTrack, promote } from '../imports/service.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
+import { DEFAULT_BUDGET, pauseSpotify, pausedUntil, takeCall, type CallBudget } from './budget.ts'
 
 const { artists, jobs } = schema
 
@@ -64,8 +65,10 @@ export type RunResult = {
   retrying: number
   /** Jobs dropped because there's nothing to fetch (Spotify says 404/400). */
   dropped: number
-  /** Spotify asked us to slow down; when to try again. */
+  /** Spotify asked us to slow down (now or earlier, as recorded for every process); when to try again. */
   rateLimitedUntil: Date | null
+  /** The day's call budget ran out; when the next call is allowed. */
+  budgetUntil: Date | null
   /** Jobs still queued (due now or later). */
   remaining: number
 }
@@ -79,7 +82,8 @@ const CLAIM_MS = 5 * MINUTE
 
 /**
  * Works through due jobs one at a time until the time budget or `limit` runs out, one Spotify
- * call per `intervalMs` at most. Stops early if Spotify rate-limits us. Jobs are reserved before
+ * call per `intervalMs` at most, each taken from the shared daily `budget`. Doesn't start while
+ * Spotify's Retry-After (recorded for every process) is running, and records a new one. Jobs are reserved before
  * they're worked on (their `run_after` pushed out in the same statement that picks them), so two
  * runners can never take the same job.
  */
@@ -89,24 +93,38 @@ export async function runJobs(
     budgetMs = 20_000,
     limit = 500,
     intervalMs = CALL_INTERVAL_MS,
+    budget = DEFAULT_BUDGET,
     sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
-  }: { budgetMs?: number; limit?: number; intervalMs?: number; sleep?: (ms: number) => Promise<void> } = {},
+  }: {
+    budgetMs?: number
+    limit?: number
+    intervalMs?: number
+    budget?: CallBudget
+    sleep?: (ms: number) => Promise<void>
+  } = {},
 ): Promise<RunResult> {
   const { db } = deps
   const now = () => deps.now?.() ?? new Date()
   const startedAt = Date.now()
-  const result: RunResult = { done: 0, retrying: 0, dropped: 0, rateLimitedUntil: null, remaining: 0 }
+  const result: RunResult = { done: 0, retrying: 0, dropped: 0, rateLimitedUntil: null, budgetUntil: null, remaining: 0 }
+  result.rateLimitedUntil = await pausedUntil(db, now())
   const tokens = new Map<string, string>()
   let taken = 0
   let lastCall = Number.NEGATIVE_INFINITY
 
-  run: while (taken < limit && Date.now() - startedAt <= budgetMs) {
+  run: while (!result.rateLimitedUntil && taken < limit && Date.now() - startedAt <= budgetMs) {
     const batch = await claim(db, Math.min(CLAIM_BATCH, limit - taken), now())
     if (!batch.length) break
     taken += batch.length
     for (const [i, job] of batch.entries()) {
       if (Date.now() - startedAt > budgetMs) {
         await release(db, batch.slice(i), now())
+        break run
+      }
+      const allowed = await takeCall(db, budget, now())
+      if (!allowed.ok) {
+        await release(db, batch.slice(i), now())
+        result.budgetUntil = allowed.nextAt
         break run
       }
       const wait = lastCall + intervalMs - Date.now()
@@ -132,6 +150,7 @@ export async function runJobs(
           // This job and the rest of the batch wait out Spotify's Retry-After.
           const until = new Date(now().getTime() + (error.retryAfter ?? 60) * 1000)
           await release(db, batch.slice(i), until)
+          await pauseSpotify(db, until, now())
           result.rateLimitedUntil = until
           break run
         } else {

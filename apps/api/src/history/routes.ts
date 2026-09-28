@@ -7,6 +7,7 @@ import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
 import { ArtistRef, ContextRef, IsoDateTime, jsonResponse, Rating } from '../lib/schemas.ts'
 import { timeZone } from '../stats/ranges.ts'
+import { pauseSpotify, pausedUntil } from '../jobs/budget.ts'
 import { loadRatings } from '../tracks/ratings.ts'
 import { ReauthRequiredError } from '../spotify/access-token.ts'
 import { syncRecentlyPlayed } from '../sync/recently-played.ts'
@@ -169,6 +170,12 @@ export function historyRoutes(deps: AppDeps) {
           200,
         )
       }
+      // While Spotify's Retry-After runs, say so without asking it again (the app syncs on its own
+      // when the track changes, so this would otherwise be a stream of refused calls).
+      const paused = await pausedUntil(db, now())
+      if (paused) {
+        return c.json({ error: 'rate_limited' as const, retryAfter: Math.ceil((paused.getTime() - now().getTime()) / 1000) }, 503)
+      }
       try {
         const result = await syncRecentlyPlayed(deps, user.id)
         return c.json(
@@ -183,6 +190,7 @@ export function historyRoutes(deps: AppDeps) {
       } catch (error) {
         if (error instanceof ReauthRequiredError) return c.json({ error: 'reauth_required' as const }, 409)
         if (error instanceof SpotifyApiError && error.status === 429) {
+          await pauseSpotify(db, new Date(now().getTime() + (error.retryAfter ?? 60) * 1000), now())
           return c.json({ error: 'rate_limited' as const, retryAfter: error.retryAfter ?? null }, 503)
         }
         throw error

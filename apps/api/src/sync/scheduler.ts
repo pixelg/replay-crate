@@ -1,4 +1,5 @@
 import type { AppDeps } from '../deps.ts'
+import { pausedUntil } from '../jobs/budget.ts'
 import { holdLease, PROCESS_ID, releaseLease } from '../jobs/lease.ts'
 import { syncAllUsers } from './all-users.ts'
 
@@ -34,6 +35,12 @@ export function startSyncScheduler(
       if (held !== holding && !held) log.info('[sync] another process runs the scheduled sync; standing by')
       holding = held
       if (!held) return
+      // Spotify asked for a pause (it can be most of a day): the next run after it catches up.
+      const paused = await pausedUntil(deps.db, deps.now?.())
+      if (paused) {
+        log.info(`[sync] skipped: Spotify asked us to wait until ${paused.toISOString()}`)
+        return
+      }
       const results = await syncAllUsers(deps)
       const inserted = results.reduce((sum, result) => sum + ('inserted' in result ? result.inserted : 0), 0)
       const failed = results.filter((result) => 'error' in result).length

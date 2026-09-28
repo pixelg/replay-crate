@@ -1,6 +1,8 @@
 import { schema } from '@replay-crate/db'
 import { eq } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
+import { SpotifyApiError } from '@replay-crate/spotify'
+import { pauseSpotify } from '../jobs/budget.ts'
 import { ReauthRequiredError } from '../spotify/access-token.ts'
 import { syncRecentlyPlayed } from './recently-played.ts'
 
@@ -8,7 +10,8 @@ export type UserSyncResult = { userId: string; inserted: number } | { userId: st
 
 /**
  * Syncs recently played for every connected user, one at a time. A failure for one
- * user is logged and reported, never stops the others.
+ * user is logged and reported, never stops the others, except Spotify saying to slow down:
+ * that's recorded for every process, and the rest wait for the next round.
  */
 export async function syncAllUsers(deps: AppDeps): Promise<UserSyncResult[]> {
   const active = await deps.db
@@ -24,6 +27,11 @@ export async function syncAllUsers(deps: AppDeps): Promise<UserSyncResult[]> {
     } catch (error) {
       if (!(error instanceof ReauthRequiredError)) console.error(`sync failed for ${id}`, error)
       results.push({ userId: id, error: error instanceof ReauthRequiredError ? 'reauth_required' : 'failed' })
+      if (error instanceof SpotifyApiError && error.status === 429) {
+        const now = deps.now?.() ?? new Date()
+        await pauseSpotify(deps.db, new Date(now.getTime() + (error.retryAfter ?? 60) * 1000), now)
+        break
+      }
     }
   }
   return results

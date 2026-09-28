@@ -32,8 +32,9 @@ if (ENV.SYNC_INTERVAL_MINUTES > 0) {
   console.log(`Syncing recently played every ${ENV.SYNC_INTERVAL_MINUTES} minutes`)
 }
 
-// Background Spotify lookups (e.g. tracks named in an import), one at a time.
-startJobRunner(deps)
+// Background Spotify lookups (e.g. tracks named in an import), one at a time, within a daily budget.
+startJobRunner(deps, { budget: { perDay: ENV.JOB_CALLS_PER_DAY, burst: Math.min(200, ENV.JOB_CALLS_PER_DAY) } })
+console.log(`Background Spotify calls: up to ${ENV.JOB_CALLS_PER_DAY} a day`)
 // Keeps the search index in step with what syncs and imports write.
 if (isElastic(deps.search)) {
   try {

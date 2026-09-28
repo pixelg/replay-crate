@@ -1,4 +1,4 @@
-import { bigint, index, integer, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core'
+import { bigint, doublePrecision, index, integer, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core'
 import { users } from './auth.ts'
 
 /**
@@ -39,4 +39,16 @@ export const workerLeases = pgTable('worker_leases', {
   /** The holding process, e.g. `host:pid:random`. */
   holder: text('holder').notNull(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+})
+
+/**
+ * How much background Spotify work may run, shared by every process. `tokens` is a bucket for the
+ * job queue that refills evenly through the day; `paused_until` is Spotify's own Retry-After,
+ * which every background caller waits out (it can be most of a day in development mode).
+ */
+export const callBudgets = pgTable('call_budgets', {
+  name: text('name').primaryKey(),
+  tokens: doublePrecision('tokens').notNull(),
+  refilledAt: timestamp('refilled_at', { withTimezone: true }).notNull(),
+  pausedUntil: timestamp('paused_until', { withTimezone: true }),
 })
