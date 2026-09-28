@@ -19,6 +19,15 @@ export type CoercedEnvSchema = {
   SYNC_INTERVAL_MINUTES: number;
   
   /**
+   * **JOB_CALLS_PER_DAY**  
+   * Spotify calls the background job queue may make per day (track lookups for imports, artist  
+   * images), spread evenly; up to 200 can go at once. Development-mode apps get a daily quota, and  
+   * going over it can mean a day-long Retry-After, so keep this well under it.  
+   * ![icon](data:image/svg+xml;utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%23808080%22%20d%3D%22M26%2012h-4v2h4v2h-3v2h3v2h-4v2h4a2.003%202.003%200%200%200%202-2v-6a2%202%200%200%200-2-2m-7%2010h-6v-4a2%202%200%200%201%202-2h2v-2h-4v-2h4a2%202%200%200%201%202%202v2a2%202%200%200%201-2%202h-2v2h4ZM8%2020v-8H6v1H4v2h2v5H4v2h6v-2z%22%2F%3E%3C%2Fsvg%3E)   
+   */
+  JOB_CALLS_PER_DAY: number;
+  
+  /**
    * **WEB_DIST_DIR**  
    * Built web app (apps/web/dist) to serve alongside the API on one origin. `pnpm serve` sets  
    * it; leave empty in development, where Vite serves the app.  
@@ -89,11 +98,11 @@ export type CoercedEnvSchema = {
   
 };
 
-type _CoercedEnvSchema_591cafbf = CoercedEnvSchema;
+type _CoercedEnvSchema_7527f85b = CoercedEnvSchema;
 
 declare module 'varlock/env' {
-  export interface TypedEnvSchema extends Readonly<_CoercedEnvSchema_591cafbf> {}
-  export interface PublicTypedEnvSchema extends Readonly<Pick<_CoercedEnvSchema_591cafbf, 'API_PORT' | 'SYNC_INTERVAL_MINUTES' | 'WEB_DIST_DIR' | 'MUSICBRAINZ_USER_AGENT' | 'SPOTIFY_CLIENT_ID' | 'SPOTIFY_REDIRECT_URI' | 'ELASTICSEARCH_URL'>> {}
+  export interface TypedEnvSchema extends Readonly<_CoercedEnvSchema_7527f85b> {}
+  export interface PublicTypedEnvSchema extends Readonly<Pick<_CoercedEnvSchema_7527f85b, 'API_PORT' | 'SYNC_INTERVAL_MINUTES' | 'JOB_CALLS_PER_DAY' | 'WEB_DIST_DIR' | 'MUSICBRAINZ_USER_AGENT' | 'SPOTIFY_CLIENT_ID' | 'SPOTIFY_REDIRECT_URI' | 'ELASTICSEARCH_URL'>> {}
 }
 
 
@@ -103,17 +112,17 @@ export type EnvSchemaAsStrings = {
       : (NonNullable<CoercedEnvSchema[Property]> extends boolean ? ('true' | 'false') : string)
 };
 
-type _EnvSchemaAsStrings_591cafbf = EnvSchemaAsStrings;
+type _EnvSchemaAsStrings_7527f85b = EnvSchemaAsStrings;
 declare global {
 
   // add types for global import.meta.env
-  interface ImportMetaEnv extends _EnvSchemaAsStrings_591cafbf {}
+  interface ImportMetaEnv extends _EnvSchemaAsStrings_7527f85b {}
   interface ImportMeta {
     readonly env: ImportMetaEnv;
   }
 
   // add types for global process.env
   namespace NodeJS {
-    interface ProcessEnv extends _EnvSchemaAsStrings_591cafbf {}
+    interface ProcessEnv extends _EnvSchemaAsStrings_7527f85b {}
   }
 }

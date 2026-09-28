@@ -1,4 +1,5 @@
 import type { AppDeps } from '../deps.ts'
+import { DEFAULT_BUDGET, type CallBudget } from './budget.ts'
 import { holdLease, PROCESS_ID, releaseLease } from './lease.ts'
 import { runJobs } from './queue.ts'
 
@@ -24,13 +25,15 @@ export function startJobRunner(
     idleMs = 60_000,
     busyPauseMs = 2_000,
     holder = PROCESS_ID,
+    budget = DEFAULT_BUDGET,
     log = console,
-  }: { idleMs?: number; busyPauseMs?: number; holder?: string; log?: Logger } = {},
+  }: { idleMs?: number; busyPauseMs?: number; holder?: string; budget?: CallBudget; log?: Logger } = {},
 ): () => void {
   let stopped = false
   let timer: ReturnType<typeof setTimeout> | undefined
   let holding: boolean | undefined
   let pausedUntil = 0
+  let loggedPause = 0
 
   async function loop() {
     let wait = idleMs
@@ -39,15 +42,20 @@ export function startJobRunner(
       if (held !== holding) log.info(held ? '[jobs] running background jobs' : '[jobs] another process runs background jobs; standing by')
       holding = held
       if (held && Date.now() >= pausedUntil) {
-        const result = await runJobs(deps)
+        const result = await runJobs(deps, { budget })
         if (result.done || result.retrying || result.dropped) {
           log.info(
             `[jobs] ${result.done} done, ${result.retrying} retrying, ${result.dropped} dropped, ${result.remaining} left`,
           )
         }
-        if (result.rateLimitedUntil) {
-          pausedUntil = result.rateLimitedUntil.getTime()
-          log.info(`[jobs] Spotify asked us to wait until ${result.rateLimitedUntil.toISOString()}`)
+        // Spotify's Retry-After (recorded for every process), or the day's budget spent: wait it out.
+        const until = result.rateLimitedUntil ?? result.budgetUntil
+        if (until) {
+          pausedUntil = until.getTime()
+          if (result.rateLimitedUntil && loggedPause !== pausedUntil) {
+            log.info(`[jobs] Spotify asked us to wait until ${result.rateLimitedUntil.toISOString()}`)
+            loggedPause = pausedUntil
+          }
         } else if (result.done > 0 && result.remaining > 0) wait = busyPauseMs
       }
       if (held) wait = Math.min(Math.max(wait, pausedUntil - Date.now()), RENEW_MS)

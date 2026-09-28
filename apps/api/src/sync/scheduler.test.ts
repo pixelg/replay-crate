@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestContext, play, track } from '../testing.ts'
+import { SpotifyApiError } from '@replay-crate/spotify'
+import { pauseSpotify, pausedUntil } from '../jobs/budget.ts'
 import { syncAllUsers } from './all-users.ts'
 import { startSyncScheduler } from './scheduler.ts'
 
@@ -55,6 +57,20 @@ describe('scheduled sync', () => {
     } finally {
       stopOther()
     }
+  })
+
+  it("skips while Spotify's Retry-After runs, and records a new one", async () => {
+    await pauseSpotify(ctx.db, new Date(ctx.deps.now!().getTime() + 60 * 60_000), ctx.deps.now!())
+    stop = startSyncScheduler(ctx.deps, { intervalMs: 50, firstRunAfterMs: 0, log })
+    await vi.waitFor(() => expect(log.info).toHaveBeenCalledWith(expect.stringMatching(/^\[sync\] skipped: Spotify asked us to wait until/)))
+    await sleep(120)
+    expect(ctx.spotify.getRecentlyPlayed).not.toHaveBeenCalled()
+  })
+
+  it('a 429 during a sync pauses background calls for every process', async () => {
+    ctx.spotify.getRecentlyPlayed.mockRejectedValueOnce(new SpotifyApiError(429, 'slow down', 600))
+    await syncAllUsers(ctx.deps)
+    expect(await pausedUntil(ctx.db, ctx.deps.now!())).toEqual(new Date(ctx.deps.now!().getTime() + 600_000))
   })
 
   it('never overlaps a slow run', async () => {

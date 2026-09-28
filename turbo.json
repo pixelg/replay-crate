@@ -58,6 +58,7 @@
         "LASTFM_API_KEY",
         "API_PORT",
         "SYNC_INTERVAL_MINUTES",
+        "JOB_CALLS_PER_DAY",
         "WEB_DIST_DIR",
         "MUSICBRAINZ_USER_AGENT",
         "ELASTICSEARCH_URL"

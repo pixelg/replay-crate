@@ -2,6 +2,7 @@ import { schema } from '@replay-crate/db'
 import { SpotifyApiError, SpotifyAuthError } from '@replay-crate/spotify'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createTestContext, track } from '../testing.ts'
+import { pausedUntil } from './budget.ts'
 import { enqueue, jobStatus, runJobs } from './queue.ts'
 
 const MINUTE = 60_000
@@ -91,6 +92,36 @@ describe('job queue', () => {
     // The other two are due again now, not held for the reservation's five minutes.
     const left = await queued()
     expect(left.map((job) => job.runAfter)).toEqual([ctx.deps.now!(), ctx.deps.now!()])
+  })
+
+  it("records Spotify's Retry-After, so no process calls before it passes", async () => {
+    ctx.spotify.getTrack.mockRejectedValueOnce(new SpotifyApiError(429, 'slow down', 23 * 60 * 60))
+    ctx.library.remember(['a', 'b'].map((ref) => track(ref)))
+    await enqueue(ctx.db, [trackJob('a'), trackJob('b')], ctx.deps.now!())
+    const until = new Date(ctx.deps.now!().getTime() + 23 * 60 * MINUTE)
+    expect(await runJobs(ctx.deps, noPause)).toMatchObject({ done: 0, rateLimitedUntil: until })
+    expect(await pausedUntil(ctx.db, ctx.deps.now!())).toEqual(until)
+
+    // Another process, or this one restarted, with jobs that are due: still no call.
+    await ctx.db.update(schema.jobs).set({ runAfter: ctx.deps.now!() })
+    expect(await runJobs(ctx.deps, noPause)).toMatchObject({ done: 0, rateLimitedUntil: until })
+    expect(ctx.spotify.getTrack).toHaveBeenCalledOnce()
+
+    ctx.advance(23 * 60 * MINUTE + 1)
+    expect(await runJobs(ctx.deps, noPause)).toMatchObject({ done: 2, rateLimitedUntil: null })
+  })
+
+  it('stops when the daily budget is spent, handing the rest back', async () => {
+    const refs = ['a', 'b', 'c', 'd']
+    ctx.library.remember(refs.map((ref) => track(ref)))
+    await enqueue(ctx.db, refs.map(trackJob), ctx.deps.now!())
+    const budget = { perDay: 2_400, burst: 2 }
+    const result = await runJobs(ctx.deps, { ...noPause, budget })
+    expect(result).toMatchObject({ done: 2, remaining: 2, budgetUntil: new Date(ctx.deps.now!().getTime() + 36_000) })
+    expect((await queued()).every((job) => job.runAfter <= ctx.deps.now!())).toBe(true)
+
+    ctx.advance(72_000)
+    expect(await runJobs(ctx.deps, { ...noPause, budget })).toMatchObject({ done: 2, remaining: 0 })
   })
 
   it('retries other failures with growing backoff', async () => {
