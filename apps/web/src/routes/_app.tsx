@@ -6,8 +6,8 @@ import { ReauthBanner } from '../components/reauth-banner.tsx'
 import { FullScreenRouteErrorPage } from '../components/route-error-page.tsx'
 import { api } from '../lib/api.ts'
 import { startSpotifyLogin } from '../lib/spotify-login.ts'
+import { useFreshData } from '../lib/use-fresh-data.ts'
 import { useLogout } from '../lib/use-logout.ts'
-import { useSyncOnOpen } from '../lib/use-sync.ts'
 
 /** Layout for every signed-in page. Signed-out visitors go to /connect. */
 export const Route = createFileRoute('/_app')({
@@ -23,7 +23,7 @@ export const Route = createFileRoute('/_app')({
 function AppLayout() {
   const { data: me } = useSuspenseQuery(meQueryOptions(api))
   const logout = useLogout()
-  useSyncOnOpen(Boolean(me && !me.needsReauth))
+  useFreshData(Boolean(me && !me.needsReauth))
   if (!me) return null
   // Expired access matters more: nothing records until the user reconnects.
   const reconnect = me.needsReauth ? 'expired' : me.missingScopes.length ? 'permissions' : null

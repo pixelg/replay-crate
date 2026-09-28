@@ -13,14 +13,17 @@ import {
   type PlayerItem,
   type PlayerCommand,
 } from '@replay-crate/api-client'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { api } from './api.ts'
 
 const PLAYBACK_KEY = playbackQueryOptions(api).queryKey
 
-/** Spotify takes a moment to reflect a command in its state; ask again after this. */
-const SETTLE_MS = 600
+/**
+ * Spotify takes a moment to reflect a command in its state: ask again after the first delay, and
+ * once more after the second, since it's sometimes slower.
+ */
+const SETTLE_MS = [600, 2_500] as const
 
 /**
  * What Spotify is playing, polled every few seconds while music plays (less when idle, never
@@ -65,15 +68,15 @@ export function usePlayingTrackId() {
 }
 
 /**
- * What's playing right now (not paused) and where from, or null. Re-renders only when that
- * changes, not as the position ticks.
+ * What Spotify has loaded right now, playing or paused, and where from; null once it reports
+ * nothing. Re-renders only when that changes, not as the position ticks.
  */
-export function useNowPlaying(): { item: PlayerItem; context: PlayContext | null } | null {
+export function useNowPlaying(): { item: PlayerItem; context: PlayContext | null; isPlaying: boolean } | null {
   return (
     useQuery({
       ...playbackQueryOptions(api),
       select: (playback) =>
-        playback?.isPlaying && playback.item ? { item: playback.item, context: playback.context } : null,
+        playback?.item ? { item: playback.item, context: playback.context, isPlaying: playback.isPlaying } : null,
     }).data ?? null
   )
 }
@@ -90,10 +93,11 @@ export function useDevices({ enabled = true } = {}) {
 /**
  * Sends player commands. What a command predictably changes (pause, resume, seek, shuffle,
  * repeat, volume) shows at once and is rolled back if Spotify refuses; then playback, and the
- * queue or devices when the command touches them, are fetched again once Spotify has caught up.
+ * queue or devices when the command touches them, are fetched again as Spotify catches up.
  */
 export function usePlayerControls() {
   const queryClient = useQueryClient()
+  const lateLook = useRef<{ timer?: ReturnType<typeof setTimeout>; kinds: Set<PlayerCommand['kind']> }>({ kinds: new Set() })
   const mutation = useMutation({
     mutationKey: ['player', 'command'],
     mutationFn: (command: PlayerCommand) => sendPlayerCommand(api, command),
@@ -111,19 +115,24 @@ export function usePlayerControls() {
         void queryClient.invalidateQueries({ queryKey: ['me'] })
       }
     },
-    onSettled: (_data, _error, command) =>
-      new Promise<void>((resolve) =>
+    onSettled: (_data, _error, command) => {
+      const [first, second] = SETTLE_MS
+      // One late look for a burst of commands (arrow keys on a slider, say), not one each. The
+      // command counts as sent after the first look; the late one doesn't hold it up.
+      const late = lateLook.current
+      late.kinds.add(command.kind)
+      clearTimeout(late.timer)
+      late.timer = setTimeout(() => {
+        refetchAfter(queryClient, late.kinds)
+        late.kinds.clear()
+      }, second)
+      return new Promise<void>((resolve) =>
         setTimeout(() => {
-          void queryClient.invalidateQueries({ queryKey: PLAYBACK_KEY, exact: true })
-          if (['next', 'previous', 'play', 'queue'].includes(command.kind)) {
-            void queryClient.invalidateQueries({ queryKey: ['player', 'queue'] })
-          }
-          if (command.kind === 'transfer' || command.kind === 'volume') {
-            void queryClient.invalidateQueries({ queryKey: ['player', 'devices'] })
-          }
+          refetchAfter(queryClient, [command.kind])
           resolve()
-        }, SETTLE_MS),
-      ),
+        }, first),
+      )
+    },
   })
   return {
     send: mutation.mutate,
@@ -142,6 +151,18 @@ export function useForgetDevice() {
     mutationFn: (device: Device) => forgetDevice(api, device.rememberedId),
     onSettled: () => queryClient.invalidateQueries({ queryKey: devicesQueryOptions(api).queryKey }),
   })
+}
+
+/** Fetches playback again after commands, and the queue or devices when they touch them. */
+function refetchAfter(queryClient: QueryClient, kinds: Iterable<PlayerCommand['kind']>) {
+  const sent = [...kinds]
+  void queryClient.invalidateQueries({ queryKey: PLAYBACK_KEY, exact: true })
+  if (sent.some((kind) => kind === 'next' || kind === 'previous' || kind === 'play' || kind === 'queue')) {
+    void queryClient.invalidateQueries({ queryKey: ['player', 'queue'] })
+  }
+  if (sent.some((kind) => kind === 'transfer' || kind === 'volume')) {
+    void queryClient.invalidateQueries({ queryKey: ['player', 'devices'] })
+  }
 }
 
 /** The current time, re-read every half second while `ticking`. */

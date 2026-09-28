@@ -35,6 +35,16 @@ export const Track = meta.story({
   },
 })
 
+export const Paused = meta.story({
+  args: { isPlaying: false },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('group', { name: 'Now playing' })).toBeVisible()
+    await expect(canvas.getByRole('link', { name: 'Brass Monkey Business' })).toBeVisible()
+    await expect(canvas.getByText('Paused')).toBeVisible()
+    await expect(canvas.queryByText('Playing')).toBeNull()
+  },
+})
+
 export const Episode = meta.story({
   args: { item: episode, context: null },
   play: async ({ canvas }) => {
