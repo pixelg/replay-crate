@@ -1,4 +1,4 @@
-import type { StatsOverview, StatsRange } from '@replay-crate/api-client'
+import type { StatsOverview } from '@replay-crate/api-client'
 import { useState, type CSSProperties } from 'react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,9 +11,7 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart'
 import { Segmented } from '@/components/ui/segmented'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { bucketDate, isStatsRange, statsRanges } from '@/lib/stats-ranges'
+import { bucketDate } from '@/lib/stats-ranges'
 
 const axisDate = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
 const tooltipDate = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
@@ -36,17 +34,16 @@ const OTHERS = 'others'
 
 /**
  * shadcn's "Area Chart - Interactive": who you listened to over time. Stacked areas for the
- * range's top artists (picked by plays, so long tracks don't win) and everyone else, in plays or
- * time played, with the page's time range picker in the header.
+ * span's top artists (picked by plays, so long tracks don't win) and everyone else, in plays or
+ * time played. The page picks the span (a rolling window, or a year or month).
  */
 export function ListeningOverTime({
   overview,
-  range,
-  onRangeChange,
+  emptyText = 'No plays in this range yet.',
 }: {
   overview: StatsOverview
-  range: StatsRange
-  onRangeChange: (range: StatsRange) => void
+  /** What to say when nothing was played in the span. */
+  emptyText?: string
 }) {
   const { series, bucket, totals, artists } = overview
   const perWeek = bucket === 'week'
@@ -84,43 +81,11 @@ export function ListeningOverTime({
         </CardDescription>
         <CardAction className="flex flex-wrap items-center justify-end gap-2">
           <Segmented<Measure> label="Measure" value={measure} onChange={setMeasure} options={measures} />
-          <ToggleGroup
-            aria-label="Time range"
-            multiple={false}
-            value={[range]}
-            onValueChange={(value) => isStatsRange(value[0]) && onRangeChange(value[0])}
-            variant="outline"
-            className="hidden *:data-[slot=toggle-group-item]:px-3! @[680px]/card:flex"
-          >
-            {statsRanges.map((option) => (
-              <ToggleGroupItem key={option.value} value={option.value}>
-                {option.short}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-          <Select
-            items={statsRanges}
-            value={range}
-            onValueChange={(value) => isStatsRange(value) && onRangeChange(value)}
-          >
-            <SelectTrigger className="flex w-36 @[680px]/card:hidden" size="sm" aria-label="Time range">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl">
-              {statsRanges.map((option) => (
-                <SelectItem key={option.value} value={option.value} className="rounded-lg">
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </CardAction>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
         {totals.plays === 0 ? (
-          <p className="flex h-[250px] items-center justify-center text-sm text-muted-foreground">
-            No plays in this range yet.
-          </p>
+          <p className="flex h-[250px] items-center justify-center text-sm text-muted-foreground">{emptyText}</p>
         ) : (
           <ChartContainer config={chartConfig} className="aspect-auto h-[280px] w-full">
             <AreaChart data={data} accessibilityLayer>

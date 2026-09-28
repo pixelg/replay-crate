@@ -1,6 +1,7 @@
 import type {
   Device,
   HistoryGap,
+  HistoryTimeline,
   ImportStatus,
   LibraryPage,
   Me,
@@ -291,6 +292,7 @@ export function statsOverview(days = 30): StatsOverview {
 export const statsTop: StatsTop = {
   type: 'tracks',
   range: '30d',
+  tz: 'UTC',
   metric: 'plays',
   limit: 10,
   items: [
@@ -483,6 +485,34 @@ export const manyTracks = (count: number): LibraryPage['items'] =>
     firstPlayedAt: play.playedAt,
     lastPlayedAt: play.playedAt,
   }))
+
+/**
+ * Plays per month, newest first, like an imported history: from this month back to June 2011,
+ * busier each era, with nothing from January to August 2014.
+ */
+export const timeline: HistoryTimeline = {
+  months: Array.from({ length: 12 * 20 }, (_, i) => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth() - i, 1)
+  })
+    .filter((date) => date >= new Date(2011, 5, 1) && !(date.getFullYear() === 2014 && date.getMonth() < 8))
+    .map((date) => {
+      const year = date.getFullYear()
+      const base = year >= 2022 ? 2400 : year >= 2019 ? 500 : 150
+      return { month: `${year}-${pad(date.getMonth() + 1)}`, plays: base + ((date.getMonth() * 37 + year) % 11) * Math.round(base / 10) }
+    }),
+}
+
+/** `count` plays at the end of March 2019, newest first, two an evening: what a jump to that month opens. */
+export const march2019Plays = (count: number): PlayItem[] =>
+  Array.from({ length: count }, (_, i) => ({
+    playedAt: new Date(2019, 2, 31 - Math.floor(i / 2), 21 - (i % 2)).toISOString(),
+    msPlayed: 200_000,
+    source: 'import' as const,
+    context: null,
+    track: track(`old-${pad(i + 1)}`, `Old Favourite ${pad(i + 1)}`, ['Showbiz & A.G.'], 'Runaway Slave'),
+  }))
+
 // Search: what "pete" finds in the fixture library.
 const hit = (partial: Partial<SearchHit> & Pick<SearchHit, 'type' | 'id' | 'name'>): SearchHit => ({
   artists: [],

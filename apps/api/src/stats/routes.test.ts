@@ -118,6 +118,52 @@ describe('stats', () => {
       expect(all.totals.plays).toBe(6)
     })
 
+    it('covers a calendar month by day, up to today while it’s still going', async () => {
+      const september = await json(await get('/api/v1/stats/overview?period=2026-09&tz=UTC'))
+      expect(september).toMatchObject({ period: '2026-09', bucket: 'day', totals: { plays: 5, tracks: 2 } })
+      expect(september).not.toHaveProperty('range')
+      expect(september.series[0].date).toBe('2026-09-01')
+      expect(september.series.at(-1).date).toBe('2026-09-21')
+
+      const june = await json(await get('/api/v1/stats/overview?period=2026-06&tz=UTC'))
+      expect(june.series).toHaveLength(30)
+      expect(june.series.at(-1).date).toBe('2026-06-30')
+      expect(june.totals).toEqual({ plays: 1, minutes: 3, tracks: 1, artists: 1, newTracks: 1 })
+      expect(june.artists).toEqual([{ id: 'solo', name: 'Solo', plays: 1, minutes: 3 }])
+    })
+
+    it('covers a calendar year by week, and a year without plays is all zeros', async () => {
+      const year = await json(await get('/api/v1/stats/overview?period=2026&tz=UTC'))
+      expect(year).toMatchObject({ period: '2026', bucket: 'week', totals: { plays: 6 } })
+      // 1 January 2026 is a Thursday: the first week starts the Monday before.
+      expect(year.series[0].date).toBe('2025-12-29')
+      expect(year.series.at(-1)).toMatchObject({ date: '2026-09-21', newTracks: 1, replays: 2 })
+
+      const empty = await json(await get('/api/v1/stats/overview?period=2025&tz=UTC'))
+      expect(empty.totals).toEqual({ plays: 0, minutes: 0, tracks: 0, artists: 0, newTracks: 0 })
+      expect(empty.series).toHaveLength(53)
+      expect(empty.series.at(-1).date).toBe('2025-12-29')
+    })
+
+    it('counts a period in the user’s time zone', async () => {
+      // 02:00 UTC on 1 June is still 31 May in Los Angeles.
+      ctx.advance(60_000)
+      ctx.spotify.getRecentlyPlayed.mockResolvedValueOnce({ items: [play(other, '2026-06-01T02:00:00.000Z')], cursors: null })
+      await ctx.app.request('/api/v1/history/sync', { method: 'POST', headers: { Cookie: cookie, Origin: 'http://127.0.0.1:5173' } })
+      expect((await json(await get('/api/v1/stats/overview?period=2026-06&tz=UTC'))).totals.plays).toBe(2)
+      expect((await json(await get('/api/v1/stats/overview?period=2026-06&tz=America/Los_Angeles'))).totals.plays).toBe(1)
+      expect((await json(await get('/api/v1/stats/overview?period=2026-05&tz=America/Los_Angeles'))).totals.plays).toBe(1)
+    })
+
+    it('rejects a range and a period together, and a malformed period', async () => {
+      const both = await get('/api/v1/stats/overview?range=7d&period=2026')
+      expect(both.status).toBe(400)
+      expect((await json(both)).issues[0].path).toBe('period')
+      for (const period of ['2026-13', '26', '2026-9']) {
+        expect((await get(`/api/v1/stats/overview?period=${period}`)).status).toBe(400)
+      }
+    })
+
     it('rejects an unknown time zone', async () => {
       const res = await get('/api/v1/stats/overview?tz=Mars/Olympus')
       expect(res.status).toBe(400)
@@ -145,6 +191,26 @@ describe('stats', () => {
         ['alb-a', 5, 'Band'],
         ['alb-b', 1, 'Solo'],
       ])
+    })
+
+    it('ranks within a calendar year or month', async () => {
+      const june = await json(await get('/api/v1/stats/top?type=tracks&period=2026-06&tz=UTC'))
+      expect(june).toMatchObject({ type: 'tracks', period: '2026-06', tz: 'UTC', metric: 'plays', limit: 10 })
+      expect(june).not.toHaveProperty('range')
+      expect(june.items.map((i: { id: string; plays: number }) => [i.id, i.plays])).toEqual([['other', 1]])
+
+      const year = await json(await get('/api/v1/stats/top?type=artists&period=2026'))
+      expect(year.items.map((i: { id: string; plays: number }) => [i.id, i.plays])).toEqual([
+        ['band', 5],
+        ['guest', 4],
+        ['solo', 1],
+      ])
+      expect((await json(await get('/api/v1/stats/top?period=2025'))).items).toEqual([])
+      expect((await get('/api/v1/stats/top?range=all&period=2026')).status).toBe(400)
+    })
+
+    it('still echoes the default range', async () => {
+      expect(await json(await get('/api/v1/stats/top?limit=1'))).toMatchObject({ range: '30d', tz: 'UTC' })
     })
 
     it('can rank by minutes instead', async () => {

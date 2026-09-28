@@ -64,7 +64,8 @@ export function HistoryList({
   return (
     <div className="flex flex-col gap-6">
       {days.map((group) => (
-        <section key={group.day} aria-labelledby={`day-${group.day}`}>
+        // `data-day` tells the timeline which month is being read.
+        <section key={group.day} aria-labelledby={`day-${group.day}`} data-day={group.day}>
           <h2 id={`day-${group.day}`} className={headingClass}>
             {formatDayLabel(group.date, now)}
           </h2>

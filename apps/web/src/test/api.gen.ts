@@ -158,6 +158,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/history/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Plays per month
+         * @description How many plays each calendar month holds, newest first, for jumping around the history: a month is the plays `before` the start of the next one. Months are counted in `tz` (pass the zone the history is shown in); months without plays are left out.
+         */
+        get: operations["getHistoryTimeline"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/history/plays": {
         parameters: {
             query?: never;
@@ -167,7 +187,7 @@ export interface paths {
         };
         /**
          * Play history
-         * @description Newest first. Two ways to page: pass `nextCursor` back as `before` for the next page (infinite scroll), or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`. Not both at once.
+         * @description Newest first. Three ways to page, one at a time: pass `nextCursor` back as `before` for older plays (infinite scroll); pass `after` for the plays just newer than a time, to scroll back up from a point in the past (still listed newest first, and their `nextCursor` goes back in as `after` for newer ones still); or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`.
          */
         get: operations["listPlays"];
         put?: never;
@@ -379,7 +399,7 @@ export interface paths {
         };
         /**
          * Totals and listening over time
-         * @description Each point splits plays into new tracks (a track's first-ever play) and replays, and by artist: the range's top 5 artists by plays (first-credited artist) and everyone else, in plays and minutes. Ranges over 90 days are bucketed by week, shorter ones by day, in the user's time zone; empty buckets are zeros.
+         * @description Each point splits plays into new tracks (a track's first-ever play) and replays, and by artist: the span's top 5 artists by plays (first-credited artist) and everyone else, in plays and minutes. Spans over 90 days (a year, all time) are bucketed by week, shorter ones (a month) by day, in the user's time zone; empty buckets are zeros. A period still going ends at today.
          */
         get: operations["getStatsOverview"];
         put?: never;
@@ -399,7 +419,7 @@ export interface paths {
         };
         /**
          * Most played tracks, artists or albums
-         * @description Ranked by play count or listening time. Plays without a known duration count the track length.
+         * @description Ranked by play count or listening time, over a rolling `range` or a calendar `period`. Plays without a known duration count the track length.
          */
         get: operations["getStatsTop"];
         put?: never;
@@ -419,7 +439,7 @@ export interface paths {
         };
         /**
          * Spotify's own top tracks or artists
-         * @description Spotify's ranking, next to the plays Replay Crate has recorded for each, for comparison.
+         * @description Spotify's ranking, next to the plays Replay Crate has recorded for each (all time), for comparison. Spotify only offers its own fixed windows: there is no range or period here.
          */
         get: operations["getSpotifyTop"];
         put?: never;
@@ -900,6 +920,14 @@ export interface components {
              */
             detectedAt: string;
         };
+        TimelineMonth: {
+            /**
+             * @description YYYY-MM.
+             * @example 2019-03
+             */
+            month: string;
+            plays: number;
+        };
         PlayItem: {
             /**
              * Format: date-time
@@ -1079,10 +1107,15 @@ export interface components {
             }[];
         };
         /**
-         * @description A rolling window ending now.
+         * @description A rolling window ending now. `30d` unless `period` is given.
          * @enum {string}
          */
         StatsRange: "7d" | "30d" | "90d" | "1y" | "all";
+        /**
+         * @description A calendar year (`2019`) or month (`2019-03`), in local days of `tz`. Not with `range`.
+         * @example 2019-03
+         */
+        StatsPeriod: string;
         Listening: {
             plays: number;
             minutes: number;
@@ -1750,11 +1783,65 @@ export interface operations {
             };
         };
     };
+    getHistoryTimeline: {
+        parameters: {
+            query?: {
+                /** @description IANA time zone for month boundaries. */
+                tz?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Months with plays. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        months: components["schemas"]["TimelineMonth"][];
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
     listPlays: {
         parameters: {
             query?: {
                 /** @description Only plays strictly older than this. */
                 before?: string;
+                /** @description Only plays strictly newer than this: the `limit` closest to it. */
+                after?: string;
                 limit?: number;
                 /** @description Plays to skip, for numbered pages. */
                 offset?: number | null;
@@ -1775,7 +1862,7 @@ export interface operations {
                         items: components["schemas"]["PlayItem"][];
                         /**
                          * Format: date-time
-                         * @description null on the last page.
+                         * @description Where the next page starts, in the direction paged (older, or newer with `after`); null on the last page.
                          * @example 2026-09-21T12:00:00.000Z
                          */
                         nextCursor: string | null;
@@ -2766,8 +2853,10 @@ export interface operations {
     getStatsOverview: {
         parameters: {
             query?: {
-                /** @description A rolling window ending now. */
+                /** @description A rolling window ending now. `30d` unless `period` is given. */
                 range?: components["schemas"]["StatsRange"];
+                /** @description A calendar year (`2019`) or month (`2019-03`), in local days of `tz`. Not with `range`. */
+                period?: components["schemas"]["StatsPeriod"];
                 /** @description IANA time zone for day boundaries. */
                 tz?: string;
             };
@@ -2784,7 +2873,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        range: components["schemas"]["StatsRange"];
+                        range?: components["schemas"]["StatsRange"];
+                        period?: components["schemas"]["StatsPeriod"];
                         tz: string;
                         /** @enum {string} */
                         bucket: "day" | "week";
@@ -2795,7 +2885,7 @@ export interface operations {
                             artists: number;
                             newTracks: number;
                         };
-                        /** @description The range's top artists by plays (not time), most first. */
+                        /** @description The span's top artists by plays (not time), most first. */
                         artists: {
                             id: string;
                             name: string;
@@ -2812,7 +2902,7 @@ export interface operations {
                             byArtist: components["schemas"]["Listening"][];
                             others: components["schemas"]["Listening"] & unknown;
                         }[];
-                        /** @description Unfilled history gaps in the range. */
+                        /** @description Unfilled history gaps reaching into the span. */
                         openGaps: number;
                     };
                 };
@@ -2850,8 +2940,12 @@ export interface operations {
         parameters: {
             query?: {
                 type?: "tracks" | "artists" | "albums";
-                /** @description A rolling window ending now. */
+                /** @description A rolling window ending now. `30d` unless `period` is given. */
                 range?: components["schemas"]["StatsRange"];
+                /** @description A calendar year (`2019`) or month (`2019-03`), in local days of `tz`. Not with `range`. */
+                period?: components["schemas"]["StatsPeriod"];
+                /** @description IANA time zone for day boundaries. */
+                tz?: string;
                 metric?: "plays" | "minutes";
                 limit?: number;
             };
@@ -2874,6 +2968,13 @@ export interface operations {
                          */
                         type: "tracks" | "artists" | "albums";
                         range?: components["schemas"]["StatsRange"];
+                        period?: components["schemas"]["StatsPeriod"];
+                        /**
+                         * @description IANA time zone for day boundaries.
+                         * @default UTC
+                         * @example America/Los_Angeles
+                         */
+                        tz: string;
                         /**
                          * @default plays
                          * @enum {string}

@@ -217,6 +217,32 @@ describe('history', () => {
       expect(body).not.toHaveProperty('olderPlayedAt')
     })
 
+    it('pages newer with the after cursor, still newest first', async () => {
+      const first = await json(await get('/api/v1/history/plays?limit=1&after=2026-09-21T11:40:00.000Z'))
+      // The play closest to the cursor, not the newest one.
+      expect(first.items.map((p: { playedAt: string }) => p.playedAt)).toEqual(['2026-09-21T11:45:00.000Z'])
+      expect(first.nextCursor).toBe('2026-09-21T11:45:00.000Z')
+
+      const second = await json(await get(`/api/v1/history/plays?limit=5&after=${first.nextCursor}`))
+      expect(second.items.map((p: { playedAt: string }) => p.playedAt)).toEqual(['2026-09-21T11:50:00.000Z'])
+      expect(second.nextCursor).toBeNull()
+
+      const both = await json(await get('/api/v1/history/plays?limit=2&after=2026-09-21T11:00:00.000Z'))
+      expect(both.items.map((p: { playedAt: string }) => p.playedAt)).toEqual([
+        '2026-09-21T11:45:00.000Z',
+        '2026-09-21T11:40:00.000Z',
+      ])
+      expect(both.items[0].track.artists).toEqual([{ id: 'art-1', name: 'Band' }])
+    })
+
+    it('rejects after with another cursor', async () => {
+      for (const query of ['after=2026-09-21T11:45:00.000Z&before=2026-09-21T11:50:00.000Z', 'after=2026-09-21T11:45:00.000Z&offset=0']) {
+        const res = await get(`/api/v1/history/plays?${query}`)
+        expect(res.status).toBe(400)
+        expect(await json(res)).toMatchObject({ error: 'invalid_request', issues: [{ path: 'after' }] })
+      }
+    })
+
     it('rejects before and offset together', async () => {
       const res = await get('/api/v1/history/plays?offset=0&before=2026-09-21T11:45:00.000Z')
       expect(res.status).toBe(400)
@@ -232,6 +258,56 @@ describe('history', () => {
 
     it('rejects a malformed cursor', async () => {
       expect((await get('/api/v1/history/plays?before=yesterday')).status).toBe(400)
+    })
+  })
+
+  describe('GET /api/v1/history/timeline', () => {
+    beforeEach(async () => {
+      ctx.spotify.getRecentlyPlayed.mockResolvedValue({
+        items: [
+          play(songA, '2026-09-21T11:50:00.000Z'),
+          play(songB, '2026-09-01T03:00:00.000Z'), // still August in Los Angeles
+          play(songA, '2026-08-15T12:00:00.000Z'),
+          play(songA, '2019-03-10T12:00:00.000Z'),
+          play(songB, '2011-12-31T23:30:00.000Z'), // New Year's Day in Berlin
+        ],
+        cursors: null,
+      })
+      await sync()
+    })
+
+    it('counts plays per month, newest first, leaving out empty months', async () => {
+      expect(await json(await get('/api/v1/history/timeline?tz=UTC'))).toEqual({
+        months: [
+          { month: '2026-09', plays: 2 },
+          { month: '2026-08', plays: 1 },
+          { month: '2019-03', plays: 1 },
+          { month: '2011-12', plays: 1 },
+        ],
+      })
+    })
+
+    it('draws month boundaries in the given time zone', async () => {
+      const la = await json(await get('/api/v1/history/timeline?tz=America/Los_Angeles'))
+      expect(la.months.slice(0, 2)).toEqual([
+        { month: '2026-09', plays: 1 },
+        { month: '2026-08', plays: 2 },
+      ])
+      const berlin = await json(await get('/api/v1/history/timeline?tz=Europe/Berlin'))
+      expect(berlin.months.at(-1)).toEqual({ month: '2012-01', plays: 1 })
+    })
+
+    it('only counts the signed-in user’s plays', async () => {
+      ctx.spotify.getCurrentUser.mockResolvedValueOnce({ id: 'someone-else', display_name: null, images: [] })
+      const { token } = await ctx.login()
+      const res = await ctx.app.request('/api/v1/history/timeline', { headers: { Cookie: `rc_session=${token}` } })
+      expect(await json(res)).toEqual({ months: [] })
+    })
+
+    it('rejects an unknown time zone', async () => {
+      const res = await get('/api/v1/history/timeline?tz=Mars/Olympus')
+      expect(res.status).toBe(400)
+      expect((await json(res)).issues[0].path).toBe('tz')
     })
   })
 

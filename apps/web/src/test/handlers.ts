@@ -14,6 +14,7 @@ import {
   spotifyTop,
   statsOverview,
   statsTop,
+  timeline,
   trackDetail,
 } from './fixtures.ts'
 
@@ -56,6 +57,7 @@ export const handlers = {
       response(200).json({ status: 'skipped', inserted: 0, lastSyncedAt: playsPage.lastSyncedAt!, missedPlays: false }),
     ),
     http.get('/api/v1/history/gaps', ({ response }) => response(200).json({ gaps: [] })),
+    http.get('/api/v1/history/timeline', ({ response }) => response(200).json(timeline)),
   ],
   tracks: [
     http.get('/api/v1/tracks', ({ query, response }) => {
@@ -69,15 +71,23 @@ export const handlers = {
     http.get('/api/v1/playlists/{id}', ({ response }) => response(200).json(playlistDetail)),
     http.post('/api/v1/playlists/sync', ({ response }) => response(200).json({ total: 3, synced: 0, remaining: 0 })),
   ],
+  // The same numbers for any range or period, echoing which one was asked for.
   stats: [
-    http.get('/api/v1/stats/overview', ({ response }) => response(200).json(statsOverview())),
-    http.get('/api/v1/stats/top', ({ query, response }) =>
-      response(200).json({
-        ...statsTop,
+    http.get('/api/v1/stats/overview', ({ query, response }) => {
+      const { range, ...overview } = statsOverview()
+      const period = query.get('period')
+      return response(200).json(period ? { period, ...overview } : { range, ...overview })
+    }),
+    http.get('/api/v1/stats/top', ({ query, response }) => {
+      const { range, ...top } = statsTop
+      const period = query.get('period')
+      return response(200).json({
+        ...top,
+        ...(period ? { period } : { range }),
         type: (query.get('type') as typeof statsTop.type | null) ?? 'tracks',
         metric: (query.get('metric') as typeof statsTop.metric | null) ?? 'plays',
-      }),
-    ),
+      })
+    }),
     http.get('/api/v1/stats/spotify-top', ({ response }) => response(200).json(spotifyTop)),
   ],
   imports: [http.get('/api/v1/imports/latest', ({ response }) => response(200).json({ import: null }))],
