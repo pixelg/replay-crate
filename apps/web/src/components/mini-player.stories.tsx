@@ -128,6 +128,28 @@ export const CommandRefused = meta.story({
   },
 })
 
+export const RefusalClearsOncePlaying = meta.story({
+  beforeEach({ msw }) {
+    // Nothing active when Next is pressed; a moment later music is playing on a device.
+    let active = false
+    msw.use(
+      http.get('/api/v1/player', ({ response }) => response(200).json({ playback: active ? playback : pausedPlayback })),
+      http.post('/api/v1/player/next', ({ response }) => {
+        setTimeout(() => (active = true), 300)
+        return response(409).json({ error: 'no_active_device' })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const region = within(await player(canvas))
+    await userEvent.click(region.getByRole('button', { name: 'Next' }))
+    await expect(await region.findByRole('status')).toHaveTextContent('No Spotify device is active')
+    // The next look at playback finds it playing: the refusal goes, the artist comes back.
+    await waitFor(() => expect(region.queryByRole('status')).toBeNull(), { timeout: 5_000 })
+    await expect(region.getByText('The Loop Collective, MC Vinyl')).toBeVisible()
+  },
+})
+
 export const NothingPlaying = meta.story({
   beforeEach({ msw }) {
     msw.use(http.get('/api/v1/player', ({ response }) => response(200).json({ playback: { ...pausedPlayback, item: null } })))
