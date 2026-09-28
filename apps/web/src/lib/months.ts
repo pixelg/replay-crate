@@ -48,6 +48,12 @@ export function cursorMonth(before: string): string | null {
   return monthCursor(month) === date.toISOString() ? month : null
 }
 
+/** Local midnight at the start of a day (`YYYY-MM-DD`). */
+export function dayStart(day: string): Date {
+  const [year, month, date] = day.split('-').map(Number) as [number, number, number]
+  return new Date(year, month - 1, date)
+}
+
 /** The `before` cursor that opens a day (`YYYY-MM-DD`): local midnight at the start of the next one. */
 export function dayCursor(day: string): string {
   const [year, month, date] = day.split('-').map(Number) as [number, number, number]

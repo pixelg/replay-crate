@@ -178,6 +178,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/history/on-this-day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * This day in earlier years
+         * @description The same month and day in every earlier year with plays on it, newest year first: that day's plays, in the user's time zone, and its 5 most played tracks. 29 February looks back at leap years only.
+         */
+        get: operations["getOnThisDay"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/history/plays": {
         parameters: {
             query?: never;
@@ -422,6 +442,26 @@ export interface paths {
          * @description Ranked by play count or listening time, over a rolling `range` or a calendar `period`. Plays without a known duration count the track length.
          */
         get: operations["getStatsTop"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stats/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Plays per day for a year
+         * @description For a calendar heatmap: the year's days that have plays, in the user's time zone, and every year that has plays.
+         */
+        get: operations["getStatsCalendar"];
         put?: never;
         post?: never;
         delete?: never;
@@ -928,6 +968,36 @@ export interface components {
             month: string;
             plays: number;
         };
+        OnThisDayYear: {
+            year: number;
+            /** @description That day in this year, YYYY-MM-DD. */
+            date: string;
+            plays: number;
+            /** @description Most played first. */
+            tracks: {
+                track: {
+                    /** @description Spotify track id. */
+                    id: string;
+                    name: string;
+                    durationMs: number;
+                    explicit: boolean;
+                    album: {
+                        id: string;
+                        name: string;
+                        thumbUrl: string | null;
+                    };
+                    artists: components["schemas"]["ArtistRef"][];
+                    rating: components["schemas"]["Rating"];
+                };
+                plays: number;
+            }[];
+        };
+        ArtistRef: {
+            id: string;
+            name: string;
+        };
+        /** @example 4 */
+        Rating: number | null;
         PlayItem: {
             /**
              * Format: date-time
@@ -962,12 +1032,6 @@ export interface components {
             name: string | null;
             imageUrl: string | null;
         } | null;
-        ArtistRef: {
-            id: string;
-            name: string;
-        };
-        /** @example 4 */
-        Rating: number | null;
         LibraryTrack: {
             track: {
                 id: string;
@@ -1803,6 +1867,61 @@ export interface operations {
                 content: {
                     "application/json": {
                         months: components["schemas"]["TimelineMonth"][];
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    getOnThisDay: {
+        parameters: {
+            query?: {
+                /** @description Defaults to today. */
+                date?: string;
+                /** @description IANA time zone for day boundaries. */
+                tz?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Earlier years, or none. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        date: string;
+                        years: components["schemas"]["OnThisDayYear"][];
                     };
                 };
             };
@@ -2983,6 +3102,69 @@ export interface operations {
                         /** @default 10 */
                         limit: number;
                         items: components["schemas"]["TopItem"][];
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    getStatsCalendar: {
+        parameters: {
+            query?: {
+                /** @description Defaults to the current year. */
+                year?: number;
+                /** @description IANA time zone for day boundaries. */
+                tz?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Daily play counts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        year: number;
+                        tz: string;
+                        /** @description Every year with plays, oldest first. */
+                        years: number[];
+                        /** @description Days with plays, oldest first; the rest had none. */
+                        days: {
+                            /** @description YYYY-MM-DD. */
+                            date: string;
+                            plays: number;
+                        }[];
                     };
                 };
             };

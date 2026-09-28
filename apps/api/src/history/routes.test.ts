@@ -329,6 +329,97 @@ describe('history', () => {
     })
   })
 
+  // The test clock is 2026-09-21T12:00:00Z.
+  describe('GET /api/v1/history/on-this-day', () => {
+    const others = [1, 2, 3, 4, 5, 6].map((n) => track(`x${n}`, { name: `Extra ${n}` }))
+
+    beforeEach(async () => {
+      ctx.spotify.getRecentlyPlayed.mockResolvedValue({
+        items: [
+          play(songA, '2026-09-21T11:00:00.000Z'), // today: not an earlier year
+          play(songA, '2025-09-22T01:00:00.000Z'), // the 22nd in UTC, still the 21st in Los Angeles
+          play(songB, '2025-09-21T20:00:00.000Z'),
+          play(songA, '2025-09-21T19:00:00.000Z'),
+          play(songA, '2025-09-21T18:00:00.000Z'),
+          play(songB, '2024-09-20T18:00:00.000Z'), // another day
+          // Six tracks in 2022, the last one twice: five are listed, most played first.
+          ...others.map((t, n) => play(t, `2022-09-21T1${n}:00:00.000Z`)),
+          play(others[5]!, '2022-09-21T17:00:00.000Z'),
+          play(songB, '2024-02-29T12:00:00.000Z'),
+          play(songA, '2025-02-28T12:00:00.000Z'),
+        ],
+        cursors: null,
+      })
+      await sync()
+    })
+
+    it('lists earlier years on this day, newest first, with their most played tracks', async () => {
+      await ctx.app.request('/api/v1/tracks/a/rating', {
+        method: 'PUT',
+        headers: { Cookie: cookie, Origin: ORIGIN, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating: 5 }),
+      })
+      const body = await json(await get('/api/v1/history/on-this-day?tz=UTC'))
+      expect(body.date).toBe('2026-09-21')
+      expect(body.years.map((y: { year: number; date: string; plays: number }) => [y.year, y.date, y.plays])).toEqual([
+        [2025, '2025-09-21', 3],
+        [2022, '2022-09-21', 7],
+      ])
+      expect(body.years[0].tracks).toEqual([
+        {
+          plays: 2,
+          track: {
+            id: 'a',
+            name: 'Song A',
+            durationMs: 200_000,
+            explicit: false,
+            album: { id: 'alb-1', name: 'First Album', thumbUrl: 'https://i.scdn.co/alb-1-64' },
+            artists: [
+              { id: 'art-1', name: 'Band' },
+              { id: 'art-2', name: 'Guest' },
+            ],
+            rating: 5,
+          },
+        },
+        { plays: 1, track: expect.objectContaining({ id: 'b', rating: null }) },
+      ])
+      // Ties go to the track played first that day.
+      expect(body.years[1].tracks.map((t: { track: { id: string }; plays: number }) => [t.track.id, t.plays])).toEqual([
+        ['x6', 2],
+        ['x1', 1],
+        ['x2', 1],
+        ['x3', 1],
+        ['x4', 1],
+      ])
+    })
+
+    it('uses the user’s local day', async () => {
+      const body = await json(await get('/api/v1/history/on-this-day?date=2026-09-21&tz=America/Los_Angeles'))
+      expect(body.years[0]).toMatchObject({ year: 2025, plays: 4 })
+    })
+
+    it('looks back at leap years only from 29 February', async () => {
+      const leap = await json(await get('/api/v1/history/on-this-day?date=2028-02-29&tz=UTC'))
+      expect(leap.years.map((y: { date: string }) => y.date)).toEqual(['2024-02-29'])
+      const plain = await json(await get('/api/v1/history/on-this-day?date=2027-02-28&tz=UTC'))
+      expect(plain.years.map((y: { date: string }) => y.date)).toEqual(['2025-02-28'])
+    })
+
+    it('is empty with nothing to look back on', async () => {
+      expect(await json(await get('/api/v1/history/on-this-day?date=2026-01-15&tz=UTC'))).toEqual({ date: '2026-01-15', years: [] })
+      await ctx.db.delete(schema.plays)
+      expect((await json(await get('/api/v1/history/on-this-day'))).years).toEqual([])
+    })
+
+    it('rejects a date that isn’t on the calendar', async () => {
+      for (const date of ['2026-02-30', 'today', '2026-9-1']) {
+        const res = await get(`/api/v1/history/on-this-day?date=${date}`)
+        expect(res.status).toBe(400)
+        expect((await json(res)).issues[0].path).toBe('date')
+      }
+    })
+  })
+
   describe('GET /api/v1/tracks/:id', () => {
     it('returns play stats and where the track was played from', async () => {
       ctx.spotify.getRecentlyPlayed.mockResolvedValue({

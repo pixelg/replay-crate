@@ -8,6 +8,7 @@ import { strToU8, zipSync } from 'fflate'
 import { expect, fn, screen, waitFor, within } from 'storybook/test'
 import { createAppRouter } from './router.ts'
 import {
+  calendarYears,
   devices,
   gaps,
   importDone,
@@ -868,6 +869,54 @@ export const StatsMonthOnPhone = meta.story({
     await waitFor(() => expect(screen.getByRole('option', { name: 'October' })).not.toHaveAttribute('aria-disabled', 'true'))
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull())
+  },
+})
+
+export const StatsPlaysPerDay = meta.story({
+  args: { path: '/stats' },
+  play: async ({ canvas, userEvent }) => {
+    const [thisYear, lastYear] = [calendarYears.at(-1)!, calendarYears.at(-2)!]
+    await expect(await canvas.findByRole('grid', { name: `Plays per day in ${thisYear}` }, { timeout: 5_000 })).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Earlier year' }))
+    const grid = await canvas.findByRole('grid', { name: `Plays per day in ${lastYear}` })
+    // A day opens History.
+    await userEvent.click(within(grid).getAllByRole('link', { name: /plays on / })[0]!)
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'History' })).toBeVisible()
+  },
+})
+
+export const StatsPlaysPerDayFollowsTheYear = meta.story({
+  args: { path: '/stats?year=2019' },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Your 2019' })).toBeVisible()
+    await expect(await canvas.findByRole('grid', { name: 'Plays per day in 2019' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Earlier year' })).toBeDisabled()
+  },
+})
+
+export const HistoryOnThisDay = meta.story({
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    const card = await main.findByRole('region', { name: 'On this day' })
+    // Above the present and the plays, not inside Now playing.
+    const nowPlaying = await main.findByRole('group', { name: 'Now playing' })
+    await expect(card.compareDocumentPosition(nowPlaying)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    await expect(nowPlaying.contains(card)).toBe(false)
+    // A year opens that day in History, where the card makes way for the plays.
+    await userEvent.click(within(card).getAllByRole('link', { name: /^\d{4} · / })[0]!)
+    await waitFor(() => expect(main.queryByRole('region', { name: 'On this day' })).toBeNull())
+    await expect(main.getByRole('heading', { level: 1, name: 'History' })).toBeVisible()
+  },
+})
+
+export const HistoryNothingOnThisDay = meta.story({
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/history/on-this-day', ({ response }) => response(200).json({ date: '2026-01-01', years: [] })))
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { name: 'Today' })).toBeVisible()
+    await expect(canvas.queryByRole('region', { name: 'On this day' })).toBeNull()
   },
 })
 

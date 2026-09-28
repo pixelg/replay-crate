@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { InlineError } from '@/components/inline-error'
 import { PageHeader } from '@/components/page-header'
 import { ListeningOverTime } from '@/components/stats/listening-over-time'
+import { PlayCalendarCard } from '@/components/stats/play-calendar'
 import { SpotifyView, type SpotifyTimeRange } from '@/components/stats/spotify-view'
 import { StatsScope } from '@/components/stats/stats-scope'
 import { TopChart, type TopMetric, type TopType } from '@/components/stats/top-chart'
@@ -141,6 +142,9 @@ function StatsPage() {
           <ChartSkeleton />
         )}
       </div>
+
+      {/* Picking a year for the page turns the calendar to it too. */}
+      <PlayCalendarCard key={search.year} initialYear={search.year} />
     </div>
   )
 }
