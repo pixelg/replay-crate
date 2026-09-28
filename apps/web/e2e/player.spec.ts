@@ -30,6 +30,8 @@ test('controls playback from the player page', async ({ page, isMobile }) => {
 
   await main.getByRole('button', { name: 'Next', exact: true }).click()
   await expect(main.getByRole('heading', { level: 2, name: 'Last Call Encore' })).toBeVisible()
+  // Played by URI, with no context: Spotify pads the queue with the current track, the API drops it.
+  await expect(main.getByText('Nothing queued after this.')).toBeVisible()
 
   // Move playback to the phone: it becomes the active device, and it has no volume control.
   await main.getByRole('button', { name: 'Play on Phone', exact: true }).click()

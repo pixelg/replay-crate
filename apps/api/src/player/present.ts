@@ -69,9 +69,27 @@ export const Playback = z
 export const Queue = z
   .object({
     currentlyPlaying: PlayerItem.nullable(),
-    queue: z.array(PlayerItem).openapi({ description: "Up next: the user's queue, then the rest of the context." }),
+    queue: z.array(PlayerItem).openapi({
+      description:
+        "Up next: the user's queue, then the rest of the context. Empty when nothing follows: Spotify's padding (the current item, repeated, when there's no context) is left out.",
+    }),
   })
   .openapi('PlayerQueue')
+
+/**
+ * Up next without Spotify's padding. With no context (tracks played by URI), Spotify fills the
+ * queue out with the current item, over and over, though none of those will play. The queue
+ * response doesn't say whether there's a context, so the trailing run of entries that repeat the
+ * current item goes. A repeat queued before other items stays; one queued last (or a context
+ * whose last track is the current one) goes with the padding, a price worth paying to save a
+ * second Spotify call on every poll.
+ */
+export function withoutPadding(current: SpotifyPlayable | null, queue: SpotifyPlayable[]): SpotifyPlayable[] {
+  if (!current) return queue
+  let end = queue.length
+  while (end > 0 && queue[end - 1]!.uri === current.uri) end--
+  return queue.slice(0, end)
+}
 
 export function toDevice(device: SpotifyDevice): z.infer<typeof Device> {
   return {

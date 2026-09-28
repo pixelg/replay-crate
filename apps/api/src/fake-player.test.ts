@@ -132,6 +132,17 @@ describe('fake player', () => {
     player.nowPlaying(track('x'), { positionMs: 30_000, upcoming: [track('y')] })
     advance(1_000)
     expect(await p.getPlaybackState(T)).toMatchObject({ item: { id: 'x' }, progress_ms: 31_000, is_playing: true })
-    expect((await p.getQueue(T)).queue.map((item) => item.id)).toEqual(['y'])
+    // No context, so Spotify's padding follows.
+    expect((await p.getQueue(T)).queue.map((item) => item.id).slice(0, 2)).toEqual(['y', 'x'])
+  })
+
+  it("pads Up next with the current item when there's no context, as Spotify does", async () => {
+    const { p } = setup()
+    await p.play(T, { uris: ['spotify:track:a'] })
+    await p.addToQueue(T, 'spotify:track:q', {})
+    const [queued, ...padding] = (await p.getQueue(T)).queue.map((item) => item.id)
+    expect(queued).toBe('q')
+    expect(padding.length).toBeGreaterThan(1)
+    expect(new Set(padding)).toEqual(new Set(['a']))
   })
 })
