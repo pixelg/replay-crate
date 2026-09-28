@@ -861,10 +861,11 @@ export const StatsMonthOnPhone = meta.story({
   globals: { viewport: { value: 'mobile2', isRotated: false } },
   play: async ({ canvas, userEvent }) => {
     await expect(await canvas.findByRole('heading', { level: 1, name: 'Your September 2014' })).toBeVisible()
-    // Months without plays are listed but can't be picked.
+    // Months without plays are listed but can't be picked. Which months had plays arrives with the
+    // timeline, after the heading (which comes from the URL): wait for it.
     await userEvent.click(canvas.getByRole('combobox', { name: 'Month' }))
     await expect(await screen.findByRole('option', { name: 'February' })).toHaveAttribute('aria-disabled', 'true')
-    await expect(screen.getByRole('option', { name: 'October' })).not.toHaveAttribute('aria-disabled', 'true')
+    await waitFor(() => expect(screen.getByRole('option', { name: 'October' })).not.toHaveAttribute('aria-disabled', 'true'))
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull())
   },
