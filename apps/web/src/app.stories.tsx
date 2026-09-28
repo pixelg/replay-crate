@@ -1518,6 +1518,14 @@ export const TracksFirstPlayed = meta.story({
     await userEvent.click(main.getByRole('button', { name: 'First played' }))
     await waitFor(() => expect(libraryRequests).toHaveBeenLastCalledWith('first_played'))
     await waitFor(() => expect(main.getByRole('button', { name: 'First played' })).toHaveAttribute('aria-pressed', 'true'))
+    // Newest finds first; the earliest ones are a click away.
+    const order = within(main.getByRole('group', { name: 'First played order' }))
+    await expect(order.getByRole('button', { name: 'Newest first' })).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(order.getByRole('button', { name: 'Oldest first' }))
+    await waitFor(() => expect(libraryRequests).toHaveBeenLastCalledWith('first_played_oldest'))
+    // Still the First played sort, just the other way round.
+    await expect(main.getByRole('button', { name: 'First played' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(main.queryByRole('group', { name: 'First played order' })).toBeVisible()
   },
 })
 

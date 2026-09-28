@@ -68,7 +68,8 @@ const listLibrary = createRoute({
   summary: 'Every track you have played',
   description:
     'With play counts, first and last plays, and ratings. `plays`, `last_played`, `first_played` and `rating` sort ' +
-    'highest and newest first (`first_played`: newest discoveries first; unrated tracks last), `name` A–Z. ' +
+    'highest and newest first (`first_played`: newest discoveries first; unrated tracks last), ' +
+    '`first_played_oldest` from the earliest discoveries, `name` A–Z. ' +
     '`minRating` keeps only tracks rated that many stars or more. ' +
     'Pass `nextCursor` back as `cursor` for the next page (with the same `sort` and `minRating`), or pass ' +
     '`offset` for numbered pages. Not both at once.',

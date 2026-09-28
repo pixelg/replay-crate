@@ -4,7 +4,7 @@ import { loadTrackArtists } from '../history/queries.ts'
 
 const { albums, plays, trackRatings, tracks } = schema
 
-export const TRACK_SORTS = ['plays', 'last_played', 'first_played', 'name', 'rating'] as const
+export const TRACK_SORTS = ['plays', 'last_played', 'first_played', 'first_played_oldest', 'name', 'rating'] as const
 export type TrackSort = (typeof TRACK_SORTS)[number]
 
 /**
@@ -31,8 +31,8 @@ export function decodeCursor(value: string): TrackCursor | null {
 /**
  * Every track the user has played, with their play count and first and last plays, one page at a
  * time. Most played, recently played and first played sort newest/most first (first played: the
- * newest discoveries), names A–Z; ties go by track id, so the keyset cursor never repeats or skips
- * a track.
+ * newest discoveries; `first_played_oldest` the other way, from the earliest finds), names A–Z;
+ * ties go by track id, so the keyset cursor never repeats or skips a track.
  */
 export async function listTracks(
   db: Db,
@@ -82,6 +82,14 @@ export async function listTracks(
       after: (key, id) =>
         or(
           sql`${mine.firstPlayedAt} < ${key}::timestamptz`,
+          and(sql`${mine.firstPlayedAt} = ${key}::timestamptz`, gt(tracks.id, id)),
+        ),
+    },
+    first_played_oldest: {
+      orderBy: [asc(mine.firstPlayedAt), asc(tracks.id)],
+      after: (key, id) =>
+        or(
+          sql`${mine.firstPlayedAt} > ${key}::timestamptz`,
           and(sql`${mine.firstPlayedAt} = ${key}::timestamptz`, gt(tracks.id, id)),
         ),
     },
@@ -164,6 +172,7 @@ export async function listTracks(
             name: last.sortName,
             last_played: toIso(last.lastPlayedAt)!,
             first_played: toIso(last.firstPlayedAt)!,
+            first_played_oldest: toIso(last.firstPlayedAt)!,
           }[sort],
           id: last.id,
         })

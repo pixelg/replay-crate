@@ -81,12 +81,15 @@ describe('GET /api/v1/tracks', () => {
     expect(await all('last_played', 50)).toEqual(['banger', 'zebra', 'Aria', 'Deep Cut'])
     expect(await all('first_played', 50)).toEqual(['zebra', 'Aria', 'Deep Cut', 'banger'])
     expect(await all('first_played', 1)).toEqual(await all('first_played', 50))
+    // And the other way, from the earliest finds.
+    expect(await all('first_played_oldest', 50)).toEqual(['banger', 'Deep Cut', 'Aria', 'zebra'])
+    expect(await all('first_played_oldest', 1)).toEqual(await all('first_played_oldest', 50))
     const page = await json(await get('?sort=first_played&limit=1&offset=3'))
     expect(page.items[0]).toMatchObject({ firstPlayedAt: '2026-09-19T08:00:00.000Z', lastPlayedAt: '2026-09-21T11:30:00.000Z' })
   })
 
   it('pages with the cursor, never repeating or skipping a track', async () => {
-    for (const sort of ['plays', 'last_played', 'first_played', 'name']) {
+    for (const sort of ['plays', 'last_played', 'first_played', 'first_played_oldest', 'name']) {
       expect(await all(sort, 1)).toEqual(await all(sort, 50))
     }
     const first = await json(await get('?limit=2'))
@@ -96,7 +99,7 @@ describe('GET /api/v1/tracks', () => {
   })
 
   it('pages by offset for numbered pages, in every sort', async () => {
-    for (const sort of ['plays', 'last_played', 'first_played', 'name']) {
+    for (const sort of ['plays', 'last_played', 'first_played', 'first_played_oldest', 'name']) {
       const names: string[] = []
       for (let offset = 0; offset < 4; offset += 3) {
         const page = await json(await get(`?sort=${sort}&limit=3&offset=${offset}`))
