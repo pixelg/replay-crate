@@ -17,6 +17,7 @@ import {
   manyTracks,
   pausedPlayback,
   pixelg,
+  playback,
   playlistDetail,
   playlistsList,
   rulePreview,
@@ -809,6 +810,28 @@ export const Player = meta.story({
     await expect(main.getByRole('button', { name: `Play on ${devices[1]!.name}` })).toBeEnabled()
     // Player is in the sidebar and marked as the current page.
     await expect(canvas.getAllByRole('link', { name: 'Player' }).find((link) => link.checkVisibility())).toHaveAttribute('aria-current', 'page')
+  },
+})
+
+/** A track played on its own: Spotify pads Up next with it, over and over, though none will play. */
+export const PlayerUpNextLeavesOutPadding = meta.story({
+  args: { path: '/player' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get('/api/v1/player', ({ response }) => response(200).json({ playback: { ...playback, context: null } })),
+      http.get('/api/v1/player/queue', ({ response }) =>
+        response(200).json({ currentlyPlaying: playback.item, queue: Array.from({ length: 10 }, () => playback.item!) }),
+      ),
+    )
+  },
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByText('Nothing queued after this.')).toBeVisible()
+    // Nor in the header.
+    const header = within(canvas.getByRole('banner'))
+    await expect(await header.findByRole('region', { name: 'Now playing' })).toBeVisible()
+    await expect(header.queryByRole('button', { name: /^Up next/ })).toBeNull()
   },
 })
 

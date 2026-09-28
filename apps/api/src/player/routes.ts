@@ -11,7 +11,7 @@ import { jsonBody, jsonResponse } from '../lib/schemas.ts'
 import { getAccessToken } from '../spotify/access-token.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
-import { Device, Playback, Queue, ratingsFor, toDevice, toItem, toPlayback, withoutPadding } from './present.ts'
+import { Device, Playback, Queue, ratingsFor, toDevice, toItem, toPlayback } from './present.ts'
 
 /** Scopes the player needs; users who connected before it existed lack them. */
 const PLAYER_SCOPES = ['user-read-playback-state', 'user-read-currently-playing', 'user-modify-playback-state']
@@ -185,8 +185,7 @@ export function playerRoutes(deps: AppDeps) {
       .openapi({ ...getQueue, middleware: auth }, async (c) => {
         const result = await withSpotify(c, (token) => spotify.getQueue(token))
         if (result.response) return result.response
-        const { currently_playing } = result.value
-        const queue = withoutPadding(currently_playing, result.value.queue)
+        const { currently_playing, queue } = result.value
         const ratings = await ratingsFor(db, c.var.user.id, [...(currently_playing ? [currently_playing] : []), ...queue])
         return c.json(
           {

@@ -126,7 +126,7 @@ export function createFakePlayer({
     getQueue: async () => {
       if (!premium) throw failure(403, 'PREMIUM_REQUIRED', 'Premium required')
       // With no context (tracks played by URI), Spotify pads Up next with the current item,
-      // repeated, though none of those will play. The API's queue route drops them.
+      // repeated, though none of those will play (upNext() in the api-client drops them).
       const padding = state.item && !state.context ? Array.from({ length: QUEUE_PADDING }, () => state.item!) : []
       return { currently_playing: state.item, queue: [...state.queued, ...state.upcoming, ...padding] }
     },

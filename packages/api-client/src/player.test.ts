@@ -8,7 +8,9 @@ import {
   PLAYING_POLL_MS,
   progressAt,
   sendPlayerCommand,
+  upNext,
   type Playback,
+  type PlayerItem,
   type PlayerCommand,
 } from './player.ts'
 
@@ -70,6 +72,36 @@ describe('playbackPollInterval', () => {
     expect(playbackPollInterval(undefined, error(403, 'missing_scopes'))).toBe(false)
     expect(playbackPollInterval(undefined, error(401, 'unauthorized'))).toBe(false)
     expect(playbackPollInterval(undefined, error(503, 'rate_limited'))).toBe(IDLE_POLL_MS)
+  })
+})
+
+describe('upNext', () => {
+  const item = (id: string): PlayerItem => ({ ...playback().item!, id, uri: `spotify:track:${id}` })
+  const current = item('t1')
+  const padding = Array.from({ length: 10 }, () => current)
+  const ids = (items: PlayerItem[]) => items.map((entry) => entry.id)
+  const album = { type: 'album', uri: 'spotify:album:a1', name: 'Album', imageUrl: null }
+
+  it("drops Spotify's padding when there's no context", () => {
+    expect(upNext(padding, playback())).toEqual([])
+    expect(ids(upNext([item('q'), ...padding], playback()))).toEqual(['q'])
+  })
+
+  it('keeps a repeat of the current item queued before other items', () => {
+    expect(ids(upNext([current, item('q'), ...padding], playback()))).toEqual(['t1', 'q'])
+  })
+
+  it('leaves a context as it is, even when it ends on the current item', () => {
+    expect(ids(upNext([item('t2'), current], playback({ context: album })))).toEqual(['t2', 't1'])
+  })
+
+  it('leaves repeat-one as it is: the current item does play again', () => {
+    expect(upNext(padding, playback({ repeat: 'track' }))).toHaveLength(10)
+  })
+
+  it('leaves the queue alone when nothing is playing', () => {
+    expect(ids(upNext([item('q')], null))).toEqual(['q'])
+    expect(ids(upNext([item('q')], playback({ item: null })))).toEqual(['q'])
   })
 })
 

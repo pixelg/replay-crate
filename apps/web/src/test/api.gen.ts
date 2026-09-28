@@ -1223,7 +1223,7 @@ export interface components {
         };
         PlayerQueue: {
             currentlyPlaying: components["schemas"]["PlayerItem"];
-            /** @description Up next: the user's queue, then the rest of the context. Empty when nothing follows: Spotify's padding (the current item, repeated, when there's no context) is left out. */
+            /** @description Up next: the user's queue, then the rest of the context. */
             queue: components["schemas"]["PlayerItem"][];
         };
         /** @enum {string} */

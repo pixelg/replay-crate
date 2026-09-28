@@ -45,7 +45,22 @@ export const queueQueryOptions = (api: ApiClient, currentUri: string | null) =>
     staleTime: 5 * 60_000,
   })
 
-export const devicesQueryOptions = (api: ApiClient) =>
+/**
+ * Up next without Spotify's padding. With no context (tracks played by URI), Spotify fills the
+ * queue out with the current item, over and over, though none of those will play: that trailing
+ * run goes, so Up next is empty when nothing follows. A repeat queued before other items stays.
+ * With a context, or on repeat-one (where the current item really does play again), the queue
+ * is as Spotify gave it.
+ */
+export function upNext(queue: PlayerItem[], playback: Pick<Playback, 'context' | 'repeat' | 'item'> | null): PlayerItem[] {
+  const current = playback?.item
+  if (!current || playback.context !== null || playback.repeat === 'track') return queue
+  let end = queue.length
+  while (end > 0 && queue[end - 1]!.uri === current.uri) end--
+  return queue.slice(0, end)
+}
+
+export const devicesQueryOptions =(api: ApiClient) =>
   queryOptions({
     queryKey: ['player', 'devices'],
     queryFn: async (): Promise<Device[]> => {
