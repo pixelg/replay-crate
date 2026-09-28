@@ -1,4 +1,4 @@
-import { playbackQueryOptions } from '@replay-crate/api-client'
+import { playbackQueryOptions, upNext } from '@replay-crate/api-client'
 import { createFileRoute } from '@tanstack/react-router'
 import { MonitorSpeaker, RefreshCw } from 'lucide-react'
 import { ErrorPage } from '@/components/error-page'
@@ -58,7 +58,7 @@ function PlayerPage() {
                 <CardContent>
                   {queue.data ? (
                     <QueueList
-                      items={queue.data.queue}
+                      items={upNext(queue.data.queue, playback ?? null)}
                       disabled={controls.isSending}
                       // Spotify can't jump ahead in its queue, so play that item and what follows it here.
                       onPlayNow={(from) =>

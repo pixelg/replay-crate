@@ -2,12 +2,10 @@ import type { PlayContext } from '@replay-crate/api-client'
 import { Link } from '@tanstack/react-router'
 import { ListEnd, ListPlus, ListVideo, MoreHorizontal, Music, Play } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
+import { contextName, playableContext } from '../lib/play-context.ts'
 import { useTrackCommands } from '../lib/use-track-commands.ts'
 import { AddToPlaylistDialog } from './add-to-playlist.tsx'
 import { MenuContent, MenuItem, MenuLinkItem, MenuRoot, MenuSeparator, MenuTrigger } from './ui/menu.tsx'
-
-/** Contexts Spotify can start from a given track (artists and Liked Songs can't take an offset). */
-const PLAYABLE_CONTEXTS = new Set(['album', 'playlist'])
 
 /**
  * The "⋯" menu on a track, wherever one is listed: play it (or play from where it was played),
@@ -34,7 +32,7 @@ export function TrackActions({
 }) {
   const [adding, setAdding] = useState(false)
   const commands = useTrackCommands(track)
-  const playFrom = context && PLAYABLE_CONTEXTS.has(context.type) ? context : null
+  const playFrom = playableContext(context)
 
   return (
     <>
@@ -81,8 +79,4 @@ export function TrackActions({
       />
     </>
   )
-}
-
-function contextName(context: PlayContext) {
-  return context.name ?? (context.type === 'album' ? 'the album' : 'the playlist')
 }

@@ -84,7 +84,28 @@ describe('player', () => {
     ])
     const queue = await json(await get('/queue'))
     expect(queue.currentlyPlaying).toMatchObject({ id: 'song' })
-    expect(queue.queue.map((item: { id: string }) => item.id)).toEqual(['next'])
+    // Then Spotify's padding: the seeded song has no context.
+    expect(queue.queue[0]).toMatchObject({ id: 'next' })
+  })
+
+  describe('GET /player/queue', () => {
+    const upNext = async () => (await json(await get('/queue'))).queue.map((item: { id: string }) => item.id)
+
+    // The clients know the context and repeat mode, so they drop the padding (upNext()).
+    it("passes on Spotify's padding when tracks play without a context", async () => {
+      await send('PUT', '/play', { uris: ['spotify:track:a', 'spotify:track:b'] })
+      await send('POST', '/queue', { uri: 'spotify:track:q' })
+      const [queued, next, ...padding] = await upNext()
+      expect([queued, next]).toEqual(['q', 'b'])
+      expect(padding.length).toBeGreaterThan(1)
+      expect(new Set(padding)).toEqual(new Set(['a']))
+    })
+
+    it('lists the rest of the context', async () => {
+      ctx.library.add('mix', [track('one'), track('two'), track('three')], 'Late Night Crate')
+      await send('PUT', '/play', { contextUri: 'spotify:playlist:mix', offset: { uri: 'spotify:track:one' } })
+      expect(await upNext()).toEqual(['two', 'three'])
+    })
   })
 
   describe('commands', () => {

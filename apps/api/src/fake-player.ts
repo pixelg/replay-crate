@@ -43,6 +43,9 @@ export type FakePlayerOptions = {
   now?: () => number
 }
 
+/** How many times Spotify repeats the current item after the queue when there's no context. */
+const QUEUE_PADDING = 10
+
 const failure = (status: number, reason: string, message: string) =>
   new SpotifyApiError(status, `Player command failed: ${message}`, undefined, reason)
 
@@ -122,7 +125,10 @@ export function createFakePlayer({
     },
     getQueue: async () => {
       if (!premium) throw failure(403, 'PREMIUM_REQUIRED', 'Premium required')
-      return { currently_playing: state.item, queue: [...state.queued, ...state.upcoming] }
+      // With no context (tracks played by URI), Spotify pads Up next with the current item,
+      // repeated, though none of those will play (upNext() in the api-client drops them).
+      const padding = state.item && !state.context ? Array.from({ length: QUEUE_PADDING }, () => state.item!) : []
+      return { currently_playing: state.item, queue: [...state.queued, ...state.upcoming, ...padding] }
     },
     getDevices: async () => {
       if (!premium) throw failure(403, 'PREMIUM_REQUIRED', 'Premium required')

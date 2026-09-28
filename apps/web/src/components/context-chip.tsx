@@ -1,6 +1,8 @@
 import type { PlayContext } from '@replay-crate/api-client'
-import { Disc3, Heart, ListMusic, MicVocal, Radio, type LucideIcon } from 'lucide-react'
+import { Disc3, Heart, ListMusic, MicVocal, Play, Radio, type LucideIcon } from 'lucide-react'
 import { cn } from 'cn'
+import { contextName, playableContext } from '../lib/play-context.ts'
+import { useTrackCommands } from '../lib/use-track-commands.ts'
 
 const kinds: Record<string, { icon: LucideIcon; fallback: string }> = {
   playlist: { icon: ListMusic, fallback: 'Spotify playlist' },
@@ -9,19 +11,61 @@ const kinds: Record<string, { icon: LucideIcon; fallback: string }> = {
   collection: { icon: Heart, fallback: 'Liked Songs' },
 }
 
-/** Where a play came from: a playlist, album, artist page, Liked Songs... */
-export function ContextChip({ context, className }: { context: PlayContext; className?: string }) {
+/**
+ * Where a play came from: a playlist, album, artist page, Liked Songs... Given the `track` that
+ * was played, an album or playlist gets a play button that starts it at that track, so Up next
+ * is the real rest of it.
+ */
+export function ContextChip({
+  context,
+  track,
+  className,
+}: {
+  context: PlayContext
+  track?: { id: string; name: string }
+  className?: string
+}) {
   const kind = kinds[context.type] ?? { icon: Radio, fallback: context.type }
   const Icon = kind.icon
-  return (
+  const playable = track ? playableContext(context) : null
+  const chip = (
     <span
       className={cn(
         'inline-flex max-w-full items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground',
-        className,
+        playable ? 'min-w-0' : className,
       )}
     >
       <Icon aria-hidden className="size-3.5 shrink-0" />
       <span className="truncate">{context.name ?? kind.fallback}</span>
     </span>
+  )
+  if (!track || !playable) return chip
+  return (
+    <span className={cn('inline-flex max-w-full items-center gap-1', className)}>
+      {chip}
+      <PlayFromButton track={track} context={playable} />
+    </span>
+  )
+}
+
+function PlayFromButton({ track, context }: { track: { id: string; name: string }; context: PlayContext }) {
+  const commands = useTrackCommands(track)
+  const name = contextName(context)
+  const label = `Play ${track.name} from ${name}`
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={commands.isSending}
+      onClick={() => commands.playFrom(context, name)}
+      className={cn(
+        'inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground',
+        'hover:enabled:bg-primary hover:enabled:text-primary-foreground disabled:opacity-40',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+      )}
+    >
+      <Play aria-hidden className="size-3 fill-current" />
+    </button>
   )
 }

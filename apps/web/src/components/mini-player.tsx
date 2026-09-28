@@ -1,4 +1,4 @@
-import { isApiError, type Playback, type PlayerCommand, type PlayerItem } from '@replay-crate/api-client'
+import { isApiError, upNext, type Playback, type PlayerCommand, type PlayerItem } from '@replay-crate/api-client'
 import { formatDuration } from '@replay-crate/core'
 import { Link } from '@tanstack/react-router'
 import { MonitorSpeaker, Pause, Play, SkipBack, SkipForward } from 'lucide-react'
@@ -18,7 +18,8 @@ import { TrackRating } from './star-rating.tsx'
 /** The header's mini player: art, title, controls and times, and up next from `lg`. */
 export function MiniPlayer({ className }: { className?: string }) {
   const player = useMiniPlayer()
-  const upNext = useQueue(player.item?.uri ?? null).data?.queue[0]
+  const queue = useQueue(player.item?.uri ?? null).data?.queue
+  const next = queue && player.state === 'ready' ? upNext(queue, player.playback)[0] : undefined
 
   if (player.state !== 'ready') {
     return <PlayerNotice state={player.state} deviceName={player.deviceName} className={className} />
@@ -40,7 +41,7 @@ export function MiniPlayer({ className }: { className?: string }) {
           {formatDuration(item.durationMs)}
         </p>
       )}
-      {upNext && <UpNext item={upNext} />}
+      {next && <UpNext item={next} />}
       <ProgressLine progressMs={progressMs} durationMs={item?.durationMs ?? 0} className="absolute inset-x-0 bottom-0" />
     </section>
   )
