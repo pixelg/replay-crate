@@ -2,19 +2,22 @@ import { isApiError, playlistQueryOptions, type PlaylistTrack } from '@replay-cr
 import { pageCount, type PageSize } from '@replay-crate/core'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
-import { ArrowLeft, ListMusic } from 'lucide-react'
+import { ArrowLeft, ListMusic, Play } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { AlbumArt } from '../../components/album-art.tsx'
 import { EmptyState } from '../../components/empty-state.tsx'
 import { ErrorPage } from '../../components/error-page.tsx'
 import { InlineError } from '../../components/inline-error.tsx'
 import { ListPagination } from '../../components/list-pagination.tsx'
+import { PlayTrackButton } from '../../components/play-track-button.tsx'
 import { PlaylistTrackActions } from '../../components/playlist-track-actions.tsx'
 import { TrackRating } from '../../components/star-rating.tsx'
+import { Button } from '../../components/ui/button.tsx'
 import { Segmented } from '../../components/ui/segmented.tsx'
 import { api } from '../../lib/api.ts'
 import { pageOfItems, pageSearch, resizedPage, storedPageSize, storePageSize } from '../../lib/page-size.ts'
 import { usePlaylistEdit } from '../../lib/use-playlist-edits.ts'
+import { usePlayContext } from '../../lib/use-track-commands.ts'
 
 export const Route = createFileRoute('/_app/playlists/$playlistId')({
   // The sort and page live in the URL: shareable, and the back button undoes a change.
@@ -65,6 +68,7 @@ function PlaylistPage() {
   }
   const edit = usePlaylistEdit()
   const lastPosition = items.at(-1)?.position ?? 0
+  const playlistUri = `spotify:playlist:${playlist.id}`
 
   const sorted = useMemo(() => {
     if (sort === 'order') return items
@@ -88,6 +92,7 @@ function PlaylistPage() {
             {playlist.collaborative && ' · Collaborative'} · {playlist.itemCount} tracks · {playlist.playsFrom}{' '}
             {playlist.playsFrom === 1 ? 'play' : 'plays'} from here
           </p>
+          {playlist.itemCount > 0 && <PlayPlaylistButton playlist={{ uri: playlistUri, name: playlist.name }} />}
         </div>
       </header>
 
@@ -107,6 +112,7 @@ function PlaylistPage() {
               <li key={`${item.position}-${item.track.id}`}>
                 <TrackRow
                   item={item}
+                  play={<PlayTrackButton track={item.track} from={{ uri: playlistUri, name: playlist.name }} />}
                   actions={
                     <PlaylistTrackActions
                       trackId={item.track.id}
@@ -137,12 +143,22 @@ function PlaylistPage() {
   )
 }
 
+/** Starts the playlist from its first track. */
+function PlayPlaylistButton({ playlist }: { playlist: { uri: string; name: string } }) {
+  const { play, isSending } = usePlayContext()
+  return (
+    <Button onClick={() => play(playlist, playlist.name)} disabled={isSending} className="mt-4">
+      <Play aria-hidden className="size-4 fill-current" /> Play playlist
+    </Button>
+  )
+}
+
 const MAX_ALSO_ON = 2
 
-function TrackRow({ item, actions }: { item: PlaylistTrack; actions: ReactNode }) {
+function TrackRow({ item, play, actions }: { item: PlaylistTrack; play: ReactNode; actions: ReactNode }) {
   const { track, alsoOn } = item
   return (
-    <div className="flex items-center gap-3 py-2">
+    <div className="flex items-center gap-2 py-2 sm:gap-3">
       <span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums sm:block">
         {item.position + 1}
       </span>
@@ -173,12 +189,14 @@ function TrackRow({ item, actions }: { item: PlaylistTrack; actions: ReactNode }
           </p>
         )}
       </div>
+      {play}
       <TrackRating track={track} compactOnPhones />
-      <div className="shrink-0 text-right">
+      {/* A steady width, so the play buttons and stars line up down the list. */}
+      <div className="shrink-0 text-right md:min-w-24">
         <p className="font-semibold tabular-nums">{item.playCount}</p>
         <p className="text-xs text-muted-foreground">
           {item.playCount === 1 ? 'play' : 'plays'}
-          {item.playsHere > 0 && item.playsHere !== item.playCount && ` · ${item.playsHere} here`}
+          {item.playsHere > 0 && item.playsHere !== item.playCount && <span className="hidden sm:inline"> · {item.playsHere} here</span>}
         </p>
       </div>
       {actions}
