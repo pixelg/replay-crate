@@ -8,17 +8,8 @@ import { usePlayerControls } from './use-player.ts'
  * closed by the time Spotify answers).
  */
 export function useTrackCommands(track: { id: string; name: string }) {
-  const { send, isSending } = usePlayerControls()
+  const { run, isSending } = useToastedCommands()
   const uri = `spotify:track:${track.id}`
-
-  const run = (command: PlayerCommand, done: string) =>
-    send(command, {
-      onSuccess: () => toast.success(done),
-      onError: (error) => {
-        const { title, message } = describeError(error)
-        toast.error(title, { description: message })
-      },
-    })
 
   return {
     uri,
@@ -29,4 +20,26 @@ export function useTrackCommands(track: { id: string; name: string }) {
       run({ kind: 'play', contextUri: context.uri, offset: { uri } }, `Playing “${track.name}” from ${name}`),
     queue: () => run({ kind: 'queue', uri }, `Added “${track.name}” to the queue`),
   }
+}
+
+/** Plays an album or playlist from its start, saying how it went in a toast. */
+export function usePlayContext() {
+  const { run, isSending } = useToastedCommands()
+  return {
+    isSending,
+    play: (context: { uri: string }, name: string) => run({ kind: 'play', contextUri: context.uri }, `Playing ${name}`),
+  }
+}
+
+function useToastedCommands() {
+  const { send, isSending } = usePlayerControls()
+  const run = (command: PlayerCommand, done: string) =>
+    send(command, {
+      onSuccess: () => toast.success(done),
+      onError: (error) => {
+        const { title, message } = describeError(error)
+        toast.error(title, { description: message })
+      },
+    })
+  return { run, isSending }
 }

@@ -390,6 +390,37 @@ export const PlaylistSortedByPlays = meta.story({
   },
 })
 
+const recordPlays = () => {
+  playerRequests.mockClear()
+  return http.put('/api/v1/player/play', async ({ request, response }) => {
+    playerRequests('play', await request.json())
+    return response(204).empty()
+  })
+}
+
+export const PlaylistPlays = meta.story({
+  args: { path: '/playlists/p1' },
+  beforeEach({ msw }) {
+    msw.use(recordPlays())
+  },
+  play: async ({ canvas, userEvent }) => {
+    // The whole playlist, from the top...
+    await userEvent.click(await canvas.findByRole('button', { name: 'Play playlist' }))
+    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('play', { contextUri: 'spotify:playlist:p1' }))
+    const toast = await screen.findByText('Playing Late Night Crate')
+    await waitFor(() => expect(toast).toBeVisible())
+    // ...or from a track, so Up next is the rest of the playlist.
+    const tracks = within(canvas.getByRole('region', { name: 'Tracks' }))
+    const [first] = tracks.getAllByRole('listitem')
+    const play = within(first!).getByRole('button', { name: /^Play .+ from Late Night Crate$/ })
+    await userEvent.click(play)
+    const trackId = within(first!).getAllByRole('link')[0]!.getAttribute('href')!.split('/').at(-1)
+    await waitFor(() =>
+      expect(playerRequests).toHaveBeenCalledWith('play', { contextUri: 'spotify:playlist:p1', offset: { uri: `spotify:track:${trackId}` } }),
+    )
+  },
+})
+
 export const PlaylistMobile = meta.story({
   args: { path: '/playlists/p1' },
   globals: { viewport: { value: 'mobile2', isRotated: false } },
@@ -1303,6 +1334,21 @@ export const TracksLoadsMore = meta.story({
     await expect(await main.findByRole('link', { name: 'Sunday Morning Static' })).toBeVisible()
     await expect(libraryRequests).toHaveBeenLastCalledWith('page-2')
     await expect(main.queryByRole('button', { name: 'Load more tracks' })).toBeNull()
+  },
+})
+
+export const TracksPlays = meta.story({
+  args: { path: '/tracks' },
+  beforeEach({ msw }) {
+    msw.use(recordPlays())
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await userEvent.click(await main.findByRole('button', { name: 'Play Brass Monkey Business' }))
+    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('play', { uris: ['spotify:track:t1'] }))
+    // Select mode has checkboxes instead.
+    await userEvent.click(main.getByRole('button', { name: 'Select' }))
+    await expect(main.queryByRole('button', { name: /^Play / })).toBeNull()
   },
 })
 

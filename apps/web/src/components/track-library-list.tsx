@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { AudioLines } from 'lucide-react'
 import { cn } from 'cn'
 import { AlbumArt } from './album-art.tsx'
+import { PlayTrackButton } from './play-track-button.tsx'
 import { TrackRating } from './star-rating.tsx'
 import { TrackActions } from './track-actions.tsx'
 
@@ -33,7 +34,7 @@ export function TrackLibraryList({
           <li
             key={track.id}
             aria-current={playing || undefined}
-            className={cn('flex items-center gap-3 py-2', playing && '-mx-2 rounded-lg bg-accent px-2')}
+            className={cn('flex items-center gap-2 py-2 sm:gap-3', playing && '-mx-2 rounded-lg bg-accent px-2')}
           >
             {selection && (
               <input
@@ -55,14 +56,17 @@ export function TrackLibraryList({
               </Link>
               <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
             </div>
+            {!selection && <PlayTrackButton track={track} />}
             <TrackRating track={track} compactOnPhones />
-            <div className="shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+            {/* A steady width, so the play buttons and stars line up down the list. On phones, only
+                the count: the title needs the room, and the playing row is highlighted anyway. */}
+            <div className="min-w-14 shrink-0 text-right text-xs text-muted-foreground tabular-nums md:min-w-24">
               {playing ? (
-                <p className="flex items-center justify-end gap-1 text-primary">
+                <p className="hidden items-center justify-end gap-1 text-primary sm:flex">
                   <AudioLines aria-hidden className="size-4 motion-safe:animate-pulse" /> Now playing
                 </p>
               ) : (
-                <p>{formatRelative(new Date(lastPlayedAt), now)}</p>
+                <p className="hidden sm:block">{formatRelative(new Date(lastPlayedAt), now)}</p>
               )}
               <p>
                 <span className="font-medium text-foreground">{playCount.toLocaleString()}</span> {playCount === 1 ? 'play' : 'plays'}
