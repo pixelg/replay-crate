@@ -82,6 +82,35 @@ export const PauseShowsAtOnce = meta.story({
   },
 })
 
+const playbackRequests = fn()
+
+export const LooksAgainAfterCommands = meta.story({
+  beforeEach({ msw }) {
+    playbackRequests.mockClear()
+    // Paused, so no poll (every 20 s) gets in the way of counting.
+    msw.use(
+      http.get('/api/v1/player', ({ response }) => {
+        playbackRequests()
+        return response(200).json({ playback: pausedPlayback })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await expect(await canvas.findByLabelText('Volume')).toHaveTextContent('70%')
+    await expect(playbackRequests).toHaveBeenCalledTimes(1)
+    // Two quick commands: each is checked soon after...
+    await userEvent.click(canvas.getByRole('button', { name: 'Volume 20%' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Volume 20%' }))
+    await waitFor(() => expect(playbackRequests).toHaveBeenCalledTimes(3), { timeout: 1_500 })
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+    await expect(playbackRequests).toHaveBeenCalledTimes(3)
+    // ...and both once more a couple of seconds later, in case Spotify was slow.
+    await waitFor(() => expect(playbackRequests).toHaveBeenCalledTimes(4), { timeout: 2_500 })
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    await expect(playbackRequests).toHaveBeenCalledTimes(4)
+  },
+})
+
 export const RefusalRollsBack = meta.story({
   beforeEach({ msw }) {
     msw.use(

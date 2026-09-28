@@ -1,7 +1,7 @@
 import type { HistoryGap, PlayContext, PlayerItem, PlayItem } from '@replay-crate/api-client'
 import { formatDayLabel, groupByDay } from '@replay-crate/core'
 import { Link } from '@tanstack/react-router'
-import { AudioLines, CircleDashed } from 'lucide-react'
+import { AudioLines, CircleDashed, Pause } from 'lucide-react'
 import type { Ref } from 'react'
 import { cn } from 'cn'
 import { AlbumArt } from './album-art.tsx'
@@ -95,15 +95,19 @@ const headingClass =
 /**
  * What Spotify is playing right now, above the day groups: history reads on from the present.
  * It isn't a play yet (it's recorded once it's been listened to), so it has no time or checkbox.
+ * A paused item stays, marked Paused.
  */
 export function NowPlayingSection({
   item,
   context,
+  isPlaying = true,
   selecting = false,
   ref,
 }: {
   item: PlayerItem
   context: PlayContext | null
+  /** False while paused. */
+  isPlaying?: boolean
   /** While History is in select mode, row menus make way for checkboxes; this one steps aside too. */
   selecting?: boolean
   ref?: Ref<HTMLDivElement>
@@ -129,21 +133,28 @@ export function NowPlayingSection({
             <Link
               to="/tracks/$trackId"
               params={{ trackId: track.id }}
-              className="block truncate font-medium text-primary hover:underline focus-visible:underline"
+              className={cn('block truncate font-medium hover:underline focus-visible:underline', isPlaying && 'text-primary')}
             >
               {item.name}
             </Link>
           ) : (
-            <p className="truncate font-medium text-primary">{item.name}</p>
+            <p className={cn('truncate font-medium', isPlaying && 'text-primary')}>{item.name}</p>
           )}
           <p className="truncate text-sm text-muted-foreground">{subtitleOf(item)}</p>
           {context && <ContextChip context={context} className="mt-1" />}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1 self-start pt-0.5">
-          <span className="flex items-center gap-1 text-xs text-primary">
-            <AudioLines aria-hidden className="size-4 motion-safe:animate-pulse" />
-            Playing
-          </span>
+          {isPlaying ? (
+            <span className="flex items-center gap-1 text-xs text-primary">
+              <AudioLines aria-hidden className="size-4 motion-safe:animate-pulse" />
+              Playing
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Pause aria-hidden className="size-4" />
+              Paused
+            </span>
+          )}
           {track && <TrackRating track={track} compactOnPhones />}
         </div>
         {track && !selecting ? (

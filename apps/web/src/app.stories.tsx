@@ -66,9 +66,26 @@ export const HistoryStartsWithNowPlaying = meta.story({
   },
 })
 
-export const HistoryPausedHasNoNowPlaying = meta.story({
+export const HistoryPausedKeepsNowPlaying = meta.story({
   beforeEach({ msw }) {
     msw.use(http.get('/api/v1/player', () => HttpResponse.json({ playback: pausedPlayback })))
+  },
+  play: async ({ canvas }) => {
+    const mainEl = await canvas.findByRole('main')
+    const main = within(mainEl)
+    await expect(await main.findByRole('heading', { name: 'Today' })).toBeVisible()
+    // Still there, but marked Paused; its plays aren't "currently playing".
+    const nowPlaying = within(await main.findByRole('group', { name: 'Now playing' }))
+    await expect(nowPlaying.getByRole('link', { name: 'Brass Monkey Business' })).toBeVisible()
+    await expect(nowPlaying.getByText('Paused')).toBeVisible()
+    await expect(nowPlaying.queryByText('Playing')).toBeNull()
+    await expect(mainEl.querySelectorAll('[aria-current="true"]')).toHaveLength(0)
+  },
+})
+
+export const HistoryNothingLoadedHasNoNowPlaying = meta.story({
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/player', () => HttpResponse.json({ playback: { ...pausedPlayback, item: null } })))
   },
   play: async ({ canvas }) => {
     const main = await canvas.findByRole('main')
@@ -1191,18 +1208,34 @@ export const HistorySelectOnPhone = meta.story({
 
 export const HistoryMarksNowPlaying = meta.story({
   globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    // Spotify goes on reporting the pause once it's been asked for.
+    let paused = false
+    msw.use(
+      http.get('/api/v1/player', ({ response }) => response(200).json({ playback: paused ? pausedPlayback : playback })),
+      http.put('/api/v1/player/pause', ({ response }) => {
+        paused = true
+        return response(204).empty()
+      }),
+    )
+  },
   play: async ({ canvas, userEvent }) => {
     const mainEl = await canvas.findByRole('main')
     const main = within(mainEl)
     // The fixture plays Brass Monkey Business: it tops History, and both of its plays are marked.
-    await expect(await main.findByRole('group', { name: 'Now playing' })).toBeVisible()
+    const nowPlaying = within(await main.findByRole('group', { name: 'Now playing' }))
+    await expect(nowPlaying.getByText('Playing')).toBeVisible()
     await waitFor(() => expect(mainEl.querySelectorAll('[aria-current="true"]')).toHaveLength(2))
 
-    // Paused isn't "currently playing".
+    // Paused stays on top, marked Paused, but isn't "currently playing".
     const player = within(await within(canvas.getByRole('banner')).findByRole('region', { name: 'Now playing' }))
     await userEvent.click(player.getByRole('button', { name: 'Pause' }))
-    await waitFor(() => expect(main.queryByRole('group', { name: 'Now playing' })).toBeNull())
-    await expect(main.getAllByText('Brass Monkey Business')[0]!.closest('[aria-current]')).toBeNull()
+    await expect(await nowPlaying.findByText('Paused')).toBeVisible()
+    await expect(nowPlaying.getByRole('link', { name: 'Brass Monkey Business' })).toBeVisible()
+    await waitFor(() => expect(mainEl.querySelectorAll('[aria-current="true"]')).toHaveLength(0))
+    // Still paused once Spotify has confirmed it.
+    await new Promise((resolve) => setTimeout(resolve, 800))
+    await expect(nowPlaying.getByText('Paused')).toBeVisible()
   },
 })
 
