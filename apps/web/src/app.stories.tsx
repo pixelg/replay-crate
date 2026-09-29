@@ -702,6 +702,14 @@ const pastHandler = http.get('/api/v1/history/plays', ({ query, response }) => {
   return response(200).json({ ...playsPage, items, ...rest, ...('total' in rest && { olderPlayedAt: null }) })
 })
 
+/** Opens the timeline drawer from History's header. */
+async function openTimeline(main: ReturnType<typeof within>, userEvent: { click: (element: Element) => Promise<void> }) {
+  await userEvent.click(await main.findByRole('button', { name: 'Timeline' }))
+  return within(await screen.findByRole('dialog', { name: 'Timeline' }))
+}
+
+const timelineClosed = () => waitFor(() => expect(screen.queryByRole('dialog', { name: 'Timeline' })).toBeNull())
+
 export const HistoryTimelineJumpsToAMonth = meta.story({
   globals: { viewport: { value: 'desktop', isRotated: false } },
   beforeEach({ msw }) {
@@ -711,19 +719,23 @@ export const HistoryTimelineJumpsToAMonth = meta.story({
   play: async ({ canvas, userEvent }) => {
     const main = within(await canvas.findByRole('main'))
     await expect(await main.findByRole('heading', { name: 'Today' })).toBeVisible()
-    // Beside the list: this year open, and this month marked as the one being read.
-    const rail = within(await main.findByRole('navigation', { name: 'Timeline' }))
+    // In the drawer: this year open, and this month marked as the one being read.
+    let drawer = await openTimeline(main, userEvent)
     const thisMonth = new RegExp(`^${formatMonth(monthOf(new Date()))}, `)
-    await waitFor(() => expect(rail.getByRole('link', { name: thisMonth })).toHaveAttribute('data-in-view', 'true'))
-    await expect(rail.getByRole('button', { name: /^2019, / })).toHaveAttribute('aria-expanded', 'false')
+    await waitFor(() => expect(drawer.getByRole('link', { name: thisMonth })).toHaveAttribute('data-in-view', 'true'))
+    await expect(drawer.getByRole('button', { name: /^2019, / })).toHaveAttribute('aria-expanded', 'false')
 
-    await userEvent.click(rail.getByRole('button', { name: /^2019, / }))
-    await userEvent.click(rail.getByRole('link', { name: /^March 2019, / }))
+    await userEvent.click(drawer.getByRole('button', { name: /^2019, / }))
+    await userEvent.click(drawer.getByRole('link', { name: /^March 2019, / }))
+    await timelineClosed()
     // March's latest plays first: everything before the start of April.
     await expect(await main.findByRole('link', { name: 'Old Favourite 01' })).toBeVisible()
     await expect(playsCursors).toHaveBeenLastCalledWith({ before: monthCursor('2019-03'), after: null })
     await expect(main.getByText('March 2019')).toBeVisible()
-    await waitFor(() => expect(rail.getByRole('link', { name: /^March 2019, / })).toHaveAttribute('data-in-view', 'true'))
+    drawer = await openTimeline(main, userEvent)
+    await waitFor(() => expect(drawer.getByRole('link', { name: /^March 2019, / })).toHaveAttribute('data-in-view', 'true'))
+    await userEvent.keyboard('{Escape}')
+    await timelineClosed()
     // The past isn't headed by what's playing now, and reads by cursor, without pages.
     await expect(main.queryByRole('group', { name: 'Now playing' })).toBeNull()
     await expect(main.queryByRole('combobox', { name: 'Per page' })).toBeNull()
@@ -743,9 +755,10 @@ export const HistoryJumpsToADay = meta.story({
   },
   play: async ({ canvas, userEvent }) => {
     const main = within(await canvas.findByRole('main'))
-    const rail = within(await main.findByRole('navigation', { name: 'Timeline' }))
-    await userEvent.type(rail.getByLabelText('Go to a day'), '2019-03-12')
-    await userEvent.click(rail.getByRole('button', { name: 'Go' }))
+    const drawer = await openTimeline(main, userEvent)
+    await userEvent.type(drawer.getByLabelText('Go to a day'), '2019-03-12')
+    await userEvent.click(drawer.getByRole('button', { name: 'Go' }))
+    await timelineClosed()
     // That day's latest plays first: everything before the next day starts, in the viewer's zone.
     await expect(await main.findByRole('link', { name: 'Old Favourite 01' })).toBeVisible()
     await expect(playsCursors).toHaveBeenLastCalledWith({ before: dayCursor('2019-03-12'), after: null })
@@ -783,22 +796,12 @@ export const HistoryJumpOnPhone = meta.story({
   play: async ({ canvas, userEvent }) => {
     const main = within(await canvas.findByRole('main'))
     await expect(await main.findByRole('heading', { name: 'Today' })).toBeVisible()
-    // No rail on a phone: a button opens a year → month grid instead.
-    await expect(main.queryByRole('navigation', { name: 'Timeline' })).toBeNull()
-    await userEvent.click(await main.findByRole('button', { name: 'Jump to…' }))
-    const picker = within(await screen.findByRole('dialog', { name: 'Jump to a month' }))
-
-    // A year with a quiet stretch: its empty months are there, but not links.
-    await userEvent.click(picker.getByRole('button', { name: /^2014, / }))
-    const months2014 = within(picker.getByRole('list', { name: 'Months of 2014' }))
-    await expect(months2014.getAllByRole('listitem')).toHaveLength(12)
-    await expect(months2014.queryByRole('link', { name: /^February 2014/ })).toBeNull()
-    await expect(months2014.getByRole('link', { name: /^September 2014, / })).toBeVisible()
-
-    await userEvent.click(picker.getByRole('button', { name: /^2019, / }))
-    await userEvent.click(picker.getByRole('link', { name: /^March 2019, / }))
+    // The same drawer, as a bottom sheet.
+    const drawer = await openTimeline(main, userEvent)
+    await userEvent.click(drawer.getByRole('button', { name: /^2019, / }))
+    await userEvent.click(drawer.getByRole('link', { name: /^March 2019, / }))
     await expect(await main.findByRole('link', { name: 'Old Favourite 01' })).toBeVisible()
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Jump to a month' })).toBeNull())
+    await timelineClosed()
     await expect(main.getByText('March 2019')).toBeVisible()
     await expect(main.getByRole('link', { name: 'Back to now' })).toBeVisible()
   },
@@ -898,15 +901,16 @@ export const HistoryOnThisDay = meta.story({
   globals: { viewport: { value: 'desktop', isRotated: false } },
   play: async ({ canvas, userEvent }) => {
     const main = within(await canvas.findByRole('main'))
-    const card = await main.findByRole('region', { name: 'On this day' })
-    // Above the present and the plays, not inside Now playing.
-    const nowPlaying = await main.findByRole('group', { name: 'Now playing' })
-    await expect(card.compareDocumentPosition(nowPlaying)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    await expect(nowPlaying.contains(card)).toBe(false)
-    // A year opens that day in History, where the card makes way for the plays.
-    await userEvent.click(within(card).getAllByRole('link', { name: /^\d{4} · / })[0]!)
-    await waitFor(() => expect(main.queryByRole('region', { name: 'On this day' })).toBeNull())
-    await expect(main.getByRole('heading', { level: 1, name: 'History' })).toBeVisible()
+    await expect(await main.findByRole('heading', { name: 'Today' })).toBeVisible()
+    // Not on the page itself: in the timeline drawer, a switch away from the months.
+    await expect(main.queryByRole('region', { name: 'On this day' })).toBeNull()
+    const drawer = await openTimeline(main, userEvent)
+    await userEvent.click(await drawer.findByRole('button', { name: 'On this day' }))
+    const section = drawer.getByRole('region', { name: 'On this day' })
+    // A year opens that day in History.
+    await userEvent.click(within(section).getAllByRole('link', { name: /^\d{4} · / })[0]!)
+    await timelineClosed()
+    await expect(await main.findByRole('link', { name: 'Back to now' })).toBeVisible()
   },
 })
 
@@ -914,9 +918,12 @@ export const HistoryNothingOnThisDay = meta.story({
   beforeEach({ msw }) {
     msw.use(http.get('/api/v1/history/on-this-day', ({ response }) => response(200).json({ date: '2026-01-01', years: [] })))
   },
-  play: async ({ canvas }) => {
-    await expect(await canvas.findByRole('heading', { name: 'Today' })).toBeVisible()
-    await expect(canvas.queryByRole('region', { name: 'On this day' })).toBeNull()
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('heading', { name: 'Today' })).toBeVisible()
+    const drawer = await openTimeline(main, userEvent)
+    await expect(drawer.getByRole('navigation', { name: 'Timeline' })).toBeVisible()
+    await expect(drawer.queryByRole('button', { name: 'On this day' })).toBeNull()
   },
 })
 

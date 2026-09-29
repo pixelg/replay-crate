@@ -1,10 +1,13 @@
-import type { TimelineMonth } from '@replay-crate/api-client'
+import type { OnThisDay as OnThisDayData, TimelineMonth } from '@replay-crate/api-client'
 import { cn } from 'cn'
-import { ArrowUpToLine, CalendarSearch, ChevronRight } from 'lucide-react'
-import { useId, useState, type ReactElement, type ReactNode } from 'react'
-import { byYear, formatCompact, formatMonth, monthsOfYear } from '../lib/months.ts'
+import { ArrowUpToLine, CalendarSearch, ChevronRight, X } from 'lucide-react'
+import { useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react'
+import { byYear, formatCompact, formatMonth } from '../lib/months.ts'
+import { useMediaQuery } from '../lib/use-media-query.ts'
+import { OnThisDay } from './on-this-day.tsx'
 import { buttonClasses } from './ui/button-classes.ts'
-import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from './ui/popover.tsx'
+import { Drawer, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from './ui/drawer.tsx'
+import { Segmented } from './ui/segmented.tsx'
 
 export type TimelineLinkProps = {
   className: string
@@ -34,15 +37,14 @@ function Bar({ share, active }: { share: number; active: boolean }) {
 }
 
 /**
- * The History timeline from `md` up: a slim rail of years, each opening onto its months, with
- * how much was played in each: years against each other, months against the rest of their year.
- * The month in view is marked, and its year opens as it scrolls in.
+ * The History timeline: years, each opening onto its months, with how much was played in each:
+ * years against each other, months against the rest of their year. The month in view is marked,
+ * its year opens as it scrolls in, and it's scrolled into sight when the list first shows.
  */
 export function TimelineRail({
   months,
   current,
   linkTo,
-  day,
   className,
 }: {
   /** Months with plays, newest first. */
@@ -50,8 +52,6 @@ export function TimelineRail({
   /** The month in view (`YYYY-MM`). */
   current: string | null
   linkTo: TimelineLink
-  /** A day field above the years. */
-  day?: DayJump
   className?: string
 }) {
   const years = byYear(months)
@@ -72,15 +72,15 @@ export function TimelineRail({
       return next
     })
 
+  const nav = useRef<HTMLElement>(null)
+  useEffect(() => {
+    nav.current?.querySelector('[data-in-view=true]')?.scrollIntoView({ block: 'center' })
+  }, [])
+
   return (
-    <nav aria-label="Timeline" className={cn('flex flex-col gap-1 text-sm', className)}>
-      {day && (
-        <div className="mb-2 px-2">
-          <JumpToDay {...day} stacked />
-        </div>
-      )}
+    <nav ref={nav} aria-label="Timeline" className={cn('flex flex-col gap-1 text-sm', className)}>
       {linkTo(null, {
-        className: 'flex items-center gap-2 rounded-md px-2 py-1 font-medium text-muted-foreground hover:bg-muted hover:text-foreground',
+        className: 'flex items-center gap-2 rounded-md px-2 py-1.5 font-medium text-muted-foreground hover:bg-muted hover:text-foreground',
         children: (
           <>
             <ArrowUpToLine aria-hidden className="size-4" /> Now
@@ -99,7 +99,7 @@ export function TimelineRail({
                 aria-controls={`timeline-${year.year}`}
                 aria-label={`${year.year}, ${plays(year.plays)}`}
                 onClick={() => toggle(year.year)}
-                className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+                className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <ChevronRight aria-hidden className={cn('size-3.5 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-90')} />
                 <span className={cn('tabular-nums', year.year === currentYear && 'text-primary')}>{year.year}</span>
@@ -116,7 +116,7 @@ export function TimelineRail({
                         'aria-label': `${formatMonth(month.month)}, ${plays(month.plays)}`,
                         'data-in-view': month.month === current,
                         className:
-                          'flex items-center gap-1.5 rounded-md py-0.5 pr-2 pl-7 text-muted-foreground hover:bg-muted hover:text-foreground data-[in-view=true]:bg-accent data-[in-view=true]:font-medium data-[in-view=true]:text-foreground',
+                          'flex items-center gap-1.5 rounded-md py-1 pr-2 pl-7 text-muted-foreground hover:bg-muted hover:text-foreground data-[in-view=true]:bg-accent data-[in-view=true]:font-medium data-[in-view=true]:text-foreground',
                         children: (
                           <>
                             <span className="w-8 shrink-0">{formatMonth(month.month, 'short')}</span>
@@ -141,15 +141,7 @@ export function TimelineRail({
 export type DayJump = { first: string; last: string; onJump: (day: string) => void }
 
 /** A date field and Go: opens History at that day, its latest plays first. */
-export function JumpToDay({
-  first,
-  last,
-  onJump,
-  stacked = false,
-}: DayJump & {
-  /** The field above the button, for narrow spots. */
-  stacked?: boolean
-}) {
+export function JumpToDay({ first, last, onJump }: DayJump) {
   const id = useId()
   const [day, setDay] = useState('')
   return (
@@ -163,7 +155,7 @@ export function JumpToDay({
       <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
         Go to a day
       </label>
-      <div className={cn('flex gap-1.5', stacked && 'flex-col')}>
+      <div className="flex gap-1.5">
         <input
           id={id}
           type="date"
@@ -182,113 +174,88 @@ export function JumpToDay({
   )
 }
 
+type DrawerView = 'timeline' | 'on-this-day'
+
 /**
- * The History timeline on phones: a "Jump to…" button opening a year → month grid, and a day
- * field under it. Months without plays are there too, outlined, so the grid keeps the shape of a
- * calendar.
+ * Getting around History: a Timeline button opening a drawer (from the side on wide screens, a
+ * bottom sheet on phones) with a day field and the years and months, and On this day when earlier
+ * years have plays on today's date. Following any link in it closes it.
  */
-export function TimelineJump({
+export function TimelineDrawer({
   months,
   current,
-  jumped,
   linkTo,
   day,
+  onThisDay,
   className,
 }: {
   /** Months with plays, newest first. */
   months: TimelineMonth[]
   /** The month in view (`YYYY-MM`). */
   current: string | null
-  /** Showing the past (a `before` cursor) rather than the present. */
-  jumped: boolean
   linkTo: TimelineLink
   day: DayJump
+  onThisDay?: OnThisDayData
   className?: string
 }) {
-  const years = byYear(months)
-  const counts = new Map(months.map((month) => [month.month, month.plays]))
-  const currentYear = current?.slice(0, 4) ?? years[0]?.year ?? ''
+  const wide = useMediaQuery('(min-width: 48rem)')
   const [open, setOpen] = useState(false)
-  const [year, setYear] = useState(currentYear)
+  const [view, setView] = useState<DrawerView>('timeline')
   const close = () => setOpen(false)
+  const showOnThisDay = Boolean(onThisDay?.years.length) && view === 'on-this-day'
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        // Each time it opens, it starts at the year in view.
-        if (next) setYear(currentYear)
-      }}
-    >
-      <PopoverTrigger className={buttonClasses({ variant: 'secondary', size: 'sm' }, className)}>
-        <CalendarSearch aria-hidden className="size-4" /> Jump to…
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 gap-3 p-3">
-        <PopoverTitle>Jump to a month</PopoverTitle>
-        <div role="group" aria-label="Year" className="grid grid-cols-4 gap-1">
-          {years.map((option) => (
-            <button
-              key={option.year}
-              type="button"
-              aria-pressed={option.year === year}
-              aria-label={`${option.year}, ${plays(option.plays)}`}
-              onClick={() => setYear(option.year)}
-              className="h-9 rounded-md text-sm tabular-nums hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring aria-pressed:bg-primary aria-pressed:font-medium aria-pressed:text-primary-foreground"
-            >
-              {option.year}
-            </button>
-          ))}
+    <Drawer open={open} onOpenChange={setOpen} swipeDirection={wide ? 'right' : 'down'} showSwipeHandle={!wide}>
+      <DrawerTrigger className={buttonClasses({ variant: 'secondary', size: 'sm' }, className)}>
+        <CalendarSearch aria-hidden className="size-4" /> Timeline
+      </DrawerTrigger>
+      <DrawerContent>
+        <DrawerHeader className="flex-row items-center justify-between gap-3 text-left">
+          <DrawerTitle>Timeline</DrawerTitle>
+          <DrawerClose
+            aria-label="Close"
+            className="-m-1 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <X aria-hidden className="size-5" />
+          </DrawerClose>
+        </DrawerHeader>
+        <div
+          className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+          // A link was followed (not opened elsewhere): the drawer has done its job.
+          onClickCapture={(event) => {
+            const opensElsewhere = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0
+            if (!opensElsewhere && event.target instanceof Element && event.target.closest('a')) close()
+          }}
+        >
+          {Boolean(onThisDay?.years.length) && (
+            <div>
+              <Segmented<DrawerView>
+                label="Show"
+                value={view}
+                onChange={setView}
+                options={[
+                  { value: 'timeline', label: 'Months' },
+                  { value: 'on-this-day', label: 'On this day' },
+                ]}
+              />
+            </div>
+          )}
+          {showOnThisDay ? (
+            <OnThisDay onThisDay={onThisDay!} />
+          ) : (
+            <>
+              <JumpToDay
+                {...day}
+                onJump={(picked) => {
+                  close()
+                  day.onJump(picked)
+                }}
+              />
+              <TimelineRail months={months} current={current} linkTo={linkTo} className="-mx-2" />
+            </>
+          )}
         </div>
-        <ul aria-label={`Months of ${year}`} className="grid grid-cols-4 gap-1 border-t border-border pt-3">
-          {monthsOfYear(year).map((month) => {
-            const count = counts.get(month)
-            return (
-              <li key={month}>
-                {count === undefined ? (
-                  <span className="flex h-12 flex-col items-center justify-center rounded-md border border-dashed border-border text-muted-foreground">
-                    {formatMonth(month, 'short')}
-                    <span className="sr-only">, no plays</span>
-                  </span>
-                ) : (
-                  linkTo(month, {
-                    'aria-label': `${formatMonth(month)}, ${plays(count)}`,
-                    'data-in-view': month === current,
-                    onClick: close,
-                    className:
-                      'flex h-12 flex-col items-center justify-center rounded-md bg-muted/60 hover:bg-muted data-[in-view=true]:bg-accent data-[in-view=true]:font-medium data-[in-view=true]:text-primary',
-                    children: (
-                      <>
-                        {formatMonth(month, 'short')}
-                        <span className="text-xs text-muted-foreground tabular-nums">{formatCompact(count)}</span>
-                      </>
-                    ),
-                  })
-                )}
-              </li>
-            )
-          })}
-        </ul>
-        <div className="border-t border-border pt-3">
-          <JumpToDay
-            {...day}
-            onJump={(picked) => {
-              close()
-              day.onJump(picked)
-            }}
-          />
-        </div>
-        {jumped &&
-          linkTo(null, {
-            onClick: close,
-            className: buttonClasses({ variant: 'secondary', size: 'sm' }),
-            children: (
-              <>
-                <ArrowUpToLine aria-hidden className="size-4" /> Back to now
-              </>
-            ),
-          })}
-      </PopoverContent>
-    </Popover>
+      </DrawerContent>
+    </Drawer>
   )
 }
