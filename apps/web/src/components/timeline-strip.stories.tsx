@@ -74,7 +74,8 @@ export const OnThisDayDots = meta.story({
     await expect(dots).toHaveLength(3)
     await expect(dots[0]).toHaveAttribute('href', expect.stringContaining('/history?before='))
     await userEvent.hover(dots.find((dot) => dot.getAttribute('aria-label')!.includes(String(year - 1)))!)
-    await expect(await screen.findByText('Brass Monkey Business')).toBeVisible()
+    // Once it has faded in.
+    await waitFor(() => expect(screen.getByText('Brass Monkey Business')).toBeVisible())
   },
 })
 
