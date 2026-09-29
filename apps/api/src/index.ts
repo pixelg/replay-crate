@@ -4,6 +4,7 @@ import { ENV } from 'varlock/env'
 import { createTokenCipher } from './lib/crypto.ts'
 import { createServer } from './server.ts'
 import { createSpotifyGateway } from './spotify/gateway.ts'
+import { safeBudget } from './jobs/budget.ts'
 import { startJobRunner } from './jobs/runner.ts'
 import { startSyncScheduler } from './sync/scheduler.ts'
 import { enqueueEverything, startSearchIndexer } from './search/indexer.ts'
@@ -33,8 +34,10 @@ if (ENV.SYNC_INTERVAL_MINUTES > 0) {
 }
 
 // Background Spotify lookups (e.g. tracks named in an import), one at a time, within a daily budget.
-startJobRunner(deps, { budget: { perDay: ENV.JOB_CALLS_PER_DAY, burst: Math.min(200, ENV.JOB_CALLS_PER_DAY) } })
-console.log(`Background Spotify calls: up to ${ENV.JOB_CALLS_PER_DAY} a day`)
+// A missing setting (a `pnpm dev` that reloaded after the schema gained it) falls back to the default.
+const budget = safeBudget({ perDay: ENV.JOB_CALLS_PER_DAY, burst: 200 })
+startJobRunner(deps, { budget })
+console.log(`Background Spotify calls: up to ${budget.perDay} a day, ${budget.burst} at once`)
 // Keeps the search index in step with what syncs and imports write.
 if (isElastic(deps.search)) {
   try {
