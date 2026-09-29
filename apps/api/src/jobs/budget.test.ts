@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createTestContext } from '../testing.ts'
-import { pauseSpotify, pausedUntil, takeCall } from './budget.ts'
+import { DEFAULT_BUDGET, pauseSpotify, pausedUntil, safeBudget, takeCall } from './budget.ts'
 
 describe('Spotify call budget', () => {
   let ctx: Awaited<ReturnType<typeof createTestContext>>
@@ -26,6 +26,17 @@ describe('Spotify call budget', () => {
     ctx.advance(24 * 60 * 60_000)
     for (let i = 0; i < 3; i++) expect((await take()).ok).toBe(true)
     expect((await take()).ok).toBe(false)
+  })
+
+  it('falls back to the default when the setting is missing or invalid', async () => {
+    expect(safeBudget({ perDay: Number.NaN, burst: Number.NaN })).toEqual(DEFAULT_BUDGET)
+    expect(safeBudget({ perDay: undefined as unknown as number, burst: 200 })).toEqual(DEFAULT_BUDGET)
+    expect(safeBudget({ perDay: -5, burst: 0 })).toEqual(DEFAULT_BUDGET)
+    expect(safeBudget({ perDay: 50, burst: 200 })).toEqual({ perDay: 50, burst: 50 })
+    // A NaN budget works as the default: a full burst, then a stop (not no calls, nor endless ones).
+    const broken = { perDay: Number.NaN, burst: Number.NaN }
+    for (let i = 0; i < DEFAULT_BUDGET.burst; i++) expect((await takeCall(ctx.db, broken, ctx.deps.now!())).ok).toBe(true)
+    expect((await takeCall(ctx.db, broken, ctx.deps.now!())).ok).toBe(false)
   })
 
   it("remembers Spotify's Retry-After for every process, keeping the later of two", async () => {

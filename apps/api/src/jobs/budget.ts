@@ -11,6 +11,17 @@ const DAY_S = 24 * 60 * 60
 export type CallBudget = { perDay: number; burst: number }
 export const DEFAULT_BUDGET: CallBudget = { perDay: 2_500, burst: 200 }
 
+/**
+ * `budget`, or the default for anything that isn't a positive number: a missing setting would
+ * otherwise be NaN, which Postgres ranks above every number, so every call would be allowed.
+ */
+export function safeBudget(budget: Partial<CallBudget> | undefined): CallBudget {
+  const positive = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0
+  const perDay = positive(budget?.perDay) ? budget.perDay : DEFAULT_BUDGET.perDay
+  const burst = positive(budget?.burst) ? Math.max(1, Math.min(budget.burst, perDay)) : Math.min(DEFAULT_BUDGET.burst, perDay)
+  return { perDay, burst }
+}
+
 const rows = async <T>(db: Db, query: SQL) => ((await db.execute(query)) as unknown as { rows: T[] }).rows
 
 /** When background Spotify work may resume, or null when Spotify hasn't asked us to wait. */
@@ -43,9 +54,10 @@ export async function pauseSpotify(db: Db, until: Date, now: Date = new Date()):
  */
 export async function takeCall(
   db: Db,
-  budget: CallBudget,
+  requested: CallBudget,
   now: Date = new Date(),
 ): Promise<{ ok: true } | { ok: false; nextAt: Date }> {
+  const budget = safeBudget(requested)
   const at = now.toISOString()
   const perSecond = budget.perDay / DAY_S
   // A new budget starts full.
