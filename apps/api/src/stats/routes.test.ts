@@ -219,6 +219,70 @@ describe('stats', () => {
     })
   })
 
+  describe('GET /api/v1/stats/calendar', () => {
+    beforeEach(async () => {
+      // Older years: two plays in 2023, and New Year's Eve 2019 in UTC (already 2020 in Tokyo).
+      ctx.advance(60_000)
+      ctx.spotify.getRecentlyPlayed.mockResolvedValueOnce({
+        items: [
+          play(other, '2023-03-06T20:00:00.000Z'),
+          play(loop, '2023-03-06T09:00:00.000Z'),
+          play(fresh, '2019-12-31T23:30:00.000Z'),
+        ],
+        cursors: null,
+      })
+      await ctx.app.request('/api/v1/history/sync', { method: 'POST', headers: { Cookie: cookie, Origin: 'http://127.0.0.1:5173' } })
+    })
+
+    it('counts plays per local day of the year, leaving out empty days', async () => {
+      const body = await json(await get('/api/v1/stats/calendar?year=2026&tz=UTC'))
+      expect(body).toEqual({
+        year: 2026,
+        tz: 'UTC',
+        years: [2019, 2023, 2026],
+        days: [
+          { date: '2026-06-01', plays: 1 },
+          { date: '2026-09-18', plays: 1 },
+          { date: '2026-09-19', plays: 1 },
+          { date: '2026-09-21', plays: 3 },
+        ],
+      })
+      const older = await json(await get('/api/v1/stats/calendar?year=2023&tz=UTC'))
+      expect(older.days).toEqual([{ date: '2023-03-06', plays: 2 }])
+      expect((await json(await get('/api/v1/stats/calendar?year=2024&tz=UTC'))).days).toEqual([])
+    })
+
+    it('defaults to this year', async () => {
+      const body = await json(await get('/api/v1/stats/calendar?tz=UTC'))
+      expect(body.year).toBe(2026)
+      expect(body.days).toHaveLength(4)
+    })
+
+    it('uses the user’s days and years', async () => {
+      const la = await json(await get('/api/v1/stats/calendar?year=2026&tz=America/Los_Angeles'))
+      // 03:00 UTC on the 21st is still the 20th in Los Angeles.
+      expect(la.days.slice(-2)).toEqual([
+        { date: '2026-09-20', plays: 1 },
+        { date: '2026-09-21', plays: 2 },
+      ])
+      const tokyo = await json(await get('/api/v1/stats/calendar?year=2020&tz=Asia/Tokyo'))
+      expect(tokyo.years).toEqual([2020, 2023, 2026])
+      expect(tokyo.days).toEqual([{ date: '2020-01-01', plays: 1 }])
+    })
+
+    it('has no years before the first play', async () => {
+      await ctx.db.delete(schema.plays)
+      expect(await json(await get('/api/v1/stats/calendar?year=2026'))).toEqual({ year: 2026, tz: 'UTC', years: [], days: [] })
+    })
+
+    it('rejects an unknown time zone or a bad year', async () => {
+      const res = await get('/api/v1/stats/calendar?tz=Mars/Olympus')
+      expect(res.status).toBe(400)
+      expect((await json(res)).issues[0].path).toBe('tz')
+      expect((await get('/api/v1/stats/calendar?year=soon')).status).toBe(400)
+    })
+  })
+
   describe('GET /api/v1/stats/spotify-top', () => {
     beforeEach(() => {
       ctx.spotify.getTopTracks.mockResolvedValue({

@@ -306,6 +306,18 @@ export const statsTopQueryOptions = (
     },
   })
 
+export type StatsCalendar = InferResponseType<ApiClient['stats']['calendar']['$get'], 200>
+
+/** Plays per day of `year` in the viewer's time zone, and the years there are plays in. */
+export const statsCalendarQueryOptions = (api: ApiClient, year: number, tz: string) =>
+  queryOptions({
+    queryKey: ['stats', 'calendar', year, tz],
+    queryFn: async (): Promise<StatsCalendar> => {
+      const endpoint = 'GET /api/v1/stats/calendar'
+      return expectOk(await send(endpoint, () => api.stats.calendar.$get({ query: { year: String(year), tz } })), endpoint)
+    },
+  })
+
 export const spotifyTopQueryOptions = (
   api: ApiClient,
   query: { type: 'tracks' | 'artists'; timeRange: 'short_term' | 'medium_term' | 'long_term' },
@@ -317,6 +329,21 @@ export const spotifyTopQueryOptions = (
       return expectOk(await send(endpoint, () => api.stats['spotify-top'].$get({ query })), endpoint)
     },
     // Spotify recomputes these about daily; no need to ask again on every visit.
+    staleTime: 30 * 60_000,
+  })
+
+export type OnThisDay = InferResponseType<ApiClient['history']['on-this-day']['$get'], 200>
+export type OnThisDayYear = OnThisDay['years'][number]
+
+/** `date` (the viewer's today, YYYY-MM-DD) in earlier years: plays and top tracks per year. */
+export const onThisDayQueryOptions = (api: ApiClient, date: string, tz: string) =>
+  queryOptions({
+    queryKey: ['history', 'on-this-day', date, tz],
+    queryFn: async (): Promise<OnThisDay> => {
+      const endpoint = 'GET /api/v1/history/on-this-day'
+      return expectOk(await send(endpoint, () => api.history['on-this-day'].$get({ query: { date, tz } })), endpoint)
+    },
+    // The past doesn't change often (an import can add to it); no need to ask again on every visit.
     staleTime: 30 * 60_000,
   })
 

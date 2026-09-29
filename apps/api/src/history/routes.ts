@@ -6,11 +6,12 @@ import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
 import { ArtistRef, ContextRef, IsoDateTime, jsonResponse, Rating } from '../lib/schemas.ts'
-import { timeZone } from '../stats/ranges.ts'
+import { localDay, timeZone } from '../stats/ranges.ts'
 import { pauseSpotify, pausedUntil } from '../jobs/budget.ts'
 import { loadRatings } from '../tracks/ratings.ts'
 import { ReauthRequiredError } from '../spotify/access-token.ts'
 import { syncRecentlyPlayed } from '../sync/recently-played.ts'
+import { isCalendarDay, onThisDay, TRACKS_PER_YEAR } from './on-this-day.ts'
 import { loadTrackArtists, toContext } from './queries.ts'
 
 const { albums, contexts, plays, syncGaps, tracks } = schema
@@ -18,21 +19,24 @@ const { albums, contexts, plays, syncGaps, tracks } = schema
 /** Manual syncs closer together than this reuse the last result instead of calling Spotify. */
 const MIN_SYNC_INTERVAL_MS = 30_000
 
+/** A track the way History shows it. */
+const PlayTrack = z.object({
+  id: z.string().openapi({ description: 'Spotify track id.' }),
+  name: z.string(),
+  durationMs: z.number().int(),
+  explicit: z.boolean(),
+  album: z.object({ id: z.string(), name: z.string(), thumbUrl: z.string().nullable() }),
+  artists: z.array(ArtistRef),
+  rating: Rating,
+})
+
 const PlayItem = z
   .object({
     playedAt: IsoDateTime,
     msPlayed: z.number().int().nullable().openapi({ description: 'Known for imported plays; null for polled ones.' }),
     source: z.enum(schema.playSource.enumValues),
     context: ContextRef.nullable(),
-    track: z.object({
-      id: z.string().openapi({ description: 'Spotify track id.' }),
-      name: z.string(),
-      durationMs: z.number().int(),
-      explicit: z.boolean(),
-      album: z.object({ id: z.string(), name: z.string(), thumbUrl: z.string().nullable() }),
-      artists: z.array(ArtistRef),
-      rating: Rating,
-    }),
+    track: PlayTrack,
   })
   .openapi('PlayItem')
 
@@ -156,6 +160,49 @@ const listGaps = createRoute({
   },
 })
 
+const getOnThisDay = createRoute({
+  method: 'get',
+  path: '/history/on-this-day',
+  tags: ['History'],
+  operationId: 'getOnThisDay',
+  summary: 'This day in earlier years',
+  description:
+    "The same month and day in every earlier year with plays on it, newest year first: that day's plays, in the " +
+    `user's time zone, and its ${TRACKS_PER_YEAR} most played tracks. 29 February looks back at leap years only.`,
+  security: signedIn,
+  request: {
+    query: z.object({
+      date: z
+        .string()
+        .refine(isCalendarDay, 'Expected a date, YYYY-MM-DD')
+        .optional()
+        .openapi({ description: 'Defaults to today.', example: '2026-09-28' }),
+      tz: timeZone.default('UTC').openapi({ description: 'IANA time zone for day boundaries.', example: 'America/Los_Angeles' }),
+    }),
+  },
+  responses: {
+    200: jsonResponse(
+      z.object({
+        date: z.string(),
+        years: z.array(
+          z
+            .object({
+              year: z.number().int(),
+              date: z.string().openapi({ description: 'That day in this year, YYYY-MM-DD.' }),
+              plays: z.number().int(),
+              tracks: z
+                .array(z.object({ track: PlayTrack, plays: z.number().int() }))
+                .openapi({ description: 'Most played first.' }),
+            })
+            .openapi('OnThisDayYear'),
+        ),
+      }),
+      'Earlier years, or none.',
+    ),
+    ...errorResponses('invalid_request', 'unauthorized'),
+  },
+})
+
 export function historyRoutes(deps: AppDeps) {
   const { db } = deps
   const now = deps.now ?? (() => new Date())
@@ -235,6 +282,12 @@ export function historyRoutes(deps: AppDeps) {
         .from(byMonth)
         .orderBy(desc(byMonth.start))
       return c.json({ months }, 200)
+    })
+
+    .openapi({ ...getOnThisDay, middleware: auth }, async (c) => {
+      const { tz, ...query } = c.req.valid('query')
+      const date = query.date ?? localDay(now(), tz)
+      return c.json({ date, years: await onThisDay(db, c.var.user.id, { date, tz }) }, 200)
     })
 
     .openapi({ ...listPlays, middleware: auth }, async (c) => {

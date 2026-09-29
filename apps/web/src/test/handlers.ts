@@ -3,6 +3,7 @@ import type { paths } from './api.gen.ts'
 import {
   devices,
   libraryPage,
+  onThisDay,
   pixelg,
   playback,
   playlistDetail,
@@ -12,6 +13,7 @@ import {
   searchResponse,
   spotifyTracks,
   spotifyTop,
+  statsCalendar,
   statsOverview,
   statsTop,
   timeline,
@@ -58,6 +60,7 @@ export const handlers = {
     ),
     http.get('/api/v1/history/gaps', ({ response }) => response(200).json({ gaps: [] })),
     http.get('/api/v1/history/timeline', ({ response }) => response(200).json(timeline)),
+    http.get('/api/v1/history/on-this-day', ({ response }) => response(200).json(onThisDay)),
   ],
   tracks: [
     http.get('/api/v1/tracks', ({ query, response }) => {
@@ -89,6 +92,10 @@ export const handlers = {
       })
     }),
     http.get('/api/v1/stats/spotify-top', ({ response }) => response(200).json(spotifyTop)),
+    http.get('/api/v1/stats/calendar', ({ query, response }) => {
+      const year = query.get('year')
+      return response(200).json(statsCalendar(year ? Number(year) : undefined))
+    }),
   ],
   imports: [http.get('/api/v1/imports/latest', ({ response }) => response(200).json({ import: null }))],
   // Whatever is typed, the "pete" results (facets only when asked for).

@@ -15,6 +15,7 @@ import { HistoryList, NowPlayingSection } from '../../components/history-list.ts
 import { TimelineJump, TimelineRail, type DayJump, type TimelineLink } from '../../components/history-timeline.tsx'
 import { InlineError } from '../../components/inline-error.tsx'
 import { ListPagination } from '../../components/list-pagination.tsx'
+import { OnThisDayCard } from '../../components/on-this-day.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
 import { SelectionBar } from '../../components/selection-bar.tsx'
 import { Button } from '../../components/ui/button.tsx'
@@ -217,6 +218,8 @@ function HistoryPage() {
           })}
         </div>
       )}
+
+      {page === 1 && before === undefined && <OnThisDayCard />}
 
       <div className={cn(months.length > 0 && 'md:grid md:grid-cols-[minmax(0,1fr)_9rem] md:gap-8')}>
         <div ref={listRef} className="min-w-0">

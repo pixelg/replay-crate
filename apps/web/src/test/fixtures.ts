@@ -5,6 +5,7 @@ import type {
   ImportStatus,
   LibraryPage,
   Me,
+  OnThisDay,
   PlaylistDetail,
   Playback,
   PlayerItem,
@@ -17,10 +18,12 @@ import type {
   SearchResponse,
   SpotifyTrackHit,
   SpotifyTop,
+  StatsCalendar,
   StatsOverview,
   StatsTop,
   TrackDetail,
 } from '@replay-crate/api-client'
+import { localDayKey } from '@replay-crate/core'
 
 // Fictional data for stories. Images are null so tests never hit the network.
 
@@ -311,6 +314,51 @@ export const spotifyTop: SpotifyTop = {
     { rank: 2, id: 't9', name: 'Heard Elsewhere', subtitle: 'Other Device', imageUrl: null, plays: 0 },
   ],
 }
+
+const thisYear = new Date().getFullYear()
+const localToday = localDayKey(new Date())
+/** The years `statsCalendar` has plays in: a gap in 2020, then every year to this one. */
+export const calendarYears = [...new Set([2019, 2021, 2022, 2023, 2024, 2025, thisYear])]
+
+/**
+ * Plays per day through `year` (up to today): busier at weekends, with a few days off. Deterministic,
+ * so a story can name a day's count.
+ */
+export function statsCalendar(year = thisYear): StatsCalendar {
+  const days: StatsCalendar['days'] = []
+  for (let day = new Date(Date.UTC(year, 0, 1)); day.getUTCFullYear() === year; day.setUTCDate(day.getUTCDate() + 1)) {
+    const date = day.toISOString().slice(0, 10)
+    if (date > localToday) break
+    const [dayOfMonth, month, weekday] = [day.getUTCDate(), day.getUTCMonth(), day.getUTCDay()]
+    if ((dayOfMonth * 7 + month * 3) % 11 === 0) continue
+    days.push({ date, plays: ((dayOfMonth * 13 + month * 29 + weekday * 5) % 40) + (weekday === 0 || weekday === 6 ? 25 : 5) })
+  }
+  return { year, tz: 'UTC', years: calendarYears, days }
+}
+
+/** Today in three earlier years. */
+export const onThisDay: OnThisDay = (() => {
+  const [year, monthDay] = [thisYear, localToday.slice(4)]
+  const tracks = Object.fromEntries(plays.map((play) => [play.track.id, play.track]))
+  return {
+    date: `${year}${monthDay}`,
+    years: [
+      {
+        year: year - 1,
+        date: `${year - 1}${monthDay}`,
+        plays: 42,
+        tracks: [
+          { track: tracks.t1!, plays: 6 },
+          { track: tracks.t2!, plays: 4 },
+          { track: tracks.t3!, plays: 3 },
+          { track: tracks.t4!, plays: 1 },
+        ],
+      },
+      { year: year - 3, date: `${year - 3}${monthDay}`, plays: 17, tracks: [{ track: tracks.t4!, plays: 5 }, { track: tracks.t2!, plays: 2 }] },
+      { year: year - 7, date: `${year - 7}${monthDay}`, plays: 1, tracks: [{ track: tracks.t2!, plays: 1 }] },
+    ],
+  }
+})()
 
 /** One gap between the two older plays in `plays`. */
 export const gaps: HistoryGap[] = [

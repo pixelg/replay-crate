@@ -4,8 +4,9 @@ import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
 import { jsonResponse, Rating } from '../lib/schemas.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
+import { calendarDays, yearsWithPlays } from './calendar.ts'
 import { overview } from './overview.ts'
-import { period, range, timeZone, type Range, type Span } from './ranges.ts'
+import { localDay, period, range, timeZone, type Range, type Span } from './ranges.ts'
 import { spotifyTop } from './spotify-top.ts'
 import { top } from './top.ts'
 
@@ -112,6 +113,36 @@ const getTop = createRoute({
   },
 })
 
+const getCalendar = createRoute({
+  method: 'get',
+  path: '/stats/calendar',
+  tags: ['Stats'],
+  operationId: 'getStatsCalendar',
+  summary: 'Plays per day for a year',
+  description: "For a calendar heatmap: the year's days that have plays, in the user's time zone, and every year that has plays.",
+  security: signedIn,
+  request: {
+    query: z.object({
+      year: z.coerce.number().int().min(1900).max(9999).optional().openapi({ description: 'Defaults to the current year.', example: 2023 }),
+      tz: timeZone.default('UTC').openapi({ description: 'IANA time zone for day boundaries.', example: 'America/Los_Angeles' }),
+    }),
+  },
+  responses: {
+    200: jsonResponse(
+      z.object({
+        year: z.number().int(),
+        tz: z.string(),
+        years: z.array(z.number().int()).openapi({ description: 'Every year with plays, oldest first.' }),
+        days: z
+          .array(z.object({ date: z.string().openapi({ description: 'YYYY-MM-DD.' }), plays: z.number().int() }))
+          .openapi({ description: 'Days with plays, oldest first; the rest had none.' }),
+      }),
+      'Daily play counts.',
+    ),
+    ...errorResponses('invalid_request', 'unauthorized'),
+  },
+})
+
 const SpotifyTopQuery = z.object({
   type: z.enum(['tracks', 'artists']).default('tracks'),
   timeRange: z.enum(['short_term', 'medium_term', 'long_term']).default('short_term').openapi({
@@ -177,6 +208,14 @@ export function statsRoutes(deps: AppDeps) {
       if (!span) return c.json(bothGiven(), 400)
       const items = await top(deps.db, c.var.user.id, { type, span, tz, metric, limit, now: now() })
       return c.json({ type, ...span, tz, metric, limit, items }, 200)
+    })
+
+    .openapi({ ...getCalendar, middleware: auth }, async (c) => {
+      const { tz, ...query } = c.req.valid('query')
+      const userId = c.var.user.id
+      const year = query.year ?? Number(localDay(now(), tz).slice(0, 4))
+      const [days, years] = await Promise.all([calendarDays(deps.db, userId, { year, tz }), yearsWithPlays(deps.db, userId, tz)])
+      return c.json({ year, tz, years, days }, 200)
     })
 
     .openapi({ ...getSpotifyTop, middleware: auth }, async (c) => {
