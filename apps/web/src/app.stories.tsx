@@ -565,6 +565,91 @@ export const TrackAddsToPlaylist = meta.story({
   },
 })
 
+export const HistoryAddsToARecentPlaylist = meta.story({
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    requests.mockClear()
+    msw.use(
+      http.post('/api/v1/playlists/{id}/items', async ({ request, params }) => {
+        requests('add', params.id, await request.json())
+        return HttpResponse.json({ ok: true })
+      }),
+      http.delete('/api/v1/playlists/{id}/items', async ({ request, params }) => {
+        requests('remove', params.id, await request.json())
+        return HttpResponse.json({ ok: true })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    const nowPlaying = within(await main.findByRole('group', { name: 'Now playing' }))
+    await userEvent.click(nowPlaying.getByRole('button', { name: 'Add Brass Monkey Business to a playlist' }))
+    const popup = within(await screen.findByRole('dialog', { name: 'Add to playlist' }))
+    // The playlist added to most recently comes first; ones it's already on can't take it twice.
+    const recent = within(await popup.findByRole('list', { name: 'Recently added to' })).getAllByRole('button')
+    await expect(recent.map((button) => button.textContent)).toEqual([
+      expect.stringMatching(/^Boom Bap Essentials/),
+      expect.stringMatching(/^Late Night Crate/),
+      expect.stringMatching(/^Road Trip \(with Sam\)/),
+    ])
+    await waitFor(() => expect(recent[0]).toBeDisabled())
+
+    await userEvent.click(recent[2]!)
+    await waitFor(() => expect(requests).toHaveBeenCalledWith('add', 'p3', { trackIds: ['t1'] }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add to playlist' })).toBeNull())
+    // Changed your mind: Undo takes it off again.
+    await waitFor(() => expect(screen.getByText('Added “Brass Monkey Business” to Road Trip (with Sam)')).toBeVisible())
+    await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(requests).toHaveBeenCalledWith('remove', 'p3', { trackIds: ['t1'] }))
+  },
+})
+
+export const HistoryStartsAPlaylistAndStays = meta.story({
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  beforeEach({ msw }) {
+    requests.mockClear()
+    msw.use(
+      http.post('/api/v1/playlists', async ({ request }) => {
+        requests(await request.json())
+        return HttpResponse.json({ id: 'p9' }, { status: 201 })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await userEvent.click(await main.findByRole('button', { name: 'New playlist with Sunday Morning Static' }))
+    const dialog = within(await screen.findByRole('dialog', { name: 'Create playlist' }))
+    await userEvent.clear(dialog.getByRole('textbox', { name: 'Name' }))
+    await userEvent.type(dialog.getByRole('textbox', { name: 'Name' }), 'Sunday finds')
+    await userEvent.click(dialog.getByRole('button', { name: 'Create playlist' }))
+    await waitFor(() => expect(requests).toHaveBeenCalledWith({ name: 'Sunday finds', trackIds: ['t2'] }))
+    // Still on History, listening, with a way to the new playlist.
+    await waitFor(() => expect(screen.getByText('Created Sunday finds')).toBeVisible())
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Create playlist' })).toBeNull())
+    await expect(canvas.getByRole('heading', { level: 1, name: 'History' })).toBeVisible()
+    await expect(screen.getByRole('button', { name: 'Open' })).toBeVisible()
+  },
+})
+
+export const HistorySelectHidesShortcuts = meta.story({
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect((await main.findAllByRole('button', { name: /to a playlist$/ })).length).toBeGreaterThan(1)
+    await userEvent.click(main.getByRole('button', { name: 'Select' }))
+    await expect(main.queryAllByRole('button', { name: /to a playlist$|^New playlist with/ })).toEqual([])
+  },
+})
+
+export const PlaylistMarksThePlayingTrack = meta.story({
+  args: { path: '/playlists/p1' },
+  play: async ({ canvas }) => {
+    const tracks = within(await canvas.findByRole('region', { name: 'Tracks' }))
+    const playing = await tracks.findByRole('link', { name: 'Brass Monkey Business' })
+    await waitFor(() => expect(playing.closest('[aria-current]')).not.toBeNull())
+    await expect(tracks.getByRole('link', { name: 'Sunday Morning Static' }).closest('[aria-current]')).toBeNull()
+  },
+})
+
 export const NewPlaylistFromHistory = meta.story({
   args: { path: '/playlists/new' },
   beforeEach({ msw }) {

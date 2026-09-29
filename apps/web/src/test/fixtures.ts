@@ -150,6 +150,7 @@ export const playlistsList: PlaylistsList = {
       itemCount: 42,
       playsFrom: 318,
       lastPlayedFrom: hoursAgo(0.2),
+      lastAddedAt: hoursAgo(48),
     },
     {
       id: 'p2',
@@ -162,6 +163,8 @@ export const playlistsList: PlaylistsList = {
       itemCount: 120,
       playsFrom: 57,
       lastPlayedFrom: hoursAgo(30),
+      // The one being built: added to a few minutes ago.
+      lastAddedAt: hoursAgo(0.1),
     },
     {
       id: 'p3',
@@ -174,6 +177,7 @@ export const playlistsList: PlaylistsList = {
       itemCount: 18,
       playsFrom: 0,
       lastPlayedFrom: null,
+      lastAddedAt: null,
     },
   ],
 }

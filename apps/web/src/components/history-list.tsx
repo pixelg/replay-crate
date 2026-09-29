@@ -6,6 +6,7 @@ import type { Ref } from 'react'
 import { cn } from 'cn'
 import { AlbumArt } from './album-art.tsx'
 import { TrackRating } from './star-rating.tsx'
+import { PlaylistShortcuts } from './playlist-shortcuts.tsx'
 import { TrackActions } from './track-actions.tsx'
 import { ContextChip } from './context-chip.tsx'
 import { subtitleOf, thumbOf } from './player/items.ts'
@@ -142,7 +143,12 @@ export function NowPlayingSection({
             <p className={cn('truncate font-medium', isPlaying && 'text-primary')}>{item.name}</p>
           )}
           <p className="truncate text-sm text-muted-foreground">{subtitleOf(item)}</p>
-          {context && <ContextChip context={context} className="mt-1" />}
+          {(context || (track && !selecting)) && (
+            <div className="mt-1 flex min-w-0 items-center gap-1">
+              {context && <ContextChip context={context} className="min-w-0" />}
+              {track && !selecting && <PlaylistShortcuts track={track} />}
+            </div>
+          )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1 self-start pt-0.5">
           {isPlaying ? (
@@ -211,7 +217,12 @@ function PlayRow({ play, selection, playing }: { play: PlayItem; selection?: Pla
           {track.name}
         </Link>
         <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
-        {play.context && <ContextChip context={play.context} track={selection ? undefined : track} className="mt-1" />}
+        {(play.context || !selection) && (
+          <div className="mt-1 flex min-w-0 items-center gap-1">
+            {play.context && <ContextChip context={play.context} track={selection ? undefined : track} className="min-w-0" />}
+            {!selection && <PlaylistShortcuts track={track} />}
+          </div>
+        )}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1 self-start pt-0.5">
         <time dateTime={play.playedAt} className="text-xs text-muted-foreground tabular-nums">
