@@ -731,7 +731,7 @@ export const HistoryTimelineJumpsToAMonth = meta.story({
     // March's latest plays first: everything before the start of April.
     await expect(await main.findByRole('link', { name: 'Old Favourite 01' })).toBeVisible()
     await expect(playsCursors).toHaveBeenLastCalledWith({ before: monthCursor('2019-03'), after: null })
-    await expect(main.getByText('March 2019')).toBeVisible()
+    await expect(main.getByText(/^Showing/)).toHaveTextContent('Showing March 2019, newest first.')
     drawer = await openTimeline(main, userEvent)
     await waitFor(() => expect(drawer.getByRole('link', { name: /^March 2019, / })).toHaveAttribute('data-in-view', 'true'))
     await userEvent.keyboard('{Escape}')
@@ -742,8 +742,39 @@ export const HistoryTimelineJumpsToAMonth = meta.story({
 
     await userEvent.click(main.getByRole('link', { name: 'Back to now' }))
     await expect(await main.findByRole('heading', { name: 'Today' })).toBeVisible()
-    await expect(main.queryByText('March 2019')).toBeNull()
+    await expect(main.queryByText(/^Showing/)).toBeNull()
     await expect(await main.findByRole('group', { name: 'Now playing' })).toBeVisible()
+  },
+})
+
+export const HistoryStripJumpsToAMonth = meta.story({
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    playsCursors.mockClear()
+    msw.use(pastHandler)
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('heading', { name: 'Today' })).toBeVisible()
+    // Above the list: every month, this one being read.
+    const strip = await main.findByRole('slider', { name: 'Month to go to' })
+    const thisMonth = new RegExp(`^${formatMonth(monthOf(new Date()))}, `)
+    await waitFor(() => expect(strip).toHaveAttribute('aria-valuetext', expect.stringMatching(thisMonth)))
+    // A year back with the keys, then there.
+    strip.focus()
+    await userEvent.keyboard('{PageDown}{Enter}')
+    const lastYear = new Date(new Date().getFullYear() - 1, new Date().getMonth(), 1)
+    await expect(await main.findByText(/^Showing/)).toHaveTextContent(`Showing ${formatMonth(monthOf(lastYear))}, newest first.`)
+    await expect(playsCursors).toHaveBeenLastCalledWith({ before: monthCursor(monthOf(lastYear)), after: null })
+  },
+})
+
+export const HistoryStripNotOnPhone = meta.story({
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('heading', { name: 'Today' })).toBeVisible()
+    await expect(main.queryByRole('slider', { name: 'Month to go to' })).toBeNull()
   },
 })
 
@@ -776,7 +807,7 @@ export const HistoryJumpShowsNewerPlays = meta.story({
   play: async ({ canvas, userEvent }) => {
     const main = within(await canvas.findByRole('main'))
     const oldest = await main.findByRole('link', { name: 'Old Favourite 01' })
-    await expect(main.getByText('March 2019')).toBeVisible()
+    await expect(main.getByText(/^Showing/)).toHaveTextContent('Showing March 2019, newest first.')
 
     await userEvent.click(main.getByRole('button', { name: 'Show newer plays' }))
     const newer = await main.findByRole('link', { name: 'Spring Newcomer' })
@@ -802,7 +833,7 @@ export const HistoryJumpOnPhone = meta.story({
     await userEvent.click(drawer.getByRole('link', { name: /^March 2019, / }))
     await expect(await main.findByRole('link', { name: 'Old Favourite 01' })).toBeVisible()
     await timelineClosed()
-    await expect(main.getByText('March 2019')).toBeVisible()
+    await expect(main.getByText(/^Showing/)).toHaveTextContent('Showing March 2019, newest first.')
     await expect(main.getByRole('link', { name: 'Back to now' })).toBeVisible()
   },
 })

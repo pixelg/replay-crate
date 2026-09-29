@@ -18,6 +18,7 @@ import { InlineError } from '../../components/inline-error.tsx'
 import { ListPagination } from '../../components/list-pagination.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
 import { SelectionBar } from '../../components/selection-bar.tsx'
+import { TimelineStrip } from '../../components/timeline-strip.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { buttonClasses } from '../../components/ui/button-classes.ts'
 import { api } from '../../lib/api.ts'
@@ -217,6 +218,17 @@ function HistoryPage() {
             ),
           })}
         </div>
+      )}
+
+      {/* From `md` up: every month at a glance, to see where you are and go elsewhere. */}
+      {months.length > 0 && (
+        <TimelineStrip
+          months={months}
+          current={monthInView}
+          onJump={(month) => void navigate({ search: (prev) => ({ size: prev.size, ...(month && { before: monthCursor(month) }) }) })}
+          onThisDay={onThisDay}
+          className="mb-6 hidden md:block"
+        />
       )}
 
       <div ref={listRef}>
