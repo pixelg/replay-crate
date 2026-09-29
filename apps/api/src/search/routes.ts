@@ -9,6 +9,7 @@ import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
 import { IsoDateTime, jsonBody, jsonResponse, Rating } from '../lib/schemas.ts'
 import { getAccessToken } from '../spotify/access-token.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
+import { localDay, timeZone } from '../stats/ranges.ts'
 
 const EntityTypeSchema = z.enum(ENTITY_TYPES).openapi('SearchType')
 const Range = z.tuple([z.number().int(), z.number().int()]).openapi({ description: '[start, end) character offsets.' })
@@ -88,8 +89,10 @@ const searchRoute = createRoute({
   description:
     'Tracks, artists, albums, playlists and plays in your library, grouped by type, as you type. `q` is free text ' +
     '(typo-tolerant, matched at word starts) plus filters: `artist:` `album:` `in:` (playlist) `from:` ' +
-    '(played from) `rating:` `plays:` `year:` `type:`, with comparisons (`rating:>=4`), ranges ' +
-    '(`year:1990..1995`), decades (`year:90s`), quotes, and `-` to exclude. Ranked by match, then your plays and ratings.',
+    '(played from) `rating:` `plays:` `year:` `played:` `type:`, with comparisons (`rating:>=4`), ranges ' +
+    '(`year:1990..1995`), decades (`year:90s`), quotes, and `-` to exclude. `played:` is when you played it: a day, ' +
+    'month or year (`2024-09-29`, `2024-09`, `2024`), `>=2025-01`, `2019..2020`, or `today`, `yesterday`, `7d`, `4w`, ' +
+    'in the days of `tz`. Ranked by match, then your plays and ratings.',
   security: signedIn,
   request: {
     query: z.object({
@@ -102,6 +105,7 @@ const searchRoute = createRoute({
       limit: z.coerce.number().int().min(1).max(50).default(5).openapi({ description: 'Hits per group.' }),
       offset: z.coerce.number().int().min(0).max(10_000).default(0).openapi({ description: 'Hits to skip in each group.' }),
       facets: z.enum(['true', 'false']).default('false'),
+      tz: timeZone.default('UTC').openapi({ description: 'IANA time zone for `played:` days.', example: 'America/Los_Angeles' }),
     }),
   },
   responses: {
@@ -238,14 +242,15 @@ export function searchRoutes(deps: AppDeps) {
       }
     })
     .openapi({ ...searchRoute, middleware: auth }, async (c) => {
-      const { q, types, limit, offset, facets } = c.req.valid('query')
+      const { q, types, limit, offset, facets, tz } = c.req.valid('query')
       const started = performance.now()
-      const query = parseSearchQuery(q)
+      const query = parseSearchQuery(q, { today: localDay(deps.now?.() ?? new Date(), tz) })
       const result = await deps.search.search(c.var.user.id, query, {
         types: types ? (types.split(',') as EntityType[]) : undefined,
         limit,
         offset,
         facets: facets === 'true',
+        timeZone: tz,
       })
       return c.json(
         {

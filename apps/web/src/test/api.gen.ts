@@ -859,7 +859,7 @@ export interface paths {
         };
         /**
          * Search your library
-         * @description Tracks, artists, albums, playlists and plays in your library, grouped by type, as you type. `q` is free text (typo-tolerant, matched at word starts) plus filters: `artist:` `album:` `in:` (playlist) `from:` (played from) `rating:` `plays:` `year:` `type:`, with comparisons (`rating:>=4`), ranges (`year:1990..1995`), decades (`year:90s`), quotes, and `-` to exclude. Ranked by match, then your plays and ratings.
+         * @description Tracks, artists, albums, playlists and plays in your library, grouped by type, as you type. `q` is free text (typo-tolerant, matched at word starts) plus filters: `artist:` `album:` `in:` (playlist) `from:` (played from) `rating:` `plays:` `year:` `played:` `type:`, with comparisons (`rating:>=4`), ranges (`year:1990..1995`), decades (`year:90s`), quotes, and `-` to exclude. `played:` is when you played it: a day, month or year (`2024-09-29`, `2024-09`, `2024`), `>=2025-01`, `2019..2020`, or `today`, `yesterday`, `7d`, `4w`, in the days of `tz`. Ranked by match, then your plays and ratings.
          */
         get: operations["search"];
         put?: never;
@@ -4857,6 +4857,8 @@ export interface operations {
                 /** @description Hits to skip in each group. */
                 offset?: number | null;
                 facets?: "true" | "false";
+                /** @description IANA time zone for `played:` days. */
+                tz?: string;
             };
             header?: never;
             path?: never;

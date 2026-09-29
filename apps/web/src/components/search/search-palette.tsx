@@ -14,6 +14,7 @@ import { cn } from 'cn'
 import { ArrowRight, Clock, CornerDownLeft, Lightbulb, Loader2, Search, X } from 'lucide-react'
 import { useId, useReducer, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { api } from '../../lib/api.ts'
+import { timeZone } from '../../lib/months.ts'
 import { forgetSearches, recentSearches, rememberSearch } from '../../lib/recent-searches.ts'
 import { modKey, useSearchPalette } from '../../lib/search-palette.ts'
 import { useDebouncedValue } from '../../lib/use-debounced-value.ts'
@@ -37,6 +38,7 @@ const TIPS = [
   { insert: 'year:90s ', label: 'year:90s', hint: 'released in the 90s' },
   { insert: 'in:', label: 'in:"road trip"', hint: 'on a playlist' },
   { insert: 'plays:>10 ', label: 'plays:>10', hint: 'played more than 10 times' },
+  { insert: 'played:', label: 'played:2024-09', hint: 'played that month (or a day, a year, 7d, >=2025)' },
   { insert: 'type:artist ', label: 'type:artist', hint: 'only artists (or tracks, albums, playlists, plays)' },
 ] as const
 
@@ -120,7 +122,7 @@ function PaletteBody({ initialQuery, onDone }: { initialQuery: string; onDone: (
   // Recent searches live in localStorage; clearing them needs a re-render.
   const [, rerender] = useReducer((n: number) => n + 1, 0)
   const settled = useDebouncedValue(q, DEBOUNCE_MS)
-  const results = useQuery(searchQueryOptions(api, { q: settled, limit: PER_GROUP }))
+  const results = useQuery(searchQueryOptions(api, { q: settled, limit: PER_GROUP, tz: timeZone }))
   const spotifyQ = useDebouncedValue(q, SPOTIFY_DEBOUNCE_MS)
   const spotify = useQuery(spotifySearchQueryOptions(api, spotifyQ))
   const navigate = useNavigate()

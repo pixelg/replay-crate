@@ -76,6 +76,15 @@ describe('search indexing', () => {
     expect(await search('reminisce', '&types=play')).toHaveLength(2)
     // The playlist the play came from is named once the sync has resolved it.
     expect(await search('from:"playlist road"', '&types=play')).toHaveLength(1)
+    // Each document knows when its plays were.
+    expect(await search('pete rock played:2026-09-21', '&types=track,artist,album,play')).toEqual([
+      'track:troy (2)',
+      'artist:pete (2)',
+      'album:mecca (2)',
+      expect.stringMatching(/^play:/),
+      expect.stringMatching(/^play:/),
+    ])
+    expect(await search('pete rock played:<2026-09-21')).toEqual([])
   })
 
   it('keeps play counts, ratings and names current', async () => {

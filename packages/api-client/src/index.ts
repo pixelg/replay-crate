@@ -402,15 +402,23 @@ export async function uploadImport(
 }
 
 /**
- * Library search, as you type. `q` is the raw box (text and filters; the API parses it). Keeps
- * the previous results on screen while the next ones load, so the list doesn't flash.
+ * Library search, as you type. `q` is the raw box (text and filters; the API parses it), `tz`
+ * the zone `played:` days are in. Keeps the previous results on screen while the next ones load,
+ * so the list doesn't flash.
  */
 export const searchQueryOptions = (
   api: ApiClient,
-  { q, types, limit = 5, offset = 0, facets = false }: { q: string; types?: SearchType[]; limit?: number; offset?: number; facets?: boolean },
+  {
+    q,
+    types,
+    limit = 5,
+    offset = 0,
+    facets = false,
+    tz,
+  }: { q: string; types?: SearchType[]; limit?: number; offset?: number; facets?: boolean; tz?: string },
 ) =>
   queryOptions({
-    queryKey: ['search', { q, types: types ?? null, limit, offset, facets }],
+    queryKey: ['search', { q, types: types ?? null, limit, offset, facets, tz: tz ?? null }],
     queryFn: async ({ signal }): Promise<SearchResponse> => {
       const endpoint = 'GET /api/v1/search'
       const query = {
@@ -419,6 +427,7 @@ export const searchQueryOptions = (
         offset: String(offset),
         facets: facets ? ('true' as const) : ('false' as const),
         ...(types?.length && { types: types.join(',') }),
+        ...(tz && { tz }),
       }
       return expectOk(await send(endpoint, () => api.search.$get({ query }, { init: { signal } })), endpoint)
     },

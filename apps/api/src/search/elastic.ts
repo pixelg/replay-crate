@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { Client, errors, type estypes } from '@elastic/elasticsearch'
-import { foldText, highlightRanges, type EntityType, type SearchFilter, type SearchQuery } from '@replay-crate/core'
+import { addDays, foldText, highlightRanges, type EntityType, type SearchFilter, type SearchQuery } from '@replay-crate/core'
 import { queryWords } from './postgres.ts'
 import type { DocKey, FacetBucket, SearchDoc, SearchFacets, SearchHit, SearchIndex, SearchOptions, SearchResult } from './types.ts'
 
@@ -58,6 +58,7 @@ const MAPPINGS: estypes.MappingTypeMapping = {
     rating: { type: 'byte' },
     lastPlayedAt: { type: 'date' },
     playedAt: { type: 'date' },
+    playTimes: { type: 'date' },
     imageUrl: { type: 'keyword', index: false },
     trackId: { type: 'keyword' },
     /** When the document was built: its external version too. */
@@ -218,7 +219,21 @@ export function createElasticSearchIndex({
 }
 
 /** A filter as an Elasticsearch query (the caller puts it under must_not when negated). */
-function filterQuery(filter: SearchFilter): estypes.QueryDslQueryContainer {
+function filterQuery(filter: SearchFilter, timeZone: string): estypes.QueryDslQueryContainer {
+  if ('days' in filter) {
+    // Any play within the days; Elasticsearch works out where they start in the viewer's zone.
+    const { first, last } = filter.days
+    return {
+      range: {
+        playTimes: {
+          ...(first && { gte: first }),
+          ...(last && { lt: addDays(last, 1) }),
+          format: 'yyyy-MM-dd',
+          time_zone: timeZone,
+        },
+      },
+    }
+  }
   if ('range' in filter) {
     const field = { rating: 'rating', plays: 'playCount', year: 'year' }[filter.field]
     return { range: { [field]: { ...(filter.range.min !== undefined && { gte: filter.range.min }), ...(filter.range.max !== undefined && { lte: filter.range.max }) } } }
@@ -268,6 +283,7 @@ async function searchElastic(
   if (!types.length) return { total: 0, groups: [], suggestion: null }
 
   const filters = query.filters.filter((filter) => filter.field !== 'type')
+  const timeZone = options.timeZone ?? 'UTC'
   const textFields = ['name', 'name._2gram', 'name._3gram', 'artists', 'artists._2gram', 'artists._3gram', 'album']
   const matchText: estypes.QueryDslQueryContainer[] = words.length
     ? [
@@ -287,8 +303,8 @@ async function searchElastic(
     : [{ match_all: {} }]
 
   const base: estypes.QueryDslBoolQuery = {
-    filter: [{ term: { userId } }, ...filters.filter((filter) => !filter.negate).map(filterQuery)],
-    must_not: filters.filter((filter) => filter.negate).map(filterQuery),
+    filter: [{ term: { userId } }, ...filters.filter((filter) => !filter.negate).map((filter) => filterQuery(filter, timeZone))],
+    must_not: filters.filter((filter) => filter.negate).map((filter) => filterQuery(filter, timeZone)),
     must: matchText,
     // A closer name ranks higher: the whole name, then the name starting with what was typed.
     should: words.length
@@ -318,6 +334,8 @@ async function searchElastic(
     { index },
     {
       query: scored({ ...base, filter: [...(base.filter as estypes.QueryDslQueryContainer[]), { term: { type } }] }),
+      // Only filters need the play times, and an artist's run to thousands.
+      _source: { excludes: ['playTimes'] },
       sort,
       from: options.offset ?? 0,
       size: options.limit,
@@ -357,7 +375,7 @@ async function searchElastic(
     const total = typeof response.hits.total === 'number' ? response.hits.total : (response.hits.total?.value ?? 0)
     if (!total) return []
     const hits: SearchHit[] = response.hits.hits.map((hit) => {
-      const { userId: _, builtAt: __, ...doc } = hit._source!
+      const { userId: _, builtAt: __, playTimes: ___, ...doc } = hit._source!
       return {
         ...doc,
         score: hit._score ?? 0,

@@ -51,6 +51,23 @@ describe('GET /api/v1/search', () => {
     expect(body.query.issues.map((issue: { kind: string }) => issue.kind)).toEqual(['unknown-field', 'unclosed-quote'])
   })
 
+  it('reads played: in the days of tz, up to today there', async () => {
+    const ids = async (query: string) =>
+      (await json(await get(query))).groups.flatMap((group: { hits: { type: string; id: string }[] }) =>
+        group.hits.map((hit) => `${hit.type}:${hit.id}`),
+      )
+    // The test clock is noon UTC on 2026-09-21; the play was an hour before.
+    const today = await json(await get('q=played:today&types=track'))
+    expect(today.query.filters).toEqual([{ token: 'played:today', label: 'Played: today', start: 0, end: 12 }])
+    expect(today.groups[0].hits.map((hit: { id: string }) => hit.id)).toEqual(['brass'])
+    // Already the 22nd in Kiribati (UTC+14), where "today" is the 22nd too.
+    expect(await ids('q=played:2026-09-22&types=track')).toEqual([])
+    expect(await ids('q=played:2026-09-22&types=track&tz=Pacific/Kiritimati')).toEqual(['track:brass'])
+    expect(await ids('q=played:today&types=track&tz=Pacific/Kiritimati')).toEqual(['track:brass'])
+    expect(await ids('q=played:yesterday&types=track&tz=Pacific/Kiritimati')).toEqual([])
+    expect((await get('q=played:today&tz=Mars/Olympus_Mons')).status).toBe(400)
+  })
+
   it('counts facets on request', async () => {
     const body = await json(await get('q=brass&facets=true'))
     expect(body.facets.types).toEqual(expect.arrayContaining([{ value: 'track', count: 1 }]))

@@ -1,0 +1,1 @@
+ALTER TABLE "search_docs" ADD COLUMN "play_times" timestamp with time zone[] DEFAULT '{}' NOT NULL;

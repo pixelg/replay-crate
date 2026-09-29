@@ -26,10 +26,15 @@ export function describeSearchIndexContract(
       rating: null,
       lastPlayedAt: null,
       playedAt: null,
+      playTimes: [],
       imageUrl: null,
       trackId: null,
       ...partial,
     })
+    // Two evenings of T.R.O.Y. (the plays below), and Brass Monkey Business just before 2026 in
+    // UTC: already New Year's Day in Berlin.
+    const troyTimes = ['2026-09-20T10:00:00.000Z', '2026-09-21T10:00:00.000Z']
+    const newYearsEve = '2025-12-31T23:30:00.000Z'
 
     const library: SearchDoc[] = [
       doc({
@@ -43,6 +48,7 @@ export function describeSearchIndexContract(
         year: 1994,
         playCount: 12,
         rating: 4,
+        playTimes: [newYearsEve],
       }),
       doc({
         type: 'track',
@@ -55,14 +61,15 @@ export function describeSearchIndexContract(
         year: 1992,
         playCount: 30,
         rating: 5,
+        playTimes: troyTimes,
       }),
       doc({ type: 'track', id: 'smooth', name: 'Smooth Operator', artists: ['Sade'], album: 'Diamond Life', year: 1984, playCount: 2 }),
       doc({ type: 'track', id: 'crate-a', name: 'Crate Digger', artists: ['Needle Drop'], album: 'Wax', year: 2004, playCount: 1 }),
       doc({ type: 'track', id: 'crate-b', name: 'Crate Diggers', artists: ['Needle Drop'], album: 'Wax', year: 2004, playCount: 9 }),
-      doc({ type: 'artist', id: 'pete', name: 'Pete Rock', playCount: 30 }),
+      doc({ type: 'artist', id: 'pete', name: 'Pete Rock', playCount: 30, playTimes: troyTimes }),
       doc({ type: 'artist', id: 'beyonce', name: 'Beyoncé', playCount: 3 }),
       doc({ type: 'album', id: 'mecca', name: 'Mecca and the Soul Brother', artists: ['Pete Rock', 'C.L. Smooth'], year: 1992 }),
-      doc({ type: 'playlist', id: 'road', name: 'Road Trip', artists: ['Pixel G'], playCount: 4 }),
+      doc({ type: 'playlist', id: 'road', name: 'Road Trip', artists: ['Pixel G'], playCount: 4, playTimes: [troyTimes[0]!] }),
       doc({
         type: 'play',
         id: '101',
@@ -73,6 +80,7 @@ export function describeSearchIndexContract(
         year: 1992,
         rating: 5,
         playedAt: '2026-09-20T10:00:00.000Z',
+        playTimes: ['2026-09-20T10:00:00.000Z'],
         trackId: 'troy',
       }),
       doc({
@@ -84,6 +92,7 @@ export function describeSearchIndexContract(
         year: 1992,
         rating: 5,
         playedAt: '2026-09-21T10:00:00.000Z',
+        playTimes: ['2026-09-21T10:00:00.000Z'],
         trackId: 'troy',
       }),
       // Someone else's library.
@@ -177,6 +186,32 @@ export function describeSearchIndexContract(
       expect(await ids('crate -plays:>5', { types: ['track'] })).toEqual(['track:crate-a'])
       expect(await ids('pete type:artist')).toEqual(['artist:pete'])
       expect(await ids('pete -type:play -type:track -type:album')).toEqual(['artist:pete'])
+    })
+
+    it('filters by when it was played, in the days of the given zone', async () => {
+      expect(await ids('played:2026-09-21', { types: ['track', 'artist', 'playlist', 'play'] })).toEqual([
+        'track:troy',
+        'artist:pete',
+        'play:102',
+      ])
+      expect(await ids('played:2026-09', { types: ['playlist', 'play'] })).toEqual(['playlist:road', 'play:102', 'play:101'])
+      expect(await ids('played:>=2026-09-21', { types: ['track', 'play'] })).toEqual(['track:troy', 'play:102'])
+      expect(await ids('played:..2025', { types: ['track'] })).toEqual(['track:brass'])
+      // Half past eleven on New Year's Eve in UTC is half past midnight in Berlin.
+      expect(await ids('played:2025', { types: ['track'], timeZone: 'Europe/Berlin' })).toEqual([])
+      expect(await ids('played:2026-01-01', { types: ['track'], timeZone: 'Europe/Berlin' })).toEqual(['track:brass'])
+      // Never played in 2026, including never played at all.
+      expect((await ids('-played:2026', { types: ['track'] })).toSorted()).toEqual(['track:brass', 'track:crate-a', 'track:crate-b', 'track:smooth'])
+      expect((await ids('-played:2026', { types: ['track'], timeZone: 'Europe/Berlin' })).toSorted()).toEqual([
+        'track:crate-a',
+        'track:crate-b',
+        'track:smooth',
+      ])
+    })
+
+    it('never returns play times in hits', async () => {
+      const [hit] = (await search('reminisce', { types: ['track'] })).groups[0]!.hits
+      expect(hit).not.toHaveProperty('playTimes')
     })
 
     it('marks what matched', async () => {

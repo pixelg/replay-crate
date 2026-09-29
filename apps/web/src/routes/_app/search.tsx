@@ -21,6 +21,7 @@ import { hitLink, TYPE_LABELS } from '../../components/search/hit-links.ts'
 import { HitSummary, SpotifyTrackSummary } from '../../components/search/hits.tsx'
 import { TrackActions } from '../../components/track-actions.tsx'
 import { api } from '../../lib/api.ts'
+import { timeZone } from '../../lib/months.ts'
 import { storedPageSize, storePageSize } from '../../lib/page-size.ts'
 import { useDebouncedValue } from '../../lib/use-debounced-value.ts'
 
@@ -58,6 +59,7 @@ function SearchPage() {
       limit: type ? size : PREVIEW,
       offset: type ? (page - 1) * size : 0,
       facets: true,
+      tz: timeZone,
     }),
   )
   const data = results.data
@@ -86,7 +88,7 @@ function SearchPage() {
       {!q.trim() ? (
         <EmptyState icon={SearchIcon} title="Search your library">
           Type a name, or narrow it down: <code>artist:"pete rock"</code> <code>rating:&gt;=4</code> <code>year:90s</code>{' '}
-          <code>in:"road trip"</code> <code>plays:&gt;10</code>. Press {' '}
+          <code>in:"road trip"</code> <code>plays:&gt;10</code> <code>played:2024-09</code>. Press {' '}
           <kbd className="rounded border border-border bg-muted px-1">/</kbd> anywhere to search.
         </EmptyState>
       ) : data && !data.total ? (

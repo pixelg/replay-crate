@@ -1,13 +1,18 @@
+import { localDayKey } from './format.ts'
+
 /**
  * The search box's query language: free text plus Lucene-style field filters.
  *
- *     pete rock artist:"pete rock" -in:"road trip" rating:>=4 plays:>10 year:1990..1995 year:90s type:track
+ *     pete rock artist:"pete rock" -in:"road trip" rating:>=4 plays:>10 year:1990..1995 year:90s type:track played:2024-09
  *
  * Free text matches names (typo-tolerant, as you type). Filters narrow it down:
  *
  * - `artist:` `album:` `in:` (a playlist) `from:` (where it was played from): text, quoted for spaces
  * - `rating:` `plays:` `year:`: a number, a comparison (`>=4`, `<3`), a range (`1990..1995`, `4..`),
  *   and for years a decade (`90s`, `1970s`)
+ * - `played:` when you played it: a day (`2024-09-29`), month (`2024-09`) or year (`2024`), a
+ *   comparison (`>=2025-01`, `<2020`), a range (`2019..2020`, `2024-06..`), or a recent stretch
+ *   (`today`, `yesterday`, `7d`, `4w`). Days are the viewer's own (the caller says which is today)
  * - `type:` one of track, artist, album, playlist, play (several OR together)
  * - `-` in front of a filter excludes what it matches
  *
@@ -19,10 +24,12 @@
 
 export const TEXT_FIELDS = ['artist', 'album', 'in', 'from'] as const
 export const NUMBER_FIELDS = ['rating', 'plays', 'year'] as const
+export const DATE_FIELDS = ['played'] as const
 export const ENTITY_TYPES = ['track', 'artist', 'album', 'playlist', 'play'] as const
 
 export type TextField = (typeof TEXT_FIELDS)[number]
 export type NumberField = (typeof NUMBER_FIELDS)[number]
+export type DateField = (typeof DATE_FIELDS)[number]
 export type EntityType = (typeof ENTITY_TYPES)[number]
 
 /** Where something sits in the input: [start, end) character offsets. */
@@ -31,9 +38,14 @@ export type Span = readonly [start: number, end: number]
 /** Inclusive bounds; a missing side is open. */
 export type NumberRange = { min?: number; max?: number }
 
+/** Inclusive local days (`YYYY-MM-DD`); a missing side is open. */
+export type DayRange = { first?: string; last?: string }
+
 export type SearchFilter =
   | { field: TextField; value: string; negate: boolean; span: Span }
   | { field: NumberField; range: NumberRange; negate: boolean; span: Span }
+  /** `value` as typed (lowercased), `days` what it means. */
+  | { field: DateField; value: string; days: DayRange; negate: boolean; span: Span }
   | { field: 'type'; value: EntityType; negate: boolean; span: Span }
 
 /** A filter to add, before it has a place in the input (Omit applied to each member of the union). */
@@ -56,6 +68,7 @@ export type SearchQuery = {
 
 const isTextField = (field: string): field is TextField => (TEXT_FIELDS as readonly string[]).includes(field)
 const isNumberField = (field: string): field is NumberField => (NUMBER_FIELDS as readonly string[]).includes(field)
+const isDateField = (field: string): field is DateField => (DATE_FIELDS as readonly string[]).includes(field)
 const isEntityType = (value: string): value is EntityType => (ENTITY_TYPES as readonly string[]).includes(value)
 
 /** What a field accepts, for messages and the palette's hints. */
@@ -155,7 +168,72 @@ function parseRange(field: NumberField, value: string): NumberRange | null {
   return range
 }
 
-export function parseSearchQuery(input: string): SearchQuery {
+const localToday = () => localDayKey(new Date())
+const pad = (n: number, width = 2) => String(n).padStart(width, '0')
+const dayKey = (date: Date) => `${pad(date.getUTCFullYear(), 4)}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`
+const asDate = (day: string) => new Date(`${day}T00:00:00Z`)
+
+/** The day `n` days after `day` (before, for a negative `n`). */
+export function addDays(day: string, n: number): string {
+  const date = asDate(day)
+  date.setUTCDate(date.getUTCDate() + n)
+  return dayKey(date)
+}
+
+/** `2024` → its first and last days; `2024-09` a month's; `2024-09-29` itself. Null if it isn't a real date. */
+function period(text: string): { first: string; last: string } | null {
+  const match = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/.exec(text)
+  if (!match) return null
+  const [, year, month, day] = match
+  if (Number(year) < 1000) return null
+  if (month === undefined) return { first: `${year}-01-01`, last: `${year}-12-31` }
+  if (Number(month) < 1 || Number(month) > 12) return null
+  const first = `${year}-${month}-01`
+  const last = addDays(dayKey(new Date(Date.UTC(Number(year), Number(month), 1))), -1)
+  if (day === undefined) return { first, last }
+  const date = `${year}-${month}-${day}`
+  // Feb 30 rolls over to March: not a real day.
+  return dayKey(asDate(date)) === date ? { first: date, last: date } : null
+}
+
+/** A `played:` value as days, with `today` as the viewer's today. Null if it can't be read. */
+function parseDays(value: string, today: string): DayRange | null {
+  const text = value.toLowerCase()
+  if (text === 'today') return { first: today, last: today }
+  if (text === 'yesterday') return { first: addDays(today, -1), last: addDays(today, -1) }
+  const recent = /^(\d{1,4})([dw])$/.exec(text)
+  if (recent) {
+    const days = Number(recent[1]) * (recent[2] === 'w' ? 7 : 1)
+    return days > 0 ? { first: addDays(today, 1 - days), last: today } : null
+  }
+  const comparison = /^(>=|<=|>|<|=)(.+)$/.exec(text)
+  if (comparison) {
+    const at = period(comparison[2]!)
+    if (!at) return null
+    return {
+      '>=': { first: at.first },
+      '>': { first: addDays(at.last, 1) },
+      '<=': { last: at.last },
+      '<': { last: addDays(at.first, -1) },
+      '=': at,
+    }[comparison[1]!]!
+  }
+  const between = /^(.*)\.\.(.*)$/.exec(text)
+  if (between) {
+    const [from, to] = [between[1] ? period(between[1]) : undefined, between[2] ? period(between[2]) : undefined]
+    if (from === null || to === null || (!from && !to)) return null
+    if (from && to && from.first > to.last) return null
+    return { ...(from && { first: from.first }), ...(to && { last: to.last }) }
+  }
+  return period(text)
+}
+
+export type ParseOptions = {
+  /** The viewer's today (`YYYY-MM-DD`), for `played:today` and `played:7d`. Default: today here. */
+  today?: string
+}
+
+export function parseSearchQuery(input: string, { today = localToday() }: ParseOptions = {}): SearchQuery {
   const words: string[] = []
   const phrases: string[] = []
   const filters: SearchFilter[] = []
@@ -199,6 +277,16 @@ export function parseSearchQuery(input: string): SearchQuery {
               : `${field}: takes a number from ${min}${max < 1e6 ? ` to ${max}` : ''}, a comparison like >=${min + 1}, or a range like ${min}..${Math.min(max, min + 3)}`,
         })
       }
+    } else if (isDateField(field)) {
+      const days = parseDays(value, today)
+      if (days) filters.push({ field, value: value.toLowerCase(), days, negate, span })
+      else {
+        issues.push({
+          kind: 'bad-value',
+          span,
+          message: 'played: takes a day, month or year (2024-09-29, 2024-09, 2024), a range like 2019..2020, >=2025-01, or today, yesterday, 7d, 4w',
+        })
+      }
     } else if (field === 'type') {
       const type = value.toLowerCase()
       if (isEntityType(type)) filters.push({ field, value: type, negate, span })
@@ -222,7 +310,7 @@ function formatRange(range: NumberRange): string {
   return ''
 }
 
-/** A filter as it would be typed: `artist:"pete rock"`, `-rating:<=2`, `year:1990..1999`. */
+/** A filter as it would be typed: `artist:"pete rock"`, `-rating:<=2`, `year:1990..1999`, `played:7d`. */
 export function formatFilter(filter: SearchFilter): string {
   const value = 'range' in filter ? formatRange(filter.range) : quote(filter.value)
   return `${filter.negate ? '-' : ''}${filter.field}:${value}`
@@ -241,12 +329,37 @@ const FIELD_LABELS: Record<SearchFilter['field'], string> = {
   rating: 'Rating',
   plays: 'Plays',
   year: 'Year',
+  played: 'Played',
   type: 'Type',
+}
+
+/** Days as briefly as they go: `2024`, `2019–2020`, `2024-09`, `2024-09-29`, `2024-09-01 – 2024-09-14`. */
+function describeDays({ first, last }: { first: string; last: string }): string {
+  if (first === last) return first
+  const wholeYears = first.endsWith('-01-01') && last.endsWith('-12-31')
+  if (wholeYears) return first.slice(0, 4) === last.slice(0, 4) ? first.slice(0, 4) : `${first.slice(0, 4)}–${last.slice(0, 4)}`
+  const wholeMonths = first.endsWith('-01') && addDays(last, 1).endsWith('-01')
+  if (wholeMonths) return first.slice(0, 7) === last.slice(0, 7) ? first.slice(0, 7) : `${first.slice(0, 7)}–${last.slice(0, 7)}`
+  return `${first} – ${last}`
+}
+
+/** A `played:` filter in words: "today", "the last 7 days", "2024-09", "since 2025-01-01". */
+function describePlayed(value: string, { first, last }: DayRange): string {
+  const recent = /^(\d+)([dw])$/.exec(value)
+  if (recent) {
+    const n = Number(recent[1])
+    const unit = recent[2] === 'w' ? 'week' : 'day'
+    return n === 1 ? `the last ${unit}` : `the last ${n} ${unit}s`
+  }
+  if (value === 'today' || value === 'yesterday') return value
+  if (first && last) return describeDays({ first, last })
+  return first ? `since ${first}` : `until ${last}`
 }
 
 /** A filter in words, for its chip: "Artist: Pete Rock", "Rating 4★ or more", "Not type: play". */
 export function describeFilter(filter: SearchFilter): string {
   const not = filter.negate ? 'Not ' : ''
+  if ('days' in filter) return `${not}${FIELD_LABELS[filter.field]}: ${describePlayed(filter.value, filter.days)}`
   if (!('range' in filter)) return `${not}${FIELD_LABELS[filter.field]}: ${filter.value}`
   const { min, max } = filter.range
   const unit = filter.field === 'rating' ? '★' : ''
