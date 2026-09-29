@@ -1,4 +1,4 @@
-import { playlistsQueryOptions } from '@replay-crate/api-client'
+import { playlistsQueryOptions, trackQueryOptions } from '@replay-crate/api-client'
 import { useQuery } from '@tanstack/react-query'
 import { Check, ListPlus } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -38,14 +38,14 @@ export function AddToPlaylistDialog({
   onOpenChange,
   trackIds,
   description,
-  onPlaylists = [],
+  onPlaylists,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   trackIds: string[]
   /** What's being added, e.g. the track's name or "3 tracks". */
   description: string
-  /** Playlists already holding the track(s), shown as added. */
+  /** Playlists already holding the track(s), shown as added. Looked up for a single track when not given. */
   onPlaylists?: string[]
 }) {
   const [filter, setFilter] = useState('')
@@ -57,7 +57,11 @@ export function AddToPlaylistDialog({
     const term = filter.trim().toLowerCase()
     return (data?.playlists ?? []).filter((playlist) => playlist.name.toLowerCase().includes(term))
   }, [data, filter])
-  const alreadyOn = new Set([...onPlaylists, ...added])
+  // A track Replay Crate hasn't recorded yet (just started playing) is on none of them.
+  const lookUp = open && onPlaylists === undefined && trackIds.length === 1
+  const { data: detail } = useQuery({ ...trackQueryOptions(api, trackIds[0] ?? ''), enabled: lookUp, retry: false })
+  const known = onPlaylists ?? (lookUp ? (detail?.playlists.map((playlist) => playlist.id) ?? []) : [])
+  const alreadyOn = new Set([...known, ...added])
 
   return (
     <Dialog

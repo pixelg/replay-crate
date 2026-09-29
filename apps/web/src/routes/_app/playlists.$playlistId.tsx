@@ -3,6 +3,7 @@ import { pageCount, type PageSize } from '@replay-crate/core'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { ArrowLeft, ListMusic, Play } from 'lucide-react'
+import { cn } from 'cn'
 import { useMemo, type ReactNode } from 'react'
 import { AlbumArt } from '../../components/album-art.tsx'
 import { EmptyState } from '../../components/empty-state.tsx'
@@ -16,6 +17,7 @@ import { Button } from '../../components/ui/button.tsx'
 import { Segmented } from '../../components/ui/segmented.tsx'
 import { api } from '../../lib/api.ts'
 import { pageOfItems, pageSearch, resizedPage, storedPageSize, storePageSize } from '../../lib/page-size.ts'
+import { usePlayingTrackId } from '../../lib/use-player.ts'
 import { usePlaylistEdit } from '../../lib/use-playlist-edits.ts'
 import { usePlayContext } from '../../lib/use-track-commands.ts'
 
@@ -67,6 +69,7 @@ function PlaylistPage() {
     void navigate({ search: (prev) => ({ ...prev, size: next, page: resizedPage(page, size, next) }) })
   }
   const edit = usePlaylistEdit()
+  const playingTrackId = usePlayingTrackId()
   const lastPosition = items.at(-1)?.position ?? 0
   const playlistUri = `spotify:playlist:${playlist.id}`
 
@@ -112,6 +115,7 @@ function PlaylistPage() {
               <li key={`${item.position}-${item.track.id}`}>
                 <TrackRow
                   item={item}
+                  playing={item.track.id === playingTrackId}
                   play={<PlayTrackButton track={item.track} from={{ uri: playlistUri, name: playlist.name }} />}
                   actions={
                     <PlaylistTrackActions
@@ -155,10 +159,11 @@ function PlayPlaylistButton({ playlist }: { playlist: { uri: string; name: strin
 
 const MAX_ALSO_ON = 2
 
-function TrackRow({ item, play, actions }: { item: PlaylistTrack; play: ReactNode; actions: ReactNode }) {
+function TrackRow({ item, playing, play, actions }: { item: PlaylistTrack; playing: boolean; play: ReactNode; actions: ReactNode }) {
   const { track, alsoOn } = item
   return (
-    <div className="flex items-center gap-2 py-2 sm:gap-3">
+    // The track Spotify is playing is marked, as in History and Tracks.
+    <div aria-current={playing || undefined} className={cn('flex items-center gap-2 py-2 sm:gap-3', playing && '-mx-2 rounded-lg bg-accent px-2')}>
       <span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums sm:block">
         {item.position + 1}
       </span>
@@ -167,7 +172,7 @@ function TrackRow({ item, play, actions }: { item: PlaylistTrack; play: ReactNod
         <Link
           to="/tracks/$trackId"
           params={{ trackId: track.id }}
-          className="block truncate font-medium hover:underline focus-visible:underline"
+          className={cn('block truncate font-medium hover:underline focus-visible:underline', playing && 'text-primary')}
         >
           {track.name}
         </Link>

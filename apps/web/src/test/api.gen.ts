@@ -1136,6 +1136,12 @@ export interface components {
              * @example 2026-09-21T12:00:00.000Z
              */
             lastPlayedFrom: string | null;
+            /**
+             * Format: date-time
+             * @description When a track was last added to it (by anyone, here or in Spotify), as of the last sync.
+             * @example 2026-09-21T12:00:00.000Z
+             */
+            lastAddedAt: string | null;
         };
         PlaylistTrack: {
             position: number;

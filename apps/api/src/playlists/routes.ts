@@ -61,6 +61,9 @@ const list = createRoute({
               itemCount: z.number().int(),
               playsFrom: z.number().int().openapi({ description: 'Plays with this playlist as their context.' }),
               lastPlayedFrom: IsoDateTime.nullable(),
+              lastAddedAt: IsoDateTime.nullable().openapi({
+                description: 'When a track was last added to it (by anyone, here or in Spotify), as of the last sync.',
+              }),
             })
             .openapi('PlaylistSummary'),
         ),
@@ -154,6 +157,11 @@ export function playlistRoutes(deps: AppDeps) {
           .where(and(eq(plays.userId, user.id), eq(plays.contextType, 'playlist')))
           .groupBy(plays.contextUri)
           .as('played_from')
+        const added = db
+          .select({ playlistId: playlistItems.playlistId, lastAddedAt: max(playlistItems.addedAt).as('last_added_at') })
+          .from(playlistItems)
+          .groupBy(playlistItems.playlistId)
+          .as('added')
 
         const rows = await db
           .select({
@@ -167,10 +175,12 @@ export function playlistRoutes(deps: AppDeps) {
             itemCount: playlists.itemCount,
             playsFrom: playedFrom.playCount,
             lastPlayedFrom: playedFrom.lastPlayedAt,
+            lastAddedAt: added.lastAddedAt,
           })
           .from(userPlaylists)
           .innerJoin(playlists, eq(playlists.id, userPlaylists.playlistId))
           .leftJoin(playedFrom, eq(playedFrom.contextUri, sql`'spotify:playlist:' || ${playlists.id}`))
+          .leftJoin(added, eq(added.playlistId, playlists.id))
           .where(eq(userPlaylists.userId, user.id))
           .orderBy(asc(userPlaylists.position))
 
@@ -187,6 +197,7 @@ export function playlistRoutes(deps: AppDeps) {
               itemCount: row.itemCount,
               playsFrom: Number(row.playsFrom ?? 0),
               lastPlayedFrom: toIso(row.lastPlayedFrom),
+              lastAddedAt: toIso(row.lastAddedAt),
             })),
             syncedAt: user.playlistsSyncedAt?.toISOString() ?? null,
           },

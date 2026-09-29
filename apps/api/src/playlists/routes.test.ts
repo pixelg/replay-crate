@@ -105,7 +105,7 @@ describe('playlists', () => {
   describe('reading', () => {
     beforeEach(async () => {
       serve([playlist('road', { name: 'Road Trip', total: 2 }), playlist('chill', { name: 'Chill' })], {
-        road: [playlistEntry(songA), playlistEntry(songB)],
+        road: [playlistEntry(songA), playlistEntry(songB, '2026-09-20T08:00:00Z')],
         chill: [playlistEntry(songA)],
       })
       await sync()
@@ -136,8 +136,10 @@ describe('playlists', () => {
           itemCount: 2,
           playsFrom: 3,
           lastPlayedFrom: '2026-09-21T11:50:00.000Z',
+          // The newest of its items.
+          lastAddedAt: '2026-09-20T08:00:00.000Z',
         },
-        expect.objectContaining({ id: 'chill', playsFrom: 1 }),
+        expect.objectContaining({ id: 'chill', playsFrom: 1, lastAddedAt: '2026-01-01T00:00:00.000Z' }),
       ])
     })
 
