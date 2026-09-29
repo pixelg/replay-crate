@@ -95,3 +95,22 @@ export function byYear(months: TimelineMonth[]): TimelineYear[] {
   }
   return years
 }
+
+export type StripMonth = { month: string; plays: number }
+
+/** The month after a `YYYY-MM` month. */
+const nextMonth = (month: string) => {
+  const [year, index] = month.split('-').map(Number) as [number, number]
+  return index === 12 ? `${year + 1}-01` : `${year}-${pad(index + 1)}`
+}
+
+/** Every month from the first with plays through `last`, oldest first; months without plays count 0. */
+export function monthRun(months: TimelineMonth[], last: string): StripMonth[] {
+  const oldest = months.at(-1)?.month
+  if (!oldest) return []
+  const counts = new Map(months.map((month) => [month.month, month.plays]))
+  const end = months[0]!.month > last ? months[0]!.month : last
+  const run: StripMonth[] = []
+  for (let month = oldest; month <= end; month = nextMonth(month)) run.push({ month, plays: counts.get(month) ?? 0 })
+  return run
+}
