@@ -1,5 +1,6 @@
 import {
   gapsQueryOptions,
+  onThisDayQueryOptions,
   playsInfiniteQueryOptions,
   playsPageQueryOptions,
   timelineQueryOptions,
@@ -12,10 +13,9 @@ import { ArrowUpToLine, CalendarClock, CircleDashed, History, ListChecks, Refres
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { EmptyState } from '../../components/empty-state.tsx'
 import { HistoryList, NowPlayingSection } from '../../components/history-list.tsx'
-import { TimelineJump, TimelineRail, type DayJump, type TimelineLink } from '../../components/history-timeline.tsx'
+import { TimelineDrawer, type DayJump, type TimelineLink } from '../../components/history-timeline.tsx'
 import { InlineError } from '../../components/inline-error.tsx'
 import { ListPagination } from '../../components/list-pagination.tsx'
-import { OnThisDayCard } from '../../components/on-this-day.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
 import { SelectionBar } from '../../components/selection-bar.tsx'
 import { Button } from '../../components/ui/button.tsx'
@@ -112,6 +112,7 @@ function HistoryPage() {
 
   // The timeline: months with plays, and the one being read (under the header and Now playing).
   const { data: timeline } = useQuery(timelineQueryOptions(api, timeZone))
+  const { data: onThisDay } = useQuery(onThisDayQueryOptions(api, localDayKey(new Date()), timeZone))
   const months = timeline?.months ?? []
   const listRef = useRef<HTMLDivElement>(null)
   const monthInView = useMonthInView(listRef, HEADER_HEIGHT + nowPlayingHeight, `${plays.length}:${plays[0]?.playedAt}`)
@@ -179,9 +180,8 @@ function HistoryPage() {
             <RefreshCw aria-hidden className={cn('size-4', isSyncing && 'motion-safe:animate-spin')} />
             {isSyncing ? 'Syncing…' : 'Sync now'}
           </Button>
-          {/* Phones: the timeline is a button here; from `md` up it's the rail beside the list. */}
           {months.length > 0 && (
-            <TimelineJump months={months} current={monthInView} jumped={before !== undefined} linkTo={linkTo} day={day} className="md:hidden" />
+            <TimelineDrawer months={months} current={monthInView} linkTo={linkTo} day={day} onThisDay={onThisDay} />
           )}
         </div>
       </div>
@@ -219,70 +219,55 @@ function HistoryPage() {
         </div>
       )}
 
-      {page === 1 && before === undefined && <OnThisDayCard />}
+      <div ref={listRef}>
+        {/* The present heads every page, not just the newest plays, and stays there as they scroll. */}
+        {showNowPlaying && <NowPlayingSection ref={nowPlayingRef} {...nowPlaying} selecting={selected !== null} />}
 
-      <div className={cn(months.length > 0 && 'md:grid md:grid-cols-[minmax(0,1fr)_9rem] md:gap-8')}>
-        <div ref={listRef} className="min-w-0">
-          {/* The present heads every page, not just the newest plays, and stays there as they scroll. */}
-          {showNowPlaying && <NowPlayingSection ref={nowPlayingRef} {...nowPlaying} selecting={selected !== null} />}
+        {loadNewer && (
+          <div className="mb-4 flex justify-center">
+            <Button variant="ghost" onClick={loadNewer} disabled={isLoadingNewer}>
+              {isLoadingNewer ? 'Loading…' : 'Show newer plays'}
+            </Button>
+          </div>
+        )}
 
-          {loadNewer && (
-            <div className="mb-4 flex justify-center">
-              <Button variant="ghost" onClick={loadNewer} disabled={isLoadingNewer}>
-                {isLoadingNewer ? 'Loading…' : 'Show newer plays'}
-              </Button>
+        {plays.length ? (
+          <>
+            <div className={cn('transition-opacity', isPlaceholder && 'opacity-60')} aria-busy={isPlaceholder}>
+              <HistoryList
+                plays={plays}
+                gaps={gaps}
+                olderPlayedAt={olderPlayedAt}
+                selection={selected ? { selected, toggle } : undefined}
+                playingTrackId={playingTrackId}
+              />
             </div>
-          )}
-
-          {plays.length ? (
-            <>
-              <div className={cn('transition-opacity', isPlaceholder && 'opacity-60')} aria-busy={isPlaceholder}>
-                <HistoryList
-                  plays={plays}
-                  gaps={gaps}
-                  olderPlayedAt={olderPlayedAt}
-                  selection={selected ? { selected, toggle } : undefined}
-                  playingTrackId={playingTrackId}
-                />
+            {loadMore && (
+              <div className="mt-6 flex justify-center">
+                <Button variant="ghost" onClick={loadMore} disabled={isLoadingMore}>
+                  {isLoadingMore ? 'Loading…' : 'Load older plays'}
+                </Button>
               </div>
-              {loadMore && (
-                <div className="mt-6 flex justify-center">
-                  <Button variant="ghost" onClick={loadMore} disabled={isLoadingMore}>
-                    {isLoadingMore ? 'Loading…' : 'Load older plays'}
-                  </Button>
-                </div>
-              )}
-              {/* A jump reads by cursor: no pages, and no page size. */}
-              {before === undefined && (
-                <ListPagination
-                  page={page}
-                  size={size}
-                  total={total}
-                  onSizeChange={setSize}
-                  linkTo={(to) => <Link from={Route.fullPath} to="." search={(prev) => ({ ...prev, page: to > 1 ? to : undefined })} />}
-                />
-              )}
-            </>
-          ) : before !== undefined ? (
-            <EmptyState icon={History} title="Nothing played before then">
-              Your history starts later. Pick another month or day, or go back to now.
-            </EmptyState>
-          ) : (
-            <EmptyState icon={History} title="No plays yet">
-              Spotify shares your last 50 plays. Press Sync now to pull them in.
-            </EmptyState>
-          )}
-        </div>
-
-        {months.length > 0 && (
-          // Sticks under the header beside the list, and scrolls on its own when the years run long.
-          <TimelineRail
-            months={months}
-            current={monthInView}
-            linkTo={linkTo}
-            day={day}
-            className="sticky top-[calc(3.5rem+1rem)] hidden max-h-[calc(100dvh-3.5rem-2rem)] self-start overflow-y-auto md:flex"
-          />
+            )}
+            {/* A jump reads by cursor: no pages, and no page size. */}
+            {before === undefined && (
+              <ListPagination
+                page={page}
+                size={size}
+                total={total}
+                onSizeChange={setSize}
+                linkTo={(to) => <Link from={Route.fullPath} to="." search={(prev) => ({ ...prev, page: to > 1 ? to : undefined })} />}
+              />
+            )}
+          </>
+        ) : before !== undefined ? (
+          <EmptyState icon={History} title="Nothing played before then">
+            Your history starts later. Pick another month or day, or go back to now.
+          </EmptyState>
+        ) : (
+          <EmptyState icon={History} title="No plays yet">
+            Spotify shares your last 50 plays. Press Sync now to pull them in.
+          </EmptyState>
         )}
       </div>
 

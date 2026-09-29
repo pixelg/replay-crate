@@ -20,36 +20,19 @@ const meta = preview.meta({
 })
 
 export const Default = meta.story({
-  globals: { viewport: { value: 'desktop', isRotated: false } },
   play: async ({ canvas }) => {
-    const card = await canvas.findByRole('region', { name: 'On this day' })
-    await expect(within(card).getByText(/in 3 earlier years$/)).toBeVisible()
+    const section = await canvas.findByRole('region', { name: 'On this day' })
+    await expect(within(section).getByText(/in 3 earlier years$/)).toBeVisible()
     // Newest year first; each opens that day in History.
-    const years = within(card).getAllByRole('link', { name: /^\d{4} · / })
+    const years = within(section).getAllByRole('link', { name: /^\d{4} · / })
     await expect(years.map((link) => link.textContent)).toEqual([`${year - 1} · 42 plays`, `${year - 3} · 17 plays`, `${year - 7} · 1 play`])
     await expect(years[0]).toHaveAttribute('href', expect.stringContaining('/history?before='))
     // Most played first, each to its track page.
-    const top = within(card).getByRole('list', { name: `Most played on this day in ${year - 1}` })
+    const top = within(section).getByRole('list', { name: `Most played on this day in ${year - 1}` })
     const tracks = within(top).getAllByRole('link')
     await expect(tracks[0]).toHaveTextContent('Brass Monkey Business')
     await expect(tracks[0]).toHaveAttribute('href', '/tracks/t1')
     await expect(within(top).getByText('6')).toBeVisible()
-    // Always open on a wide screen.
-    await expect(within(card).queryByRole('button', { name: /Show|Hide/ })).toBeNull()
-  },
-})
-
-/** Folded to its heading on a phone, a tap away. */
-export const Mobile = meta.story({
-  globals: { viewport: { value: 'mobile2', isRotated: false } },
-  play: async ({ canvas, userEvent }) => {
-    const card = await canvas.findByRole('region', { name: 'On this day' })
-    const toggle = within(card).getByRole('button', { name: 'Show' })
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    await expect(within(card).queryByRole('link', { name: /^\d{4} · / })).toBeNull()
-    await userEvent.click(toggle)
-    await expect(within(card).getByRole('button', { name: 'Hide' })).toHaveAttribute('aria-expanded', 'true')
-    await expect(within(card).getByRole('link', { name: `${year - 1} · 42 plays` })).toBeVisible()
   },
 })
 
@@ -61,5 +44,5 @@ export const OneYear = meta.story({
 })
 
 export const Dark = meta.story({
-  globals: { theme: 'dark', viewport: { value: 'desktop', isRotated: false } },
+  globals: { theme: 'dark' },
 })
