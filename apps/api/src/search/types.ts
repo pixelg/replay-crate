@@ -29,6 +29,11 @@ export type SearchDoc = {
   lastPlayedAt: string | null
   /** When a play happened. */
   playedAt: string | null
+  /**
+   * Every time the user played it: a track, an artist's tracks, an album, from a playlist; a
+   * play's own time. For `played:`; never part of a hit.
+   */
+  playTimes: string[]
   imageUrl: string | null
   /** The track behind a play. */
   trackId: string | null
@@ -37,7 +42,7 @@ export type SearchDoc = {
 export type DocKey = Pick<SearchDoc, 'userId' | 'type' | 'id'>
 
 /** A search result: the document, how well it matched, and what to bold. */
-export type SearchHit = Omit<SearchDoc, 'userId'> & {
+export type SearchHit = Omit<SearchDoc, 'userId' | 'playTimes'> & {
   score: number
   highlights: { name: TextRange[]; artists: TextRange[][] }
 }
@@ -71,6 +76,8 @@ export type SearchOptions = {
   /** Skip this many hits in each group (for paging one type). */
   offset?: number
   facets?: boolean
+  /** The IANA zone `played:` days are in. Default UTC. */
+  timeZone?: string
 }
 
 /**

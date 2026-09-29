@@ -68,6 +68,43 @@ describe('parseSearchQuery', () => {
     ])
   })
 
+  it('reads played dates as local days', () => {
+    const days = (input: string) =>
+      parseSearchQuery(input, { today: '2026-09-29' }).filters.map((filter) => ('days' in filter ? filter.days : null))
+    expect(days('played:2024-09-29 played:2024-02 played:2023 played:2024-12')).toEqual([
+      { first: '2024-09-29', last: '2024-09-29' },
+      { first: '2024-02-01', last: '2024-02-29' },
+      { first: '2023-01-01', last: '2023-12-31' },
+      { first: '2024-12-01', last: '2024-12-31' },
+    ])
+    expect(days('played:>=2025-01 played:>2025 played:<=2019-06 played:<2020 played:=2024-09-29')).toEqual([
+      { first: '2025-01-01' },
+      { first: '2026-01-01' },
+      { last: '2019-06-30' },
+      { last: '2019-12-31' },
+      { first: '2024-09-29', last: '2024-09-29' },
+    ])
+    expect(days('played:2019..2020 played:2024-06.. played:..2019-03-12 played:2024-09-28..2024-10')).toEqual([
+      { first: '2019-01-01', last: '2020-12-31' },
+      { first: '2024-06-01' },
+      { last: '2019-03-12' },
+      { first: '2024-09-28', last: '2024-10-31' },
+    ])
+  })
+
+  it('reads recent stretches of played up to the given today', () => {
+    const days = (input: string) =>
+      parseSearchQuery(input, { today: '2026-03-02' }).filters.map((filter) => ('days' in filter ? filter.days : null))
+    expect(days('played:today played:Yesterday played:7d played:1d played:2w')).toEqual([
+      { first: '2026-03-02', last: '2026-03-02' },
+      { first: '2026-03-01', last: '2026-03-01' },
+      { first: '2026-02-24', last: '2026-03-02' },
+      { first: '2026-03-02', last: '2026-03-02' },
+      { first: '2026-02-17', last: '2026-03-02' },
+    ])
+    expect(filtersOf('-played:Today')).toMatchObject([{ field: 'played', value: 'today', negate: true }])
+  })
+
   it('mixes text and filters, and records where each filter was typed', () => {
     const input = 'boom bap rating:>=4 artist:"pete rock"'
     const query = parseSearchQuery(input)
@@ -93,7 +130,23 @@ describe('parseSearchQuery', () => {
   })
 
   it('drops values a field cannot take, with an issue', () => {
-    for (const input of ['rating:9', 'rating:0', 'rating:abc', 'plays:-3', 'year:5..1', 'year:95s', 'year:12', 'type:song']) {
+    for (const input of [
+      'rating:9',
+      'rating:0',
+      'rating:abc',
+      'plays:-3',
+      'year:5..1',
+      'year:95s',
+      'year:12',
+      'type:song',
+      'played:2023-02-29',
+      'played:2024-13',
+      'played:2020..2019',
+      'played:0d',
+      'played:>=today',
+      'played:..',
+      'played:last-week',
+    ]) {
       const query = parseSearchQuery(input)
       expect(query.filters).toEqual([])
       expect(query.issues[0]?.kind).toBe('bad-value')
@@ -106,7 +159,7 @@ describe('parseSearchQuery', () => {
   })
 
   it('never throws, whatever is typed', () => {
-    for (const input of ['"', '-', ':', 'a:', '""', '-"', 'artist:""', 'rating:..', '"unclosed phrase', '\t\n']) {
+    for (const input of ['"', '-', ':', 'a:', '""', '-"', 'artist:""', 'rating:..', 'played:>', 'played:..-', '"unclosed phrase', '\t\n']) {
       expect(() => parseSearchQuery(input)).not.toThrow()
     }
   })
@@ -114,7 +167,7 @@ describe('parseSearchQuery', () => {
 
 describe('formatting', () => {
   it('writes filters the way they are typed', () => {
-    const input = 'artist:"pete rock" -in:crate rating:>=4 rating:<=2 plays:3 year:1990..1995 type:track'
+    const input = 'artist:"pete rock" -in:crate rating:>=4 rating:<=2 plays:3 year:1990..1995 type:track played:>=2025-01 -played:7D'
     expect(parseSearchQuery(input).filters.map(formatFilter)).toEqual([
       'artist:"pete rock"',
       '-in:crate',
@@ -123,6 +176,8 @@ describe('formatting', () => {
       'plays:3',
       'year:1990..1995',
       'type:track',
+      'played:>=2025-01',
+      '-played:7d',
     ])
   })
 
@@ -142,6 +197,23 @@ describe('formatting', () => {
       'Year: the 1990s',
       'Year: 1994–1996',
       'Plays: 3 or less',
+    ])
+    expect(
+      parseSearchQuery('played:today played:1w played:30d played:2024 played:2019..2020 played:2024-09 played:2024-01..2024-03 played:2024-09-29 played:2024-09-02..2024-09-15 played:>=2025-01 -played:<2020', {
+        today: '2026-09-29',
+      }).filters.map(describeFilter),
+    ).toEqual([
+      'Played: today',
+      'Played: the last week',
+      'Played: the last 30 days',
+      'Played: 2024',
+      'Played: 2019–2020',
+      'Played: 2024-09',
+      'Played: 2024-01–2024-03',
+      'Played: 2024-09-29',
+      'Played: 2024-09-02 – 2024-09-15',
+      'Played: since 2025-01-01',
+      'Not Played: until 2019-12-31',
     ])
   })
 })

@@ -177,6 +177,10 @@ const libraryTracks = (userId: string) => sql`(
     join user_playlists up on up.playlist_id = pi.playlist_id and up.user_id = ${userId}
 )`
 
+/** Play times as ISO strings, oldest first, from `plays p` joined as `from` says (and `where`). */
+const iso8601 = sql.raw(`to_char(p.played_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`)
+const playTimes = (from: SQL) => sql`coalesce((select array_agg(${iso8601} order by p.played_at) ${from}), '{}')`
+
 const year = (column: SQL) => sql`case when ${column} ~ '^\\d{4}' then substring(${column} from 1 for 4)::int end`
 const artistNames = (trackId: SQL) =>
   sql`coalesce((select array_agg(ar.name order by ta.position) from track_artists ta
@@ -194,6 +198,7 @@ type Row = {
   rating: number | null
   last_played_at: Date | string | null
   played_at: Date | string | null
+  play_times: string[]
   image_url: string | null
   track_id: string | null
 }
@@ -215,6 +220,7 @@ function toDoc(userId: string, type: EntityType, row: Row): SearchDoc {
     rating: row.rating,
     lastPlayedAt: iso(row.last_played_at),
     playedAt: iso(row.played_at),
+    playTimes: row.play_times,
     imageUrl: row.image_url,
     trackId: row.track_id,
   }
@@ -227,6 +233,7 @@ const queries: Record<EntityType, (userId: string, ids: Set<string>) => SQL> = {
       (select count(*) from plays p where p.user_id = ${userId} and p.track_id = t.id) as play_count,
       (select max(p.played_at) from plays p where p.user_id = ${userId} and p.track_id = t.id) as last_played_at,
       null as played_at,
+      ${playTimes(sql`from plays p where p.user_id = ${userId} and p.track_id = t.id`)} as play_times,
       (select r.rating from track_ratings r where r.user_id = ${userId} and r.track_id = t.id) as rating,
       (select array_agg(distinct pl.name) from playlist_items pi
         join user_playlists up on up.playlist_id = pi.playlist_id and up.user_id = ${userId}
@@ -248,6 +255,8 @@ const queries: Record<EntityType, (userId: string, ids: Set<string>) => SQL> = {
         where p.user_id = ${userId} and ta.artist_id = ar.id) as play_count,
       (select max(p.played_at) from plays p join track_artists ta on ta.track_id = p.track_id
         where p.user_id = ${userId} and ta.artist_id = ar.id) as last_played_at,
+      ${playTimes(sql`from plays p join track_artists ta on ta.track_id = p.track_id where p.user_id = ${userId} and ta.artist_id = ar.id`)}
+        as play_times,
       null as played_at, null::smallint as rating, null::text[] as playlists, null::text[] as contexts, null as track_id
     from artists ar
     where ar.id in ${list(ids)}
@@ -261,6 +270,7 @@ const queries: Record<EntityType, (userId: string, ids: Set<string>) => SQL> = {
         where p.user_id = ${userId} and t.album_id = al.id) as play_count,
       (select max(p.played_at) from plays p join tracks t on t.id = p.track_id
         where p.user_id = ${userId} and t.album_id = al.id) as last_played_at,
+      ${playTimes(sql`from plays p join tracks t on t.id = p.track_id where p.user_id = ${userId} and t.album_id = al.id`)} as play_times,
       null as played_at, null::smallint as rating, null::text[] as playlists, null::text[] as contexts, null as track_id
     from albums al
     where al.id in ${list(ids)}
@@ -272,6 +282,7 @@ const queries: Record<EntityType, (userId: string, ids: Set<string>) => SQL> = {
       (select count(*) from plays p where p.user_id = ${userId} and p.context_uri = 'spotify:playlist:' || pl.id) as play_count,
       (select max(p.played_at) from plays p where p.user_id = ${userId} and p.context_uri = 'spotify:playlist:' || pl.id)
         as last_played_at,
+      ${playTimes(sql`from plays p where p.user_id = ${userId} and p.context_uri = 'spotify:playlist:' || pl.id`)} as play_times,
       null as played_at, null::smallint as rating, null::text[] as playlists, null::text[] as contexts, null as track_id
     from playlists pl join user_playlists up on up.playlist_id = pl.id and up.user_id = ${userId}
     where pl.id in ${list(ids)}`,
@@ -279,7 +290,7 @@ const queries: Record<EntityType, (userId: string, ids: Set<string>) => SQL> = {
   play: (userId, ids) => sql`
     select p.id::text as id, t.name, al.name as album, ${year(sql`al.release_date`)} as year, al.thumb_url as image_url,
       ${artistNames(sql`t.id`)} as artists,
-      0 as play_count, p.played_at as last_played_at, p.played_at,
+      0 as play_count, p.played_at as last_played_at, p.played_at, array[${iso8601}] as play_times,
       (select r.rating from track_ratings r where r.user_id = ${userId} and r.track_id = t.id) as rating,
       null::text[] as playlists,
       array_remove(array[c.name], null) as contexts,

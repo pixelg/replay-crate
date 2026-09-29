@@ -1,4 +1,4 @@
-import { foldText, highlightRanges, type EntityType, type SearchFilter, type SearchQuery } from '@replay-crate/core'
+import { addDays, foldText, highlightRanges, type EntityType, type SearchFilter, type SearchQuery } from '@replay-crate/core'
 import { schema, type Db } from '@replay-crate/db'
 import { sql, type SQL } from 'drizzle-orm'
 import type { DocKey, FacetBucket, SearchDoc, SearchFacets, SearchHit, SearchIndex, SearchOptions, SearchResult } from './types.ts'
@@ -19,9 +19,19 @@ const searchText = (doc: SearchDoc) => [doc.name, ...doc.artists, doc.album ?? '
 const folded = (column: SQL) => sql`f_unaccent(lower(${column}))`
 
 /** A filter as a condition on `d`, or null when the document has nothing to compare (excluded unless negated). */
-function filterCondition(filter: SearchFilter): SQL {
+function filterCondition(filter: SearchFilter, timeZone: string): SQL {
   const like = (column: SQL) => sql`${folded(column)} like ${`%${foldText('value' in filter ? filter.value : '')}%`}`
   const anyLike = (column: SQL) => sql`exists (select 1 from unnest(${column}) as v(x) where ${like(sql`v.x`)})`
+  if ('days' in filter) {
+    // Played at least once within the days, which start at the viewer's midnight.
+    const midnight = (day: string) => sql`(${day}::timestamp at time zone ${timeZone})`
+    const { first, last } = filter.days
+    const within = [
+      ...(first ? [sql`t >= ${midnight(first)}`] : []),
+      ...(last ? [sql`t < ${midnight(addDays(last, 1))}`] : []),
+    ]
+    return sql`exists (select 1 from unnest(d.play_times) as p(t) where ${sql.join(within, sql` and `)})`
+  }
   if ('range' in filter) {
     const column = { rating: sql`d.rating`, plays: sql`d.play_count`, year: sql`d.year` }[filter.field]
     const { min, max } = filter.range
@@ -69,6 +79,7 @@ export function createPostgresSearchIndex(db: Db): SearchIndex {
         rating: doc.rating,
         lastPlayedAt: doc.lastPlayedAt ? new Date(doc.lastPlayedAt) : null,
         playedAt: doc.playedAt ? new Date(doc.playedAt) : null,
+        playTimes: doc.playTimes,
         imageUrl: doc.imageUrl,
         trackId: doc.trackId,
         searchText: sql`f_unaccent(lower(${searchText(doc)}))`,
@@ -91,6 +102,7 @@ export function createPostgresSearchIndex(db: Db): SearchIndex {
               ['rating', 'rating'],
               ['lastPlayedAt', 'last_played_at'],
               ['playedAt', 'played_at'],
+              ['playTimes', 'play_times'],
               ['imageUrl', 'image_url'],
               ['trackId', 'track_id'],
               ['searchText', 'search_text'],
@@ -143,7 +155,7 @@ async function searchPostgres(db: Db, userId: string, query: SearchQuery, option
   for (const phrase of phrases) conditions.push(sql`d.search_text like ${`%${phrase}%`}`)
   for (const filter of query.filters) {
     if (filter.field === 'type') continue
-    const condition = sql`coalesce((${filterCondition(filter)}), false)`
+    const condition = sql`coalesce((${filterCondition(filter, options.timeZone ?? 'UTC')}), false)`
     conditions.push(filter.negate ? sql`not ${condition}` : condition)
   }
 
@@ -161,7 +173,10 @@ async function searchPostgres(db: Db, userId: string, query: SearchQuery, option
     : sql`(ln(1 + d.play_count) + coalesce(d.rating, 0) * 0.5)`
 
   const matched = sql`matched as (
-    select d.*, ${score} as score from search_docs d where ${sql.join(conditions, sql` and `)}
+    -- Everything but play_times: only filters need those, and they can run long.
+    select d.user_id, d.type, d.id, d.name, d.artists, d.album, d.playlists, d.contexts, d.year, d.play_count, d.rating,
+      d.last_played_at, d.played_at, d.image_url, d.track_id, d.search_text, ${score} as score
+    from search_docs d where ${sql.join(conditions, sql` and `)}
   )`
   const offset = options.offset ?? 0
   type HitRow = {

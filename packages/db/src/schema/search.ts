@@ -48,6 +48,8 @@ export const searchDocs = pgTable(
     rating: smallint('rating'),
     lastPlayedAt: timestamp('last_played_at', { withTimezone: true }),
     playedAt: timestamp('played_at', { withTimezone: true }),
+    /** Every time it was played (see SearchDoc.playTimes), for `played:`. */
+    playTimes: timestamp('play_times', { withTimezone: true, mode: 'string' }).array().notNull().default(sql`'{}'`),
     imageUrl: text('image_url'),
     trackId: text('track_id'),
     searchText: text('search_text').notNull(),

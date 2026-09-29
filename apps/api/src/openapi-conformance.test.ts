@@ -148,6 +148,7 @@ describe('responses match the spec', () => {
     await call('GET', '/search?q=song rating:>=4 -type:play title:x artist:"unclosed&facets=true')
     await call('GET', '/search?q=zzzzzz')
     await call('GET', '/search?q=song&types=track&limit=1&offset=1')
+    await call('GET', '/search?q=played:>=2026-01 -played:7d&tz=Europe/Berlin')
     await call('GET', '/search?q=song&types=song')
     await call('GET', '/search/spotify?q=song')
     await call('GET', '/search/spotify?q=rating:5')

@@ -42,6 +42,7 @@ describe.skipIf(!node)('elasticsearch rebuilds', () => {
     rating: null,
     lastPlayedAt: null,
     playedAt: null,
+    playTimes: [],
     imageUrl: null,
     trackId: null,
   })
