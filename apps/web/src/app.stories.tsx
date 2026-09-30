@@ -394,7 +394,13 @@ export const PlaylistSortedByPlays = meta.story({
     await expect(await canvas.findByRole('heading', { level: 1, name: 'Late Night Crate' })).toBeVisible()
     // Each track's other playlists, all of them, and its genres; the same actions as every track row.
     const firstRow = within(rowsOf(await canvas.findByRole('region', { name: 'Tracks' }))[0]!)
-    await expect(within(firstRow.getByRole('list', { name: 'Also on' })).getAllByRole('link')).toHaveLength(3)
+    // Its other three playlists: two, and the third a click away.
+    const alsoOn = within(firstRow.getByRole('list', { name: 'Also on' }))
+    await expect(alsoOn.getAllByRole('link').map((link) => link.textContent)).toEqual(['Boom Bap Essentials', 'Road Trip (with Sam)'])
+    await userEvent.click(alsoOn.getByRole('button', { name: '1 more playlist' }))
+    await expect(await screen.findByRole('link', { name: 'Gym' })).toHaveAttribute('href', '/playlists/p4')
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Gym' })).toBeNull())
     await expect(firstRow.getByRole('link', { name: 'hip hop' })).toBeVisible()
     await expect(firstRow.getByRole('button', { name: /^Add .+ to a playlist$/ })).toBeVisible()
     await expect(firstRow.getByRole('button', { name: /^New playlist with / })).toBeVisible()

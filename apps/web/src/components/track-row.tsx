@@ -66,8 +66,8 @@ export function TrackRow({
 }
 
 /**
- * A row's chips, under its artists: where the play came from, the user's playlists holding the
- * track (each a link), and from `sm` up its first two genres. Nothing when there are none.
+ * A row's chips, under its artists: its first two genres on a line of their own, then where the
+ * play came from and the user's playlists holding the track (each a link). Nothing when there are none.
  */
 export function TrackChips({
   context = null,
@@ -82,10 +82,14 @@ export function TrackChips({
 }) {
   if (!context && !playlists.length && !genres.length) return null
   return (
-    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
-      <PlayedFromChips context={context} playlists={playlists} label={playlistsLabel} />
-      <GenreChips genres={genres} max={2} className="hidden flex-nowrap sm:flex" />
-    </div>
+    <>
+      <GenreChips genres={genres} max={2} className="mt-1 flex-nowrap" />
+      {(context || playlists.length > 0) && (
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
+          <PlayedFromChips context={context} playlists={playlists} label={playlistsLabel} />
+        </div>
+      )}
+    </>
   )
 }
 

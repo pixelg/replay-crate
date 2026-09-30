@@ -543,7 +543,7 @@
                 "items": {
                   "$ref": "#/components/schemas/PlaylistRef"
                 },
-                "description": "The user's playlists holding it now, in their Spotify order."
+                "description": "The user's playlists holding it now, the one it was added to most recently first."
               }
             },
             "required": [
@@ -674,7 +674,7 @@
                 "items": {
                   "$ref": "#/components/schemas/PlaylistRef"
                 },
-                "description": "The user's playlists holding it, in their Spotify order."
+                "description": "The user's playlists holding it, the one it was added to most recently first."
               },
               "rating": {
                 "$ref": "#/components/schemas/Rating"

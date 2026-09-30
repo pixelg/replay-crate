@@ -201,11 +201,12 @@ describe('history', () => {
       expect(body.items[1].context).toBeNull()
     })
 
-    it("lists the user's playlists holding each track, in their Spotify order", async () => {
+    it("lists the user's playlists holding each track, the latest it was added to first", async () => {
       const library = [playlist('road'), playlist('gym'), playlist('theirs', { ownerId: 'someone-else' })]
+      // Song A went into Road twice (the second time after Gym); Song B's Gym entry is the newer one.
       const contents: Record<string, ReturnType<typeof playlistEntry>[]> = {
-        road: [playlistEntry(songA), playlistEntry(songA)],
-        gym: [playlistEntry(songA)],
+        road: [playlistEntry(songA, '2026-03-01T00:00:00Z'), playlistEntry(songA, '2026-06-01T00:00:00Z'), playlistEntry(songB, '2026-02-01T00:00:00Z')],
+        gym: [playlistEntry(songA, '2026-05-01T00:00:00Z'), playlistEntry(songB, '2026-04-01T00:00:00Z')],
         theirs: [playlistEntry(songB)],
       }
       ctx.spotify.getMyPlaylists.mockImplementation(async (_token, offset) => paged(library)(offset))
@@ -214,17 +215,9 @@ describe('history', () => {
 
       const body = await json(await get('/api/v1/history/plays'))
       // Each playlist once, though Song A is on Road twice; followed playlists aren't the user's.
-      expect(body.items.map((p: { track: { playlists: unknown } }) => p.track.playlists)).toEqual([
-        [
-          { id: 'road', name: 'Playlist road' },
-          { id: 'gym', name: 'Playlist gym' },
-        ],
-        [],
-        [
-          { id: 'road', name: 'Playlist road' },
-          { id: 'gym', name: 'Playlist gym' },
-        ],
-      ])
+      const road = { id: 'road', name: 'Playlist road' }
+      const gym = { id: 'gym', name: 'Playlist gym' }
+      expect(body.items.map((p: { track: { playlists: unknown } }) => p.track.playlists)).toEqual([[road, gym], [gym, road], [road, gym]])
     })
 
     it('paginates with the before cursor', async () => {

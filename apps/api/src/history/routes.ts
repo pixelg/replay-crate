@@ -40,7 +40,7 @@ const PlayItem = z
     source: z.enum(schema.playSource.enumValues),
     context: ContextRef.nullable(),
     track: PlayTrack.extend({
-      playlists: z.array(PlaylistRef).openapi({ description: "The user's playlists holding it now, in their Spotify order." }),
+      playlists: z.array(PlaylistRef).openapi({ description: "The user's playlists holding it now, the one it was added to most recently first." }),
     }),
   })
   .openapi('PlayItem')
