@@ -20,6 +20,7 @@ import { pageOfItems, pageSearch, resizedPage, storedPageSize, storePageSize } f
 import { usePlayingTrackId } from '../../lib/use-player.ts'
 import { usePlaylistEdit } from '../../lib/use-playlist-edits.ts'
 import { usePlayContext } from '../../lib/use-track-commands.ts'
+import { TrackNameLink } from '../../components/track-name-link.tsx'
 
 export const Route = createFileRoute('/_app/playlists/$playlistId')({
   // The sort and page live in the URL: shareable, and the back button undoes a change.
@@ -169,13 +170,7 @@ function TrackRow({ item, playing, play, actions }: { item: PlaylistTrack; playi
       </span>
       <AlbumArt src={track.album.thumbUrl} className="size-11" />
       <div className="min-w-0 flex-1">
-        <Link
-          to="/tracks/$trackId"
-          params={{ trackId: track.id }}
-          className={cn('block truncate font-medium hover:underline focus-visible:underline', playing && 'text-primary')}
-        >
-          {track.name}
-        </Link>
+        <TrackNameLink track={track} playing={playing} />
         <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
         {alsoOn.length > 0 && (
           <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">

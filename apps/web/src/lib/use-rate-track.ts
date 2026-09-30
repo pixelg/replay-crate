@@ -1,5 +1,5 @@
 import { setTrackRating } from '@replay-crate/api-client'
-import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query'
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from './api.ts'
 import { describeError } from './describe-error.ts'
@@ -35,6 +35,19 @@ export function withRating<T>(data: T, trackId: string, rating: number | null): 
 }
 
 /**
+ * Sets `data` on every cached query, keeping when each was fetched. The playback's position ticks on
+ * from its fetch time, so stamping it "fetched now" would jump the player back to the last poll.
+ */
+function rewriteCache(queryClient: QueryClient, rewrite: (queryHash: string, data: unknown) => unknown) {
+  for (const query of queryClient.getQueryCache().getAll()) {
+    const { data, dataUpdatedAt } = query.state
+    if (data === undefined) continue
+    const next = rewrite(query.queryHash, data)
+    if (next !== data) queryClient.setQueryData(query.queryKey, next, { updatedAt: dataUpdatedAt })
+  }
+}
+
+/**
  * Rates a track (1–5, or null to clear). Every cached response showing the track changes at
  * once; if the API says no, they all go back and a toast says why.
  */
@@ -44,14 +57,19 @@ export function useRateTrack() {
     mutationKey: ['rate-track'],
     mutationFn: ({ trackId, rating }: { trackId: string; rating: number | null }) => setTrackRating(api, trackId, rating),
     onMutate: async ({ trackId, rating }) => {
-      const before: Array<[QueryKey, unknown]> = queryClient.getQueriesData({})
       // Polls in flight would bring the old rating back.
       await queryClient.cancelQueries({ queryKey: ['player'] })
-      queryClient.setQueriesData({}, (data: unknown) => (data === undefined ? data : withRating(data, trackId, rating)))
+      const before = new Map<string, unknown>()
+      rewriteCache(queryClient, (queryHash, data) => {
+        const next = withRating(data, trackId, rating)
+        if (next !== data) before.set(queryHash, data)
+        return next
+      })
       return { before }
     },
     onError: (error, _variables, context) => {
-      for (const [key, data] of context?.before ?? []) queryClient.setQueryData(key, data)
+      const before = context?.before
+      if (before) rewriteCache(queryClient, (queryHash, data) => (before.has(queryHash) ? before.get(queryHash) : data))
       const { title, message } = describeError(error)
       toast.error(title, { description: message })
     },

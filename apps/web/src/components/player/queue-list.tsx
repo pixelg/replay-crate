@@ -1,9 +1,9 @@
 import type { PlayerItem } from '@replay-crate/api-client'
-import { Link } from '@tanstack/react-router'
 import { Play } from 'lucide-react'
 import { AlbumArt } from '../album-art.tsx'
 import { IconButton } from './icon-button.tsx'
 import { isPlayable, subtitleOf, thumbOf } from './items.ts'
+import { TrackNameLink } from '../track-name-link.tsx'
 
 /** What Spotify will play next: the user's queue, then the rest of the context. */
 export function QueueList({
@@ -25,9 +25,7 @@ export function QueueList({
           <AlbumArt src={thumbOf(item)} className="size-10" />
           <div className="min-w-0 flex-1 text-sm">
             {item.type === 'track' && item.id ? (
-              <Link to="/tracks/$trackId" params={{ trackId: item.id }} className="block truncate font-medium hover:underline">
-                {item.name}
-              </Link>
+              <TrackNameLink track={{ id: item.id, name: item.name }} />
             ) : (
               <p className="truncate font-medium">{item.name}</p>
             )}
