@@ -4,8 +4,8 @@
 //   E2E_PORT      defaults to 4174
 import { serve } from '@hono/node-server'
 import { createTestDb } from '@replay-crate/db/testing'
-import { createFakeLibrary, createFakeSpotify, play, playlistContext, track } from './fakes.ts'
-import { startJobRunner } from './jobs/runner.ts'
+import { createFakeLibrary, createFakeMetadata, createFakeSpotify, play, playlistContext, track } from './fakes.ts'
+import { startJobRunners } from './jobs/runner.ts'
 import { createTokenCipher } from './lib/crypto.ts'
 import { createServer } from './server.ts'
 import { startSearchIndexer } from './search/indexer.ts'
@@ -45,6 +45,12 @@ const recentlyPlayed = () => [
   play(brass, yesterdayAt(21), playlistContext('late-night')),
 ]
 
+// Genres for the artists above: Last.fm knows two, MusicBrainz (by Spotify link) a third.
+const metadata = createFakeMetadata()
+metadata.tagOnLastfm('The Loop Collective', { 'hip hop': 100, 'boom bap': 60, jazz: 25, 'seen live': 20 })
+metadata.tagOnLastfm('Paper Kites Club', { 'indie pop': 100, 'dream pop': 45 })
+metadata.addToMusicBrainz({ mbid: 'mb-direct', name: 'Direct Hit', spotifyId: 'direct', genres: { funk: 4, soul: 2 } })
+
 const { db } = await createTestDb()
 const deps = {
   db,
@@ -52,10 +58,12 @@ const deps = {
   spotify: createFakeSpotify(library, { recentlyPlayed, topTracks: () => [brass, sunday] }),
   redirectUri: `http://127.0.0.1:${port}/callback`,
   search: createPostgresSearchIndex(db),
+  lastfm: metadata.lastfm,
+  musicbrainz: metadata.musicbrainz,
 }
 
-// Looks up imported tracks, quickly so tests don't wait.
-startJobRunner(deps, { idleMs: 500, busyPauseMs: 100, log: { info() {}, error: console.error } })
+// Looks up imported tracks and artists' genres, quickly so tests don't wait.
+startJobRunners(deps, { idleMs: 500, busyPauseMs: 100, log: { info() {}, error: console.error } })
 startSearchIndexer(deps, { idleMs: 200, busyPauseMs: 50, log: { info() {}, error: console.error } })
 
 serve({ fetch: createServer(deps, { webDistDir }).fetch, hostname: '127.0.0.1', port }, (info) => {

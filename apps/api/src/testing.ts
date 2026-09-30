@@ -1,8 +1,8 @@
 import { createTestDb } from '@replay-crate/db/testing'
 import { vi } from 'vitest'
 import { createApp } from './app.ts'
-import type { AppDeps, SpotifyGateway } from './deps.ts'
-import { createFakeLibrary, createFakeSpotify, fakePlayerFor } from './fakes.ts'
+import type { AppDeps, LastfmGateway, MusicBrainzGateway, SpotifyGateway } from './deps.ts'
+import { createFakeLibrary, createFakeMetadata, createFakeSpotify, fakePlayerFor } from './fakes.ts'
 import { createTokenCipher } from './lib/crypto.ts'
 import { drainAll } from './search/indexer.ts'
 import { createPostgresSearchIndex } from './search/postgres.ts'
@@ -22,7 +22,7 @@ export const REDIRECT_URI = 'http://127.0.0.1:5173/callback'
 export const TEST_KEY = Buffer.alloc(32, 7).toString('base64')
 export const CRON_SECRET = 'cron-secret-for-tests'
 
-/** App wired to PGlite, a fake Spotify (every call a vi.fn), and a controllable clock. */
+/** App wired to PGlite, a fake Spotify, Last.fm and MusicBrainz (every call a vi.fn), and a controllable clock. */
 export async function createTestContext() {
   const { db, close } = await createTestDb()
   let current = new Date('2026-09-21T12:00:00Z')
@@ -62,6 +62,15 @@ export async function createTestContext() {
     addToQueue: vi.fn<SpotifyGateway['addToQueue']>(fake.addToQueue),
     transferPlayback: vi.fn<SpotifyGateway['transferPlayback']>(fake.transferPlayback),
   }
+  const metadata = createFakeMetadata()
+  const lastfm = {
+    getArtistTopTags: vi.fn<LastfmGateway['getArtistTopTags']>(metadata.lastfm.getArtistTopTags),
+  }
+  const musicbrainz = {
+    findArtistBySpotifyId: vi.fn<MusicBrainzGateway['findArtistBySpotifyId']>(metadata.musicbrainz.findArtistBySpotifyId),
+    searchArtists: vi.fn<MusicBrainzGateway['searchArtists']>(metadata.musicbrainz.searchArtists),
+    getArtistGenres: vi.fn<MusicBrainzGateway['getArtistGenres']>(metadata.musicbrainz.getArtistGenres),
+  }
   const deps: AppDeps = {
     db,
     cipher: await createTokenCipher(TEST_KEY),
@@ -70,6 +79,8 @@ export async function createTestContext() {
     cronSecret: CRON_SECRET,
     now: () => current,
     search: createPostgresSearchIndex(db),
+    lastfm,
+    musicbrainz,
   }
 
   const app = createApp(deps)
@@ -91,6 +102,10 @@ export async function createTestContext() {
     db,
     spotify,
     library,
+    lastfm,
+    musicbrainz,
+    /** What the fake Last.fm and MusicBrainz know: `tagOnLastfm(name, tags)`, `addToMusicBrainz(artist)`. */
+    metadata,
     /** The fake player behind the player calls; seed it with `player.nowPlaying(track)`. */
     player,
     login,

@@ -9,7 +9,8 @@ import type {
   SpotifyTrack,
   TokenResponse,
 } from '@replay-crate/spotify'
-import type { SpotifyGateway } from './deps.ts'
+import { MetadataApiError, type LastfmTag, type MusicBrainzGenre } from '@replay-crate/metadata'
+import type { LastfmGateway, MusicBrainzGateway, SpotifyGateway } from './deps.ts'
 import { createFakePlayer, type FakePlayer } from './fake-player.ts'
 
 export { createFakePlayer, fakeDevices, type FakePlayer } from './fake-player.ts'
@@ -273,5 +274,56 @@ export function createFakeSpotify(
     getTrack: async (_token, id) => library.catalog.get(id) ?? track(id),
     ...library.gateway,
     ...player.gateway,
+  }
+}
+
+type FakeMbArtist = { mbid: string; name: string; spotifyId?: string; genres: MusicBrainzGenre[] }
+const counted = (tags: Record<string, number>) => Object.entries(tags).map(([name, count]) => ({ name, count }))
+
+/**
+ * Stand-ins for Last.fm and MusicBrainz, for artists' genres. Both know nothing until told, and
+ * fail the way the real ones do: Last.fm with a 404 for a name it doesn't know, MusicBrainz with
+ * a 404 for an unknown id and no match for an unknown link or name.
+ */
+export function createFakeMetadata() {
+  const lastfmTags = new Map<string, LastfmTag[]>()
+  const mbArtists: FakeMbArtist[] = []
+  const byMbid = (mbid: string) => mbArtists.find((artist) => artist.mbid === mbid)
+
+  const lastfm: LastfmGateway = {
+    async getArtistTopTags(artist) {
+      // Case-insensitive, like Last.fm's autocorrect for the easy cases.
+      const tags = lastfmTags.get(artist.toLowerCase())
+      if (!tags) throw new MetadataApiError(404, 'Last.fm error 6: The artist you supplied could not be found')
+      return tags
+    },
+  }
+  const musicbrainz: MusicBrainzGateway = {
+    async findArtistBySpotifyId(spotifyId) {
+      return mbArtists.find((artist) => artist.spotifyId === spotifyId)?.mbid ?? null
+    },
+    async searchArtists(name) {
+      return mbArtists
+        .filter((artist) => artist.name.toLowerCase() === name.toLowerCase())
+        .map((artist) => ({ mbid: artist.mbid, name: artist.name, score: 100 }))
+    },
+    async getArtistGenres(mbid) {
+      const artist = byMbid(mbid)
+      if (!artist) throw new MetadataApiError(404, 'MusicBrainz answered 404 for /artist')
+      return artist.genres
+    },
+  }
+
+  return {
+    lastfm,
+    musicbrainz,
+    /** Last.fm's tags for an artist's name, e.g. `{ rock: 100, 'seen live': 40 }`. */
+    tagOnLastfm(name: string, tags: Record<string, number>) {
+      lastfmTags.set(name.toLowerCase(), counted(tags))
+    },
+    /** An artist on MusicBrainz: its genres' vote counts, and its Spotify link when editors added one. */
+    addToMusicBrainz(artist: { mbid: string; name: string; spotifyId?: string; genres: Record<string, number> }) {
+      mbArtists.push({ ...artist, genres: counted(artist.genres) })
+    },
   }
 }

@@ -17,6 +17,7 @@ import type {
   TokenResponse,
   TopTimeRange,
 } from '@replay-crate/spotify'
+import type { LastfmTag, MusicBrainzArtist, MusicBrainzGenre } from '@replay-crate/metadata'
 import type { TokenCipher } from './lib/crypto.ts'
 import type { Analytics } from './search/analytics.ts'
 import type { SearchIndex } from './search/types.ts'
@@ -62,6 +63,19 @@ export type SpotifyGateway = {
   transferPlayback(accessToken: string, deviceId: string, options: { play?: boolean }): Promise<void>
 }
 
+/** Last.fm, for artists' genres (their listeners' tags). Tests pass a fake. */
+export type LastfmGateway = {
+  getArtistTopTags(artist: string): Promise<LastfmTag[]>
+}
+
+/** MusicBrainz, for artists' genres when Last.fm has none. Tests pass a fake. */
+export type MusicBrainzGateway = {
+  /** The MusicBrainz id linked to a Spotify artist, or null. */
+  findArtistBySpotifyId(spotifyId: string): Promise<string | null>
+  searchArtists(name: string): Promise<MusicBrainzArtist[]>
+  getArtistGenres(mbid: string): Promise<MusicBrainzGenre[]>
+}
+
 export type AppDeps = {
   db: Db
   cipher: TokenCipher
@@ -74,5 +88,8 @@ export type AppDeps = {
   search: SearchIndex
   /** Listening and search events for Kibana; only with Elasticsearch. */
   analytics?: Analytics
+  /** Genre lookups: Last.fm when there's an API key, then MusicBrainz. Without both, artists get no genres. */
+  lastfm?: LastfmGateway
+  musicbrainz?: MusicBrainzGateway
   now?: () => Date
 }
