@@ -3,9 +3,10 @@ import { schema } from '@replay-crate/db'
 import { and, asc, count, eq, inArray, max, ne, sql } from 'drizzle-orm'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
+import { loadTrackGenres } from '../genres/queries.ts'
 import { loadTrackArtists } from '../history/queries.ts'
 import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
-import { ArtistRef, IsoDateTime, jsonResponse, Rating } from '../lib/schemas.ts'
+import { ArtistRef, GenreRef, IsoDateTime, jsonResponse, Rating } from '../lib/schemas.ts'
 import { loadRatings } from '../tracks/ratings.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { syncPlaylists } from '../sync/playlists.ts'
@@ -112,6 +113,7 @@ const get = createRoute({
                 explicit: z.boolean(),
                 album: z.object({ id: z.string(), name: z.string(), thumbUrl: z.string().nullable() }),
                 artists: z.array(ArtistRef),
+                genres: z.array(GenreRef).openapi({ description: "Its artists' genres, the primary artist's first; at most 3." }),
                 rating: Rating,
               }),
               playCount: z.number().int(),
@@ -286,6 +288,10 @@ export function playlistRoutes(deps: AppDeps) {
           user.id,
           items.map((item) => item.trackId),
         )
+        const genresByTrack = await loadTrackGenres(
+          db,
+          items.map((item) => item.trackId),
+        )
         const [playsFrom] = await db
           .select({ total: count() })
           .from(plays)
@@ -318,6 +324,7 @@ export function playlistRoutes(deps: AppDeps) {
                   explicit: item.explicit,
                   album: { id: item.albumId, name: item.albumName, thumbUrl: item.albumThumbUrl },
                   artists: artistsByTrack.get(item.trackId) ?? [],
+                  genres: genresByTrack.get(item.trackId) ?? [],
                   rating: ratings.get(item.trackId) ?? null,
                 },
                 playCount: trackStats?.playCount ?? 0,

@@ -5,15 +5,15 @@ import { Link } from '@tanstack/react-router'
 import { AudioLines, CircleDashed, Pause } from 'lucide-react'
 import type { Ref } from 'react'
 import { cn } from 'cn'
-import { AlbumArt } from './album-art.tsx'
-import { TrackRating } from './star-rating.tsx'
-import { PlaylistShortcuts } from './playlist-shortcuts.tsx'
-import { TrackActions } from './track-actions.tsx'
-import { PlayedFromChips } from './played-from-chips.tsx'
 import { api } from '../lib/api.ts'
-import { GenreChips } from './genre-chips.tsx'
+import { contextName, playableContext } from '../lib/play-context.ts'
+import { AlbumArt } from './album-art.tsx'
+import { PlayTrackButton } from './play-track-button.tsx'
 import { subtitleOf, thumbOf } from './player/items.ts'
+import { TrackRating } from './star-rating.tsx'
+import { TrackActions } from './track-actions.tsx'
 import { TrackNameLink } from './track-name-link.tsx'
+import { TrackChips, TrackRow, TrackRowActions } from './track-row.tsx'
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
 const gapFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -120,9 +120,8 @@ export function NowPlayingSection({
 }) {
   // Local files have no Spotify id, and episodes no track page or rating.
   const track = item.type === 'track' && item.id ? { ...item, id: item.id } : null
-  // Its playlists, as its rows below list them; a track not recorded yet has none.
+  // Its playlists and genres, as its rows below show them; a track not recorded yet has none.
   const { data: detail } = useQuery({ ...trackQueryOptions(api, track?.id ?? ''), enabled: track !== null, retry: false })
-  const playlists = (track && detail?.playlists) || []
   return (
     // A group, not a region: the mini player is already the "Now playing" landmark.
     // It stays in view under the header while the plays scroll by.
@@ -135,45 +134,41 @@ export function NowPlayingSection({
       <h2 id="now-playing" className="py-2 text-sm font-semibold">
         Now playing
       </h2>
-      <div className="-mx-2 flex items-center gap-3 rounded-lg bg-accent px-2 py-2">
-        <AlbumArt src={thumbOf(item)} className="size-12" />
-        <div className="min-w-0 flex-1">
-          {track ? (
+      <TrackRow
+        className="-mx-2 rounded-lg bg-accent px-2"
+        art={<AlbumArt src={thumbOf(item)} className="size-12" />}
+        title={
+          track ? (
             <TrackNameLink track={{ id: track.id, name: item.name }} playing={isPlaying} />
           ) : (
             <p className={cn('truncate font-medium', isPlaying && 'text-primary')}>{item.name}</p>
-          )}
-          <p className="truncate text-sm text-muted-foreground">{subtitleOf(item)}</p>
-          {(context || playlists.length > 0 || (track && !selecting)) && (
-            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
-              <PlayedFromChips context={context} playlists={playlists} />
-              {track && !selecting && <PlaylistShortcuts track={track} />}
-            </div>
-          )}
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1 self-start pt-0.5">
-          {isPlaying ? (
-            <span className="flex items-center gap-1 text-xs text-primary">
-              <AudioLines aria-hidden className="size-4 motion-safe:animate-pulse" />
-              Playing
+          )
+        }
+        subtitle={subtitleOf(item)}
+        chips={<TrackChips context={context} playlists={(track && detail?.playlists) || []} genres={(track && detail?.track.genres) || []} />}
+        // It's already playing: an empty slot where the play button goes keeps the rest in line with the rows below.
+        actions={track && !selecting && <TrackRowActions track={track} play={<span aria-hidden className="hidden size-9 sm:block" />} />}
+        side={
+          <>
+            {track && <TrackRating track={track} compactOnPhones />}
+            <span className={cn(timeClass, 'flex items-center justify-end gap-1', isPlaying && 'text-primary')}>
+              {isPlaying ? (
+                <AudioLines aria-hidden className="size-4 shrink-0 motion-safe:animate-pulse" />
+              ) : (
+                <Pause aria-hidden className="size-4 shrink-0" />
+              )}
+              <span className="sr-only sm:not-sr-only">{isPlaying ? 'Playing' : 'Paused'}</span>
             </span>
-          ) : (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Pause aria-hidden className="size-4" />
-              Paused
-            </span>
-          )}
-          {track && <TrackRating track={track} compactOnPhones />}
-        </div>
-        {track && !selecting ? (
-          <TrackActions track={track} context={context} />
-        ) : (
-          <span aria-hidden className="size-9 shrink-0" />
-        )}
-      </div>
+          </>
+        }
+        menu={selecting ? null : track ? <TrackActions track={track} context={context} /> : <span aria-hidden className="block size-9" />}
+      />
     </div>
   )
 }
+
+/** The right-hand time column: a steady width, so the ratings line up down the list. */
+const timeClass = 'shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:w-20'
 
 function GapMarker({ gap }: { gap: HistoryGap }) {
   return (
@@ -194,40 +189,43 @@ function GapMarker({ gap }: { gap: HistoryGap }) {
 function PlayRow({ play, selection, playing }: { play: PlayItem; selection?: PlaySelection; playing: boolean }) {
   const { track } = play
   const time = timeFormat.format(new Date(play.playedAt))
+  // An album or playlist starts at this track, so Up next is the rest of it; else the track alone.
+  const from = playableContext(play.context)
   return (
-    <div
-      aria-current={playing || undefined}
-      className={cn('flex items-center gap-3 py-2', playing && '-mx-2 rounded-lg bg-accent px-2')}
-    >
-      {selection && (
-        <input
-          type="checkbox"
-          aria-label={`Select ${track.name}, played at ${time}`}
-          checked={selection.selected.has(play.playedAt)}
-          onChange={() => selection.toggle(play)}
-          className="size-5 shrink-0 accent-primary"
-        />
-      )}
-      <AlbumArt src={track.album.thumbUrl} className="size-12" />
-      <div className="min-w-0 flex-1">
-        <TrackNameLink track={track} playing={playing} />
-        <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
-        {(play.context || track.playlists.length > 0 || !selection || track.genres.length > 0) && (
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
-            <PlayedFromChips context={play.context} playlists={track.playlists} track={selection ? undefined : track} />
-            {!selection && <PlaylistShortcuts track={track} />}
-            {/* From `sm` up, where a row has room; on a phone the track's page lists them. */}
-            <GenreChips genres={track.genres} max={2} className="hidden flex-nowrap sm:flex" />
-          </div>
-        )}
-      </div>
-      <div className="flex shrink-0 flex-col items-end gap-1 self-start pt-0.5">
-        <time dateTime={play.playedAt} className="text-xs text-muted-foreground tabular-nums">
-          {time}
-        </time>
-        <TrackRating track={track} compactOnPhones />
-      </div>
-      {!selection && <TrackActions track={track} context={play.context} />}
-    </div>
+    <TrackRow
+      playing={playing}
+      lead={
+        selection && (
+          <input
+            type="checkbox"
+            aria-label={`Select ${track.name}, played at ${time}`}
+            checked={selection.selected.has(play.playedAt)}
+            onChange={() => selection.toggle(play)}
+            className="size-5 shrink-0 accent-primary"
+          />
+        )
+      }
+      art={<AlbumArt src={track.album.thumbUrl} className="size-12" />}
+      title={<TrackNameLink track={track} playing={playing} />}
+      subtitle={track.artists.map((artist) => artist.name).join(', ')}
+      chips={<TrackChips context={play.context} playlists={track.playlists} genres={track.genres} />}
+      actions={
+        !selection && (
+          <TrackRowActions
+            track={track}
+            play={<PlayTrackButton track={track} from={from ? { uri: from.uri, name: contextName(from) } : undefined} />}
+          />
+        )
+      }
+      side={
+        <>
+          <TrackRating track={track} compactOnPhones />
+          <time dateTime={play.playedAt} className={timeClass}>
+            {time}
+          </time>
+        </>
+      }
+      menu={!selection && <TrackActions track={track} context={play.context} />}
+    />
   )
 }

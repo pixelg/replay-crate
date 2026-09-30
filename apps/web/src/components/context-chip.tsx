@@ -17,19 +17,17 @@ const kinds: Record<string, { icon: LucideIcon; fallback: string }> = {
  * Where a play came from: a playlist, album, artist page, Liked Songs... Given the `track` that
  * was played, an album or playlist gets a play button that starts it at that track, so Up next
  * is the real rest of it. One of the user's playlists links to its page (`mine` says it is one,
- * without looking). `ringed` marks it as the source among the track's playlists.
+ * without looking).
  */
 export function ContextChip({
   context,
   track,
   mine = false,
-  ringed = false,
   className,
 }: {
   context: PlayContext
   track?: { id: string; name: string }
   mine?: boolean
-  ringed?: boolean
   className?: string
 }) {
   const kind = kinds[context.type] ?? { icon: Radio, fallback: context.type }
@@ -39,7 +37,6 @@ export function ContextChip({
   const linked = useIsLibraryPlaylist(mine ? null : playlistId) || (mine && playlistId !== null)
   const chipClass = cn(
     'inline-flex max-w-full items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground',
-    ringed && 'text-foreground ring-1 ring-primary',
     playable ? 'min-w-0' : className,
   )
   const label = (
@@ -53,7 +50,6 @@ export function ContextChip({
       <Link
         to="/playlists/$playlistId"
         params={{ playlistId }}
-        title={ringed ? `Played from ${context.name ?? kind.fallback}` : undefined}
         className={cn(chipClass, 'hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring')}
       >
         {label}

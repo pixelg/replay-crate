@@ -662,6 +662,20 @@
                   "$ref": "#/components/schemas/ArtistRef"
                 }
               },
+              "genres": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/GenreRef"
+                },
+                "description": "Its artists' genres, the primary artist's first; at most 3."
+              },
+              "playlists": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PlaylistRef"
+                },
+                "description": "The user's playlists holding it, in their Spotify order."
+              },
               "rating": {
                 "$ref": "#/components/schemas/Rating"
               }
@@ -673,6 +687,8 @@
               "explicit",
               "album",
               "artists",
+              "genres",
+              "playlists",
               "rating"
             ]
           },
@@ -1063,6 +1079,13 @@
                   "$ref": "#/components/schemas/ArtistRef"
                 }
               },
+              "genres": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/GenreRef"
+                },
+                "description": "Its artists' genres, the primary artist's first; at most 3."
+              },
               "rating": {
                 "$ref": "#/components/schemas/Rating"
               }
@@ -1074,6 +1097,7 @@
               "explicit",
               "album",
               "artists",
+              "genres",
               "rating"
             ]
           },

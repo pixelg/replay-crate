@@ -1079,6 +1079,10 @@ export interface components {
                     thumbUrl: string | null;
                 };
                 artists: components["schemas"]["ArtistRef"][];
+                /** @description Its artists' genres, the primary artist's first; at most 3. */
+                genres: components["schemas"]["GenreRef"][];
+                /** @description The user's playlists holding it, in their Spotify order. */
+                playlists: components["schemas"]["PlaylistRef"][];
                 rating: components["schemas"]["Rating"];
             };
             playCount: number;
@@ -1201,6 +1205,8 @@ export interface components {
                     thumbUrl: string | null;
                 };
                 artists: components["schemas"]["ArtistRef"][];
+                /** @description Its artists' genres, the primary artist's first; at most 3. */
+                genres: components["schemas"]["GenreRef"][];
                 rating: components["schemas"]["Rating"];
             };
             playCount: number;

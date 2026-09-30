@@ -6,7 +6,7 @@ import type { AppDeps } from '../deps.ts'
 import { loadTrackArtists, toContext } from '../history/queries.ts'
 import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
 import { loadArtistGenres, loadTrackGenres } from '../genres/queries.ts'
-import { ArtistRef, ContextRef, GenreRef, IsoDateTime, jsonBody, jsonResponse, Rating } from '../lib/schemas.ts'
+import { ArtistRef, ContextRef, GenreRef, IsoDateTime, jsonBody, jsonResponse, PlaylistRef, Rating } from '../lib/schemas.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { clearRating, loadRatings, rateTrack } from './ratings.ts'
 import { decodeCursor, listTracks, TRACK_SORTS } from './library.ts'
@@ -54,6 +54,8 @@ const LibraryTrack = z
       explicit: z.boolean(),
       album: z.object({ id: z.string(), name: z.string(), thumbUrl: z.string().nullable() }),
       artists: z.array(ArtistRef),
+      genres: z.array(GenreRef).openapi({ description: "Its artists' genres, the primary artist's first; at most 3." }),
+      playlists: z.array(PlaylistRef).openapi({ description: "The user's playlists holding it, in their Spotify order." }),
       rating: Rating,
     }),
     playCount: z.number().int(),
