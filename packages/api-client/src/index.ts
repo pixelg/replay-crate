@@ -83,21 +83,31 @@ export async function logout(api: ApiClient): Promise<void> {
 /** Where a page of plays starts: older than a time, newer than one, or (null) from the newest play. */
 export type PlaysCursor = { before: string } | { after: string } | null
 
-/** The `genre` filter as a query parameter, when there is one. */
-const genreQuery = (genre: number | undefined) => (genre ? { genre: String(genre) } : {})
+/** Which plays History lists: in a genre, and between `since` (inclusive) and `until` (exclusive). */
+export type PlaysFilter = { genre?: number; since?: string; until?: string }
+
+/** The filter as query parameters, leaving out what isn't set. */
+const filterQuery = ({ genre, since, until }: PlaysFilter) => ({
+  ...(genre && { genre: String(genre) }),
+  ...(since && { since }),
+  ...(until && { until }),
+})
+
+/** The filter as a query key part: the same filter, the same key. */
+const filterKey = ({ genre, since, until }: PlaysFilter) => ({ genre: genre ?? null, since: since ?? null, until: until ?? null })
 
 /**
  * Newest-first play history; each page's `nextCursor` fetches older plays. The "All" view, and with
  * `from`, the view of the past that a timeline jump opens: plays before `from`, plus newer ones page
- * by page above them (`fetchPreviousPage`), back up to the present. With `genre`, only that genre's plays.
+ * by page above them (`fetchPreviousPage`), back up to the present. With a `filter`, only the plays in it.
  * Every plays query starts with `['plays']`, so invalidating that refreshes every view.
  */
-export const playsInfiniteQueryOptions = (api: ApiClient, from?: string, genre?: number) =>
+export const playsInfiniteQueryOptions = (api: ApiClient, from?: string, filter: PlaysFilter = {}) =>
   infiniteQueryOptions({
-    queryKey: ['plays', 'infinite', from ?? null, genre ?? null],
+    queryKey: ['plays', 'infinite', from ?? null, filterKey(filter)],
     queryFn: async ({ pageParam }): Promise<PlaysPage> => {
       const endpoint = 'GET /api/v1/history/plays'
-      const res = await send(endpoint, () => api.history.plays.$get({ query: { ...pageParam, ...genreQuery(genre) } }))
+      const res = await send(endpoint, () => api.history.plays.$get({ query: { ...pageParam, ...filterQuery(filter) } }))
       return expectOk(res, endpoint)
     },
     initialPageParam: (from ? { before: from } : null) as PlaysCursor,
@@ -127,12 +137,12 @@ export const timelineQueryOptions = (api: ApiClient, tz: string) =>
  * One numbered page of play history (`page` from 1), with `total` and `olderPlayedAt`; with
  * `genre`, of only that genre's plays. Keeps showing the previous page while the next one loads.
  */
-export const playsPageQueryOptions = (api: ApiClient, { page, size, genre }: { page: number; size: number; genre?: number }) =>
+export const playsPageQueryOptions = (api: ApiClient, { page, size, ...filter }: { page: number; size: number } & PlaysFilter) =>
   queryOptions({
-    queryKey: ['plays', 'page', { page, size, genre: genre ?? null }],
+    queryKey: ['plays', 'page', { page, size, ...filterKey(filter) }],
     queryFn: async (): Promise<PlaysPage> => {
       const endpoint = 'GET /api/v1/history/plays'
-      const query = { limit: String(size), offset: String((page - 1) * size), ...genreQuery(genre) }
+      const query = { limit: String(size), offset: String((page - 1) * size), ...filterQuery(filter) }
       return expectOk(await send(endpoint, () => api.history.plays.$get({ query })), endpoint)
     },
     placeholderData: keepPreviousData,

@@ -1,4 +1,5 @@
 import { Menu as BaseMenu } from '@base-ui/react/menu'
+import { Check } from 'lucide-react'
 import type { ComponentProps } from 'react'
 import { cn } from 'cn'
 
@@ -58,3 +59,30 @@ export function MenuLinkItem({ className, ...props }: WithClassName<ComponentPro
 export function MenuSeparator() {
   return <BaseMenu.Separator className="mx-1 my-1 h-px bg-border" />
 }
+
+export function MenuGroup(props: ComponentProps<typeof BaseMenu.Group>) {
+  return <BaseMenu.Group {...props} />
+}
+
+export function MenuGroupLabel({ className, ...props }: WithClassName<ComponentProps<typeof BaseMenu.GroupLabel>>) {
+  return <BaseMenu.GroupLabel className={cn('px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground', className)} {...props} />
+}
+
+export function MenuRadioGroup(props: ComponentProps<typeof BaseMenu.RadioGroup>) {
+  return <BaseMenu.RadioGroup {...props} />
+}
+
+/** A choice among a radio group's items, ticked when chosen. The menu stays open (`closeOnClick` to close it). */
+export function MenuRadioItem({ className, children, ...props }: WithClassName<ComponentProps<typeof BaseMenu.RadioItem>>) {
+  return (
+    <BaseMenu.RadioItem className={cn(itemClass, 'relative pl-8', className)} {...props}>
+      <BaseMenu.RadioItemIndicator className="absolute left-2.5 flex items-center">
+        <Check aria-hidden className="size-4" />
+      </BaseMenu.RadioItemIndicator>
+      {children}
+    </BaseMenu.RadioItem>
+  )
+}
+
+/** A trigger the caller styles (a toolbar button, say), not the round icon button of `MenuTrigger`. */
+export const MenuButton = BaseMenu.Trigger

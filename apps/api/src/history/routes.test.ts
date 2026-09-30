@@ -302,6 +302,25 @@ describe('history', () => {
       expect(body.items).toEqual([])
     })
 
+    it('keeps only plays between since and until, with any way of paging', async () => {
+      const at = (body: { items: Array<{ playedAt: string }> }) => body.items.map((p) => p.playedAt)
+      // since is inclusive, until exclusive.
+      const range = 'since=2026-09-21T11:45:00.000Z&until=2026-09-21T11:50:00.000Z'
+      expect(at(await json(await get(`/api/v1/history/plays?${range}`)))).toEqual(['2026-09-21T11:45:00.000Z'])
+      expect(at(await json(await get('/api/v1/history/plays?since=2026-09-21T11:41:00.000Z')))).toEqual([
+        '2026-09-21T11:50:00.000Z',
+        '2026-09-21T11:45:00.000Z',
+      ])
+      expect(at(await json(await get('/api/v1/history/plays?until=2026-09-21T11:45:00.000Z')))).toEqual(['2026-09-21T11:40:00.000Z'])
+
+      // Numbered pages count only the plays in range.
+      const paged = await json(await get('/api/v1/history/plays?since=2026-09-21T11:41:00.000Z&limit=1&offset=0'))
+      expect(paged).toMatchObject({ total: 2, olderPlayedAt: '2026-09-21T11:45:00.000Z' })
+      // And cursors stay inside it.
+      const older = await json(await get('/api/v1/history/plays?since=2026-09-21T11:41:00.000Z&before=2026-09-21T11:50:00.000Z'))
+      expect(at(older)).toEqual(['2026-09-21T11:45:00.000Z'])
+    })
+
     it('rejects a malformed cursor', async () => {
       expect((await get('/api/v1/history/plays?before=yesterday')).status).toBe(400)
     })

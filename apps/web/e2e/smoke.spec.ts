@@ -43,7 +43,7 @@ test("shows a track's genres, found in the background, and filters History by on
 
   await hipHop.click()
   await expect(page.getByRole('heading', { level: 1, name: 'History' })).toBeVisible()
-  await expect(page.getByRole('combobox', { name: 'Genre' })).toHaveText(/hip hop/)
+  await expect(page.getByRole('button', { name: 'Filter: hip hop' })).toBeVisible()
   const main = page.getByRole('main')
   await expect(main.getByRole('link', { name: 'Brass Monkey Business' }).first()).toBeVisible()
   // Paper Kites Club is indie pop.
