@@ -4,10 +4,10 @@ A personal Spotify companion that remembers everything you play.
 
 - **History with context**: every play, and the playlist or album it was played from
 - **Play counts**: per track, per playlist, across your whole listening history (backfilled from Spotify's data export)
-- **Genres**: from Last.fm and MusicBrainz, since Spotify no longer provides them
+- **Genres**: from Last.fm and MusicBrainz, since Spotify no longer provides them: on every track, as a History filter, in search and in stats
 - **Playlists**: see play counts inside each playlist and which of your other playlists a track is on; build new playlists from your history
 - **Stats**: top tracks, artists, albums and genres over any time range
-- **Search**: everything in your library as you type (⌘K), typo-tolerant, with a small query language and facets, on Elasticsearch or plain Postgres
+- **Search**: everything in your library as you type (⌘K), typo-tolerant, with a small query language (by artist, genre, rating, when you played it…) and facets, on Elasticsearch or plain Postgres
 
 Status and roadmap: [project board](https://github.com/users/pixelg/projects/4) · [milestones](https://github.com/pixelg/replay-crate/milestones)
 
@@ -62,7 +62,9 @@ For everyday use, run the built app and the API as one server on http://127.0.0.
    ./scripts/install-service.sh
    ```
 
-   Logs: `journalctl --user -u replay-crate -f`. Stop: `systemctl --user stop replay-crate`. After pulling changes, run `systemctl --user restart replay-crate`, which rebuilds the app.
+   Logs: `journalctl --user -u replay-crate -f`. Stop: `systemctl --user stop replay-crate`.
+
+4. After pulling changes, restart it with `systemctl --user restart replay-crate`, which rebuilds the app. A release's **Upgrading** notes say when more is needed first: `pnpm install` for new dependencies, `pnpm db:migrate` for new migrations, and after the restart `pnpm search:reindex` when the Elasticsearch index layout changed.
 
 ### Use it away from home (Tailscale)
 
@@ -97,6 +99,16 @@ The zip is read in your browser. Only each play's time, length and track id are 
 
 Spotify no longer offers batch lookups, so tracks new to Replay Crate are fetched one at a time in the background while the app runs. For a large export this can take hours. The import page shows progress, and imported plays appear in History and Stats as their tracks arrive.
 
+## Genres
+
+Spotify no longer tells apps an artist's genres, so Replay Crate looks them up itself: Last.fm's listener tags first, then MusicBrainz when Last.fm has nothing. Only real genres count: tags are matched against MusicBrainz's list of about 2,200 genres, so tags like "seen live" drop out.
+
+The lookups run in the background while the API runs, most recently played artists first, so today's listening gets genres before an old import does. A first pass over a few thousand artists takes about an hour. Each artist is looked up again every six months.
+
+Genres show as chips on tracks, each opening History filtered to that genre. History has a genre picker, search has `genre:` and a Genre facet, and Stats ranks top genres.
+
+A Last.fm API key is optional but finds more. It's free and issued instantly at [last.fm/api/account/create](https://www.last.fm/api/account/create): only the application name is required, and you can leave the callback URL empty. Put the key (not the shared secret) in `.env.local` as `LASTFM_API_KEY`. Without it, genres come from MusicBrainz alone.
+
 ## Search
 
 Press **⌘K** (Ctrl+K) or **/** anywhere, or use the box at the top of the sidebar. Results come in as you type, grouped by type with the best match on top: tracks, artists, albums, playlists, and plays in your history. They're ranked by how well they match, then by how much you play and rate them. Enter opens a result, Shift+Enter plays it, Alt+Enter queues it, and ⌘Enter opens the full search page with facets.
@@ -107,8 +119,10 @@ Plain words match the start of any word in a name, artist or album, and forgive 
 |---|---|
 | `artist:` `album:` | `artist:"pete rock"` |
 | `in:` (on a playlist) / `from:` (played from) | `in:"road trip"` |
+| `genre:` (whole words, so `rock` finds art rock but not rockabilly) | `genre:jazz`, `genre:"hip hop"` |
 | `rating:` `plays:` | `rating:>=4`, `plays:>10`, `rating:3..4` |
 | `year:` | `year:1994`, `year:1990..1995`, `year:90s` |
+| `played:` (when you played it, in your time zone) | `played:2024-09`, `played:2019..2020`, `played:>=2025-01`, `played:7d`, `played:today` |
 | `type:` | `type:artist` (track, artist, album, playlist, play) |
 | `-` excludes | `-type:play` |
 
@@ -148,6 +162,8 @@ With Elasticsearch, the API also keeps two indices of events for Kibana: `rc-pla
 | Command | What it does |
 |---|---|
 | `pnpm dev` | Web app + API with hot reload |
+| `pnpm db:up` / `db:down` / `db:psql` | Local Postgres in Docker: start, stop, SQL prompt |
+| `pnpm db:migrate` | Apply database migrations |
 | `pnpm test` | Unit tests and Storybook story tests (headless Chromium) |
 | `pnpm test:e2e` | Playwright smoke tests against the built app + API (fake Spotify, in-memory DB) |
 | `pnpm lint` / `pnpm typecheck` | oxlint / TypeScript |
