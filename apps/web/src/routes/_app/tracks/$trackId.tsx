@@ -8,6 +8,7 @@ import { AddToPlaylist } from '../../../components/add-to-playlist.tsx'
 import { AlbumArt } from '../../../components/album-art.tsx'
 import { ContextChip } from '../../../components/context-chip.tsx'
 import { ErrorPage } from '../../../components/error-page.tsx'
+import { GenreChips, GenreCredit } from '../../../components/genre-chips.tsx'
 import { CreatePlaylistDialog } from '../../../components/create-playlist-dialog.tsx'
 import { TrackRating } from '../../../components/star-rating.tsx'
 import { Button } from '../../../components/ui/button.tsx'
@@ -53,6 +54,7 @@ function TrackPage() {
             {track.album.name}
             {year && ` · ${year}`} · {formatDuration(track.durationMs)}
           </p>
+          <GenreChips genres={track.genres} className="mt-2" />
           <TrackRating track={track} size="md" className="mt-2" />
           <TrackButtons track={track} onPlaylists={playlists.map((playlist) => playlist.id)} />
         </div>
@@ -63,6 +65,20 @@ function TrackPage() {
         <Stat label="First played" value={stats.firstPlayedAt ? dateFormat.format(new Date(stats.firstPlayedAt)) : '—'} />
         <Stat label="Last played" value={stats.lastPlayedAt ? formatRelative(new Date(stats.lastPlayedAt)) : '—'} />
       </dl>
+
+      {/* Each artist's own genres, when there's more than one artist to tell apart. */}
+      {track.artists.length > 1 && track.artists.some((artist) => artist.genres.length > 0) && (
+        <Section title="Artists">
+          <ul className="flex flex-col divide-y divide-border">
+            {track.artists.map((artist) => (
+              <li key={artist.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+                <span className="font-medium">{artist.name}</span>
+                <GenreChips genres={artist.genres} />
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
 
       {playedFrom.length > 0 && (
         <Section title="Played from">
@@ -118,6 +134,8 @@ function TrackPage() {
           </ol>
         </Section>
       )}
+
+      {track.genres.length > 0 && <GenreCredit />}
     </article>
   )
 }

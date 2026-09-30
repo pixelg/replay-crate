@@ -207,7 +207,7 @@ export interface paths {
         };
         /**
          * Play history
-         * @description Newest first. Three ways to page, one at a time: pass `nextCursor` back as `before` for older plays (infinite scroll); pass `after` for the plays just newer than a time, to scroll back up from a point in the past (still listed newest first, and their `nextCursor` goes back in as `after` for newer ones still); or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`.
+         * @description Newest first. Three ways to page, one at a time: pass `nextCursor` back as `before` for older plays (infinite scroll); pass `after` for the plays just newer than a time, to scroll back up from a point in the past (still listed newest first, and their `nextCursor` goes back in as `after` for newer ones still); or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`. `genre` keeps only plays of tracks whose artists have that genre (see `/genres`), with any way of paging.
          */
         get: operations["listPlays"];
         put?: never;
@@ -870,6 +870,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/genres": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Genres in your plays
+         * @description Every genre your played tracks' artists have, most played first. A play counts once for each genre its track's artists have. Genres come from Last.fm tags, else MusicBrainz, and fill in in the background, so recently played artists have them first.
+         */
+        get: operations["listGenres"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -987,6 +1007,8 @@ export interface components {
                         thumbUrl: string | null;
                     };
                     artists: components["schemas"]["ArtistRef"][];
+                    /** @description Its artists' genres, the primary artist's first; at most 3. */
+                    genres: components["schemas"]["GenreRef"][];
                     rating: components["schemas"]["Rating"];
                 };
                 plays: number;
@@ -994,6 +1016,11 @@ export interface components {
         };
         ArtistRef: {
             id: string;
+            name: string;
+        };
+        GenreRef: {
+            id: number;
+            /** @example hip hop */
             name: string;
         };
         /** @example 4 */
@@ -1021,6 +1048,8 @@ export interface components {
                     thumbUrl: string | null;
                 };
                 artists: components["schemas"]["ArtistRef"][];
+                /** @description Its artists' genres, the primary artist's first; at most 3. */
+                genres: components["schemas"]["GenreRef"][];
                 rating: components["schemas"]["Rating"];
             };
         };
@@ -1080,7 +1109,12 @@ export interface components {
                     /** @description Spotify's precision: YYYY, YYYY-MM or YYYY-MM-DD. */
                     releaseDate: string | null;
                 };
-                artists: components["schemas"]["ArtistRef"][];
+                artists: (components["schemas"]["ArtistRef"] & {
+                    /** @description Strongest first. */
+                    genres: components["schemas"]["GenreRef"][];
+                })[];
+                /** @description Its artists' genres, each once: the primary artist's first. */
+                genres: components["schemas"]["GenreRef"][];
                 rating: components["schemas"]["Rating"];
             };
             stats: {
@@ -1970,6 +2004,8 @@ export interface operations {
                 limit?: number;
                 /** @description Plays to skip, for numbered pages. */
                 offset?: number | null;
+                /** @description Only plays in this genre (a `GenreRef` id). */
+                genre?: number;
             };
             header?: never;
             path?: never;
@@ -1996,7 +2032,7 @@ export interface operations {
                          * @example 2026-09-21T12:00:00.000Z
                          */
                         lastSyncedAt: string | null;
-                        /** @description All of the user’s plays. With `offset` only. */
+                        /** @description All of the user’s plays (in `genre`, if given). With `offset` only. */
                         total?: number;
                         /**
                          * Format: date-time
@@ -4888,6 +4924,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    listGenres: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The genres, with how many of your plays fall in each. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        genres: (components["schemas"]["GenreRef"] & {
+                            playCount: number;
+                        })[];
+                    };
                 };
             };
             /** @description unauthorized */

@@ -2,6 +2,7 @@ import { createOpenApiHttp } from 'openapi-msw'
 import type { paths } from './api.gen.ts'
 import {
   devices,
+  genres,
   libraryPage,
   onThisDay,
   pixelg,
@@ -50,8 +51,11 @@ export const handlers = {
     http.post('/api/v1/auth/logout', ({ response }) => response(204).empty()),
   ],
   history: [
+    // With `genre`, only the plays whose track has it.
     http.get('/api/v1/history/plays', ({ query, response }) => {
-      const { items, rest, next } = pageBy(playsPage.items, query)
+      const genre = Number(query.get('genre'))
+      const matching = genre ? playsPage.items.filter((play) => play.track.genres.some((g) => g.id === genre)) : playsPage.items
+      const { items, rest, next } = pageBy(matching, query)
       const older = 'total' in rest ? { olderPlayedAt: next?.playedAt ?? null } : {}
       return response(200).json({ ...playsPage, items, ...rest, ...older })
     }),
@@ -69,6 +73,7 @@ export const handlers = {
     }),
     http.get('/api/v1/tracks/{id}', ({ response }) => response(200).json(trackDetail)),
   ],
+  genres: [http.get('/api/v1/genres', ({ response }) => response(200).json({ genres }))],
   playlists: [
     http.get('/api/v1/playlists', ({ response }) => response(200).json(playlistsList)),
     http.get('/api/v1/playlists/{id}', ({ response }) => response(200).json(playlistDetail)),

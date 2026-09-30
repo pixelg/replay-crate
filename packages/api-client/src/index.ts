@@ -16,6 +16,8 @@ export type PlayContext = NonNullable<PlayItem['context']>
 export type HistoryTimeline = InferResponseType<ApiClient['history']['timeline']['$get'], 200>
 export type TimelineMonth = HistoryTimeline['months'][number]
 export type TrackDetail = InferResponseType<ApiClient['tracks'][':id']['$get'], 200>
+export type GenreRef = PlayItem['track']['genres'][number]
+export type GenrePlays = InferResponseType<ApiClient['genres']['$get'], 200>['genres'][number]
 export type LibraryPage = InferResponseType<ApiClient['tracks']['$get'], 200>
 export type LibraryTrack = LibraryPage['items'][number]
 export type TrackSort = 'plays' | 'last_played' | 'first_played' | 'first_played_oldest' | 'name' | 'rating'
@@ -81,18 +83,21 @@ export async function logout(api: ApiClient): Promise<void> {
 /** Where a page of plays starts: older than a time, newer than one, or (null) from the newest play. */
 export type PlaysCursor = { before: string } | { after: string } | null
 
+/** The `genre` filter as a query parameter, when there is one. */
+const genreQuery = (genre: number | undefined) => (genre ? { genre: String(genre) } : {})
+
 /**
  * Newest-first play history; each page's `nextCursor` fetches older plays. The "All" view, and with
  * `from`, the view of the past that a timeline jump opens: plays before `from`, plus newer ones page
- * by page above them (`fetchPreviousPage`), back up to the present.
+ * by page above them (`fetchPreviousPage`), back up to the present. With `genre`, only that genre's plays.
  * Every plays query starts with `['plays']`, so invalidating that refreshes every view.
  */
-export const playsInfiniteQueryOptions = (api: ApiClient, from?: string) =>
+export const playsInfiniteQueryOptions = (api: ApiClient, from?: string, genre?: number) =>
   infiniteQueryOptions({
-    queryKey: ['plays', 'infinite', from ?? null],
+    queryKey: ['plays', 'infinite', from ?? null, genre ?? null],
     queryFn: async ({ pageParam }): Promise<PlaysPage> => {
       const endpoint = 'GET /api/v1/history/plays'
-      const res = await send(endpoint, () => api.history.plays.$get({ query: pageParam ?? {} }))
+      const res = await send(endpoint, () => api.history.plays.$get({ query: { ...pageParam, ...genreQuery(genre) } }))
       return expectOk(res, endpoint)
     },
     initialPageParam: (from ? { before: from } : null) as PlaysCursor,
@@ -119,15 +124,15 @@ export const timelineQueryOptions = (api: ApiClient, tz: string) =>
   })
 
 /**
- * One numbered page of play history (`page` from 1), with `total` and `olderPlayedAt`. Keeps
- * showing the previous page while the next one loads.
+ * One numbered page of play history (`page` from 1), with `total` and `olderPlayedAt`; with
+ * `genre`, of only that genre's plays. Keeps showing the previous page while the next one loads.
  */
-export const playsPageQueryOptions = (api: ApiClient, { page, size }: { page: number; size: number }) =>
+export const playsPageQueryOptions = (api: ApiClient, { page, size, genre }: { page: number; size: number; genre?: number }) =>
   queryOptions({
-    queryKey: ['plays', 'page', { page, size }],
+    queryKey: ['plays', 'page', { page, size, genre: genre ?? null }],
     queryFn: async (): Promise<PlaysPage> => {
       const endpoint = 'GET /api/v1/history/plays'
-      const query = { limit: String(size), offset: String((page - 1) * size) }
+      const query = { limit: String(size), offset: String((page - 1) * size), ...genreQuery(genre) }
       return expectOk(await send(endpoint, () => api.history.plays.$get({ query })), endpoint)
     },
     placeholderData: keepPreviousData,
@@ -192,6 +197,19 @@ export const trackQueryOptions = (api: ApiClient, trackId: string) =>
     queryFn: async (): Promise<TrackDetail> => {
       const endpoint = `GET /api/v1/tracks/${trackId}`
       return expectOk(await send(endpoint, () => api.tracks[':id'].$get({ param: { id: trackId } })), endpoint)
+    },
+  })
+
+/**
+ * The genres in the user's plays, most played first. Starts with `['plays']`: a sync can bring
+ * new ones, and genres fill in as the background lookups get to artists.
+ */
+export const genresQueryOptions = (api: ApiClient) =>
+  queryOptions({
+    queryKey: ['plays', 'genres'],
+    queryFn: async (): Promise<GenrePlays[]> => {
+      const endpoint = 'GET /api/v1/genres'
+      return (await expectOk(await send(endpoint, () => api.genres.$get()), endpoint)).genres
     },
   })
 

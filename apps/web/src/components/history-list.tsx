@@ -9,6 +9,7 @@ import { TrackRating } from './star-rating.tsx'
 import { PlaylistShortcuts } from './playlist-shortcuts.tsx'
 import { TrackActions } from './track-actions.tsx'
 import { ContextChip } from './context-chip.tsx'
+import { GenreChips } from './genre-chips.tsx'
 import { subtitleOf, thumbOf } from './player/items.ts'
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
@@ -217,10 +218,12 @@ function PlayRow({ play, selection, playing }: { play: PlayItem; selection?: Pla
           {track.name}
         </Link>
         <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
-        {(play.context || !selection) && (
+        {(play.context || !selection || track.genres.length > 0) && (
           <div className="mt-1 flex min-w-0 items-center gap-1">
             {play.context && <ContextChip context={play.context} track={selection ? undefined : track} className="min-w-0" />}
             {!selection && <PlaylistShortcuts track={track} />}
+            {/* From `sm` up, where a row has room; on a phone the track's page lists them. */}
+            <GenreChips genres={track.genres} max={2} className="hidden flex-nowrap sm:flex" />
           </div>
         )}
       </div>

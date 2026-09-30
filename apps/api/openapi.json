@@ -41,6 +41,10 @@
     {
       "name": "Search",
       "description": "Searching your library: tracks, artists, albums, playlists and plays."
+    },
+    {
+      "name": "Genres",
+      "description": "Artists' genres (from Last.fm and MusicBrainz) across your plays."
     }
   ],
   "components": {
@@ -374,6 +378,13 @@
                         "$ref": "#/components/schemas/ArtistRef"
                       }
                     },
+                    "genres": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/GenreRef"
+                      },
+                      "description": "Its artists' genres, the primary artist's first; at most 3."
+                    },
                     "rating": {
                       "$ref": "#/components/schemas/Rating"
                     }
@@ -385,6 +396,7 @@
                     "explicit",
                     "album",
                     "artists",
+                    "genres",
                     "rating"
                   ]
                 },
@@ -415,6 +427,22 @@
           },
           "name": {
             "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "GenreRef": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "example": "hip hop"
           }
         },
         "required": [
@@ -500,6 +528,13 @@
                   "$ref": "#/components/schemas/ArtistRef"
                 }
               },
+              "genres": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/GenreRef"
+                },
+                "description": "Its artists' genres, the primary artist's first; at most 3."
+              },
               "rating": {
                 "$ref": "#/components/schemas/Rating"
               }
@@ -511,6 +546,7 @@
               "explicit",
               "album",
               "artists",
+              "genres",
               "rating"
             ]
           }
@@ -720,8 +756,34 @@
               "artists": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/ArtistRef"
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ArtistRef"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "genres": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/GenreRef"
+                          },
+                          "description": "Strongest first."
+                        }
+                      },
+                      "required": [
+                        "genres"
+                      ]
+                    }
+                  ]
                 }
+              },
+              "genres": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/GenreRef"
+                },
+                "description": "Its artists' genres, each once: the primary artist's first."
               },
               "rating": {
                 "$ref": "#/components/schemas/Rating"
@@ -734,6 +796,7 @@
               "explicit",
               "album",
               "artists",
+              "genres",
               "rating"
             ]
           },
@@ -2829,7 +2892,7 @@
         ],
         "operationId": "listPlays",
         "summary": "Play history",
-        "description": "Newest first. Three ways to page, one at a time: pass `nextCursor` back as `before` for older plays (infinite scroll); pass `after` for the plays just newer than a time, to scroll back up from a point in the past (still listed newest first, and their `nextCursor` goes back in as `after` for newer ones still); or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`.",
+        "description": "Newest first. Three ways to page, one at a time: pass `nextCursor` back as `before` for older plays (infinite scroll); pass `after` for the plays just newer than a time, to scroll back up from a point in the past (still listed newest first, and their `nextCursor` goes back in as `after` for newer ones still); or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`. `genre` keeps only plays of tracks whose artists have that genre (see `/genres`), with any way of paging.",
         "security": [
           {
             "session": []
@@ -2887,6 +2950,17 @@
             "description": "Plays to skip, for numbered pages.",
             "name": "offset",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Only plays in this genre (a `GenreRef` id)."
+            },
+            "required": false,
+            "description": "Only plays in this genre (a `GenreRef` id).",
+            "name": "genre",
+            "in": "query"
           }
         ],
         "responses": {
@@ -2922,7 +2996,7 @@
                     },
                     "total": {
                       "type": "integer",
-                      "description": "All of the user’s plays. With `offset` only."
+                      "description": "All of the user’s plays (in `genre`, if given). With `offset` only."
                     },
                     "olderPlayedAt": {
                       "type": [
@@ -7784,6 +7858,82 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/genres": {
+      "get": {
+        "tags": [
+          "Genres"
+        ],
+        "operationId": "listGenres",
+        "summary": "Genres in your plays",
+        "description": "Every genre your played tracks' artists have, most played first. A play counts once for each genre its track's artists have. Genres come from Last.fm tags, else MusicBrainz, and fill in in the background, so recently played artists have them first.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The genres, with how many of your plays fall in each.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "genres": {
+                      "type": "array",
+                      "items": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/GenreRef"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "playCount": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "playCount"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "genres"
+                  ]
                 }
               }
             }

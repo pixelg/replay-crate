@@ -640,6 +640,52 @@ export const HistorySelectHidesShortcuts = meta.story({
   },
 })
 
+/** Picking a genre keeps only its plays; All genres brings the rest back. */
+export const HistoryFiltersByGenre = meta.story({
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('link', { name: 'Sunday Morning Static' })).toBeVisible()
+    await userEvent.click(await main.findByRole('combobox', { name: 'Genre' }))
+    await userEvent.click(await screen.findByRole('option', { name: /^jazz/ }))
+
+    // The picker follows the URL, which the pick navigates to.
+    await waitFor(() => expect(main.getByRole('combobox', { name: 'Genre' })).toHaveTextContent('jazz'))
+    await waitFor(() => expect(main.queryByRole('link', { name: 'Sunday Morning Static' })).toBeNull())
+    await expect(main.getAllByRole('link', { name: 'Brass Monkey Business' }).length).toBeGreaterThan(0)
+
+    await userEvent.click(main.getByRole('combobox', { name: 'Genre' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'All genres' }))
+    await expect(await main.findByRole('link', { name: 'Sunday Morning Static' })).toBeVisible()
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull())
+  },
+})
+
+/** A track's genres, each artist's, and the credit; a genre opens History filtered to it. */
+export const TrackGenresOpenHistory = meta.story({
+  args: { path: '/tracks/t1' },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('heading', { name: 'Artists' })).toBeVisible()
+    await expect(main.getByText('Last.fm')).toHaveAttribute('href', 'https://www.last.fm')
+    const [trackGenres] = main.getAllByRole('list', { name: 'Genres' })
+    await userEvent.click(within(trackGenres!).getByRole('link', { name: 'jazz' }))
+
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'History' })).toBeVisible()
+    await expect(await main.findByRole('combobox', { name: 'Genre' })).toHaveTextContent('jazz')
+    await waitFor(() => expect(main.queryByRole('link', { name: 'Sunday Morning Static' })).toBeNull())
+  },
+})
+
+/** A genre with no plays (or whose artists aren't looked up yet): says so, with a way back. */
+export const HistoryGenreEmpty = meta.story({
+  args: { path: '/history?genre=4242' },
+  play: async ({ canvas, userEvent }) => {
+    await expect(await canvas.findByRole('heading', { name: 'No plays in this genre' })).toBeVisible()
+    await userEvent.click(canvas.getByRole('link', { name: 'Show every genre' }))
+    await expect(await canvas.findByRole('heading', { name: 'Today' })).toBeVisible()
+  },
+})
+
 export const PlaylistMarksThePlayingTrack = meta.story({
   args: { path: '/playlists/p1' },
   play: async ({ canvas }) => {

@@ -1,15 +1,17 @@
 import {
   gapsQueryOptions,
+  genresQueryOptions,
   onThisDayQueryOptions,
   playsInfiniteQueryOptions,
   playsPageQueryOptions,
   timelineQueryOptions,
+  type GenrePlays,
   type PlayItem,
 } from '@replay-crate/api-client'
 import { formatRelative, localDayKey, pageCount, type PageSize } from '@replay-crate/core'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { ArrowUpToLine, CalendarClock, CircleDashed, History, ListChecks, RefreshCw } from 'lucide-react'
+import { ArrowUpToLine, CalendarClock, CircleDashed, History, ListChecks, RefreshCw, Tag } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { EmptyState } from '../../components/empty-state.tsx'
 import { HistoryList, NowPlayingSection } from '../../components/history-list.tsx'
@@ -20,6 +22,7 @@ import { PageHeader } from '../../components/page-header.tsx'
 import { SelectionBar } from '../../components/selection-bar.tsx'
 import { TimelineStrip } from '../../components/timeline-strip.tsx'
 import { Button } from '../../components/ui/button.tsx'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select.tsx'
 import { buttonClasses } from '../../components/ui/button-classes.ts'
 import { api } from '../../lib/api.ts'
 import { cn } from 'cn'
@@ -29,18 +32,37 @@ import { useMonthInView } from '../../lib/use-month-in-view.ts'
 import { useNowPlaying, usePlayingTrackId } from '../../lib/use-player.ts'
 import { useSync } from '../../lib/use-sync.ts'
 
+/** A genre id from the URL: a positive whole number, else none. */
+const parseGenre = (value: unknown) => {
+  const genre = Number(value)
+  return Number.isInteger(genre) && genre > 0 ? genre : undefined
+}
+
+type HistorySearch = { page?: number; size?: PageSize; before?: string; genre?: number }
+
 export const Route = createFileRoute('/_app/history')({
   // `before` opens the history at a point in the past (a jump to a month or day): plays older than
   // it, with newer ones a button away. Without it, numbered pages (or All) from the newest play.
-  validateSearch: (search: Record<string, unknown>): { page?: number; size?: PageSize; before?: string } => {
+  // `genre` keeps only plays in that genre, whichever way the list reads.
+  validateSearch: (search: Record<string, unknown>): HistorySearch => {
     const before = parseCursor(search.before)
-    return { ...pageSearch(search), ...(before && { before }) }
+    const genre = parseGenre(search.genre)
+    return { ...pageSearch(search), ...(before && { before }), ...(genre && { genre }) }
   },
-  loaderDeps: ({ search }) => ({ page: search.page ?? 1, size: search.size ?? storedPageSize('history'), before: search.before }),
-  loader: ({ context, deps: { page, size, before } }) =>
-    before !== undefined || size === 'all'
-      ? context.queryClient.ensureInfiniteQueryData(playsInfiniteQueryOptions(api, before))
-      : context.queryClient.ensureQueryData(playsPageQueryOptions(api, { page, size })),
+  loaderDeps: ({ search }) => ({
+    page: search.page ?? 1,
+    size: search.size ?? storedPageSize('history'),
+    before: search.before,
+    genre: search.genre,
+  }),
+  loader: ({ context: { queryClient }, deps: { page, size, before, genre } }) =>
+    Promise.all([
+      before !== undefined || size === 'all'
+        ? queryClient.ensureInfiniteQueryData(playsInfiniteQueryOptions(api, before, genre))
+        : queryClient.ensureQueryData(playsPageQueryOptions(api, { page, size, genre })),
+      // A filtered view names its genre in the picker from the first paint.
+      genre !== undefined && queryClient.ensureQueryData(genresQueryOptions(api)),
+    ]),
   component: HistoryPage,
 })
 
@@ -49,10 +71,10 @@ export const Route = createFileRoute('/_app/history')({
  * plays"): with All from the newest play, after a jump from `before`, with newer pages going on
  * top ("Show newer plays"). Only the view in use fetches; the loader has already filled it.
  */
-function useHistoryPlays(page: number, size: PageSize, before: string | undefined) {
+function useHistoryPlays(page: number, size: PageSize, before: string | undefined, genre: number | undefined) {
   const byCursor = size === 'all' || before !== undefined
-  const infinite = useInfiniteQuery({ ...playsInfiniteQueryOptions(api, before), enabled: byCursor })
-  const paged = useQuery({ ...playsPageQueryOptions(api, { page, size: size === 'all' ? 0 : size }), enabled: !byCursor })
+  const infinite = useInfiniteQuery({ ...playsInfiniteQueryOptions(api, before, genre), enabled: byCursor })
+  const paged = useQuery({ ...playsPageQueryOptions(api, { page, size: size === 'all' ? 0 : size, genre }), enabled: !byCursor })
   if (byCursor) {
     const pages = infinite.data?.pages ?? []
     return {
@@ -100,9 +122,11 @@ function HistoryPage() {
   const navigate = Route.useNavigate()
   const page = search.page ?? 1
   const size = search.size ?? storedPageSize('history')
-  const { before } = search
+  const { before, genre } = search
   const { plays, lastSyncedAt, total, olderPlayedAt, loadMore, isLoadingMore, loadNewer, isLoadingNewer, isPlaceholder } =
-    useHistoryPlays(page, size, before)
+    useHistoryPlays(page, size, before, genre)
+  const { data: genres = [] } = useQuery(genresQueryOptions(api))
+  const genreName = genres.find((known) => known.id === genre)?.name
   const { sync, isSyncing, error: syncError } = useSync()
   const { data: gaps = [] } = useQuery(gapsQueryOptions(api))
   const playingTrackId = usePlayingTrackId()
@@ -118,11 +142,12 @@ function HistoryPage() {
   const listRef = useRef<HTMLDivElement>(null)
   const monthInView = useMonthInView(listRef, HEADER_HEIGHT + nowPlayingHeight, `${plays.length}:${plays[0]?.playedAt}`)
   // A month or day opens at its latest plays; the present keeps the page size (a jump has no pages).
+  // Both keep the genre filter.
   const linkTo: TimelineLink = (month, props) => (
     <Link
       from={Route.fullPath}
       to="."
-      search={(prev) => ({ size: prev.size, ...(month && { before: monthCursor(month) }) })}
+      search={(prev) => ({ size: prev.size, genre: prev.genre, ...(month && { before: monthCursor(month) }) })}
       {...props}
     />
   )
@@ -130,7 +155,7 @@ function HistoryPage() {
   const day: DayJump = {
     first: oldest ? `${oldest.month}-01` : '',
     last: localDayKey(new Date()),
-    onJump: (picked) => void navigate({ search: (prev) => ({ size: prev.size, before: dayCursor(picked) }) }),
+    onJump: (picked) => void navigate({ search: (prev) => ({ size: prev.size, genre: prev.genre, before: dayCursor(picked) }) }),
   }
 
   // A page past the end (history shrank, or a hand-edited URL): go to the last one.
@@ -171,6 +196,13 @@ function HistoryPage() {
           {syncError && !isSyncing && <InlineError error={syncError} action="Sync" />}
           {lastSyncedAt && (
             <p className="text-xs text-muted-foreground">Synced {formatRelative(new Date(lastSyncedAt))}</p>
+          )}
+          {(genres.length > 0 || genre !== undefined) && (
+            <GenreFilter
+              genres={genres}
+              genre={genre}
+              onChange={(next) => void navigate({ search: (prev) => ({ size: prev.size, before: prev.before, genre: next }) })}
+            />
           )}
           {plays.length > 0 && (
             <Button variant="secondary" size="sm" onClick={() => setSelected(selected ? null : new Map())} aria-pressed={selected !== null}>
@@ -225,7 +257,9 @@ function HistoryPage() {
         <TimelineStrip
           months={months}
           current={monthInView}
-          onJump={(month) => void navigate({ search: (prev) => ({ size: prev.size, ...(month && { before: monthCursor(month) }) }) })}
+          onJump={(month) =>
+            void navigate({ search: (prev) => ({ size: prev.size, genre: prev.genre, ...(month && { before: monthCursor(month) }) }) })
+          }
           onThisDay={onThisDay}
           className="mb-6 hidden md:block"
         />
@@ -272,6 +306,13 @@ function HistoryPage() {
               />
             )}
           </>
+        ) : genre !== undefined ? (
+          <EmptyState icon={Tag} title={`${genreName ? `No ${genreName} plays` : 'No plays in this genre'}${before !== undefined ? ' before then' : ''}`}>
+            Genres fill in as Replay Crate looks up your artists, most recently played first.{' '}
+            <Link from={Route.fullPath} to="." search={(prev) => ({ ...prev, genre: undefined, page: undefined })} className="font-medium text-primary hover:underline">
+              Show every genre
+            </Link>
+          </EmptyState>
         ) : before !== undefined ? (
           <EmptyState icon={History} title="Nothing played before then">
             Your history starts later. Pick another month or day, or go back to now.
@@ -310,4 +351,49 @@ function useHeight() {
     }
   }, [])
   return [ref, height] as const
+}
+
+const ALL_GENRES = 'all'
+
+/** Picks the genre History shows: all of them, or one from the genres in your plays, most played first. */
+function GenreFilter({
+  genres,
+  genre,
+  onChange,
+}: {
+  genres: GenrePlays[]
+  genre: number | undefined
+  onChange: (genre: number | undefined) => void
+}) {
+  const items = [
+    { value: ALL_GENRES, label: 'All genres' },
+    ...genres.map((known) => ({ value: String(known.id), label: known.name, playCount: known.playCount })),
+  ]
+  // A genre from a link that isn't in the list (yet): still say which.
+  if (genre !== undefined && !genres.some((known) => known.id === genre)) items.push({ value: String(genre), label: 'Genre', playCount: 0 })
+  return (
+    <Select
+      items={items}
+      value={genre === undefined ? ALL_GENRES : String(genre)}
+      onValueChange={(value) => onChange(value === ALL_GENRES || value === null ? undefined : Number(value))}
+    >
+      {/* Just the icon until a genre is picked, so the toolbar stays one row where it can. */}
+      <SelectTrigger size="sm" aria-label="Genre" title="Filter by genre" className="max-w-48">
+        <Tag aria-hidden className="text-muted-foreground" />
+        <SelectValue>
+          {(value: string) => (value === ALL_GENRES ? null : items.find((item) => item.value === value)?.label)}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent align="end" alignItemWithTrigger={false} className="max-h-80">
+        {items.map((item) => (
+          <SelectItem key={item.value} value={item.value}>
+            <span className="truncate">{item.label}</span>
+            {'playCount' in item && item.playCount > 0 && (
+              <span className="ml-auto text-xs text-muted-foreground tabular-nums">{item.playCount.toLocaleString()}</span>
+            )}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
 }

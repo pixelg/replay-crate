@@ -5,7 +5,8 @@ import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { loadTrackArtists, toContext } from '../history/queries.ts'
 import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
-import { ArtistRef, ContextRef, IsoDateTime, jsonBody, jsonResponse, Rating } from '../lib/schemas.ts'
+import { loadArtistGenres, loadTrackGenres } from '../genres/queries.ts'
+import { ArtistRef, ContextRef, GenreRef, IsoDateTime, jsonBody, jsonResponse, Rating } from '../lib/schemas.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { clearRating, loadRatings, rateTrack } from './ratings.ts'
 import { decodeCursor, listTracks, TRACK_SORTS } from './library.ts'
@@ -25,7 +26,8 @@ const TrackDetail = z
         imageUrl: z.string().nullable(),
         releaseDate: z.string().nullable().openapi({ description: "Spotify's precision: YYYY, YYYY-MM or YYYY-MM-DD." }),
       }),
-      artists: z.array(ArtistRef),
+      artists: z.array(ArtistRef.extend({ genres: z.array(GenreRef).openapi({ description: 'Strongest first.' }) })),
+      genres: z.array(GenreRef).openapi({ description: "Its artists' genres, each once: the primary artist's first." }),
       rating: Rating,
     }),
     stats: z.object({
@@ -231,7 +233,13 @@ export function trackRoutes(deps: AppDeps) {
         .orderBy(desc(plays.playedAt))
         .limit(20)
 
-      const artists = (await loadTrackArtists(db, [trackId])).get(trackId) ?? []
+      const credits = (await loadTrackArtists(db, [trackId])).get(trackId) ?? []
+      const artistGenres = await loadArtistGenres(
+        db,
+        credits.map((artist) => artist.id),
+      )
+      const artists = credits.map((artist) => ({ ...artist, genres: artistGenres.get(artist.id) ?? [] }))
+      const genres = (await loadTrackGenres(db, [trackId], Number.POSITIVE_INFINITY)).get(trackId) ?? []
 
       const onPlaylists = await db
         .selectDistinct({
@@ -263,6 +271,7 @@ export function trackRoutes(deps: AppDeps) {
               releaseDate: track.releaseDate,
             },
             artists,
+            genres,
             rating: (await loadRatings(db, user.id, [trackId])).get(trackId) ?? null,
           },
           stats: {
