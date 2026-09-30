@@ -18,21 +18,21 @@ type Track = { id: string; name: string }
 /** How many recently added-to playlists the Add button offers before "All playlists…". */
 const RECENT = 4
 
-// Small and round, like the context chip's play button beside them.
+// Round icon buttons, like the row's play button beside them.
 const shortcutClass = cn(
-  'inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground',
-  'hover:enabled:bg-primary hover:enabled:text-primary-foreground data-popup-open:bg-primary data-popup-open:text-primary-foreground',
+  'inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground',
+  'hover:enabled:bg-muted hover:enabled:text-foreground data-popup-open:bg-muted data-popup-open:text-foreground',
   'disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
 )
 
 /**
- * Shortcuts on a track in History and Now playing, for catching a song while it plays (or a few
- * songs later): add it to a playlist you've been adding to (two taps), or start a new playlist
- * with it. The ⋯ menu still has everything.
+ * Shortcuts on every track row, for catching a song while it plays (or a few songs later): add
+ * it to a playlist you've been adding to (two taps), or start a new playlist with it. The ⋯ menu
+ * still has everything.
  */
 export function PlaylistShortcuts({ track }: { track: Track }) {
   return (
-    <span className="inline-flex items-center gap-1">
+    <span className="inline-flex items-center">
       <AddToRecentPlaylist track={track} />
       <NewPlaylistWith track={track} />
     </span>
@@ -83,7 +83,7 @@ function AddToRecentPlaylist({ track }: { track: Track }) {
     <>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger aria-label={`Add ${track.name} to a playlist`} title="Add to playlist" className={shortcutClass}>
-          <ListPlus aria-hidden className="size-3.5" />
+          <ListPlus aria-hidden className="size-4" />
         </PopoverTrigger>
         <PopoverContent align="start" className="w-72 gap-1 p-1.5">
           <PopoverTitle className="px-2 pt-1 pb-0.5 text-xs font-medium text-muted-foreground">Add to playlist</PopoverTitle>
@@ -153,7 +153,7 @@ function NewPlaylistWith({ track }: { track: Track }) {
         onClick={() => setOpen(true)}
         className={shortcutClass}
       >
-        <SquarePlus aria-hidden className="size-3.5" />
+        <SquarePlus aria-hidden className="size-4" />
       </button>
       {/* Stays on the page: you're listening, and the next track may be one to add too. */}
       <CreatePlaylistDialog open={open} onOpenChange={setOpen} trackIds={[track.id]} suggestedName={track.name} stay />

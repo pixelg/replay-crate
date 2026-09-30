@@ -1,6 +1,8 @@
 import { schema, type Db } from '@replay-crate/db'
 import { and, asc, count, desc, eq, gt, gte, lt, max, or, sql, type SQL } from 'drizzle-orm'
+import { loadTrackGenres } from '../genres/queries.ts'
 import { loadTrackArtists } from '../history/queries.ts'
+import { loadTrackPlaylists } from '../playlists/queries.ts'
 
 const { albums, plays, trackRatings, tracks } = schema
 
@@ -134,10 +136,10 @@ export async function listTracks(
     .offset(offset ?? 0)
 
   const page = rows.slice(0, limit)
-  const artists = await loadTrackArtists(
-    db,
-    page.map((row) => row.id),
-  )
+  const ids = page.map((row) => row.id)
+  const artists = await loadTrackArtists(db, ids)
+  const genres = await loadTrackGenres(db, ids)
+  const playlists = await loadTrackPlaylists(db, userId, ids)
   const last = rows.length > limit ? page.at(-1)! : null
   // A cursor narrows the rows the window counts, and a page past the end has no rows to carry it;
   // count separately then.
@@ -157,6 +159,8 @@ export async function listTracks(
         explicit: row.explicit,
         album: { id: row.albumId, name: row.albumName, thumbUrl: row.albumThumbUrl },
         artists: artists.get(row.id) ?? [],
+        genres: genres.get(row.id) ?? [],
+        playlists: playlists.get(row.id) ?? [],
         rating: row.rating,
       },
       playCount: row.playCount,

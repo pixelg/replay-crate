@@ -3,7 +3,6 @@ import { pageCount, type PageSize } from '@replay-crate/core'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { ArrowLeft, ListMusic, Play } from 'lucide-react'
-import { cn } from 'cn'
 import { useMemo, type ReactNode } from 'react'
 import { AlbumArt } from '../../components/album-art.tsx'
 import { EmptyState } from '../../components/empty-state.tsx'
@@ -21,6 +20,7 @@ import { usePlayingTrackId } from '../../lib/use-player.ts'
 import { usePlaylistEdit } from '../../lib/use-playlist-edits.ts'
 import { usePlayContext } from '../../lib/use-track-commands.ts'
 import { TrackNameLink } from '../../components/track-name-link.tsx'
+import { TrackChips, TrackRow, TrackRowActions } from '../../components/track-row.tsx'
 
 export const Route = createFileRoute('/_app/playlists/$playlistId')({
   // The sort and page live in the URL: shareable, and the back button undoes a change.
@@ -114,7 +114,7 @@ function PlaylistPage() {
           <ol className="flex flex-col divide-y divide-border" aria-busy={edit.isPending}>
             {pageOfItems(sorted, page, size).map((item) => (
               <li key={`${item.position}-${item.track.id}`}>
-                <TrackRow
+                <PlaylistTrackRow
                   item={item}
                   playing={item.track.id === playingTrackId}
                   play={<PlayTrackButton track={item.track} from={{ uri: playlistUri, name: playlist.name }} />}
@@ -158,48 +158,34 @@ function PlayPlaylistButton({ playlist }: { playlist: { uri: string; name: strin
   )
 }
 
-const MAX_ALSO_ON = 2
-
-function TrackRow({ item, playing, play, actions }: { item: PlaylistTrack; playing: boolean; play: ReactNode; actions: ReactNode }) {
+function PlaylistTrackRow({ item, playing, play, actions }: { item: PlaylistTrack; playing: boolean; play: ReactNode; actions: ReactNode }) {
   const { track, alsoOn } = item
   return (
     // The track Spotify is playing is marked, as in History and Tracks.
-    <div aria-current={playing || undefined} className={cn('flex items-center gap-2 py-2 sm:gap-3', playing && '-mx-2 rounded-lg bg-accent px-2')}>
-      <span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums sm:block">
-        {item.position + 1}
-      </span>
-      <AlbumArt src={track.album.thumbUrl} className="size-11" />
-      <div className="min-w-0 flex-1">
-        <TrackNameLink track={track} playing={playing} />
-        <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
-        {alsoOn.length > 0 && (
-          <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-            <span>Also on</span>
-            {alsoOn.slice(0, MAX_ALSO_ON).map((other) => (
-              <Link
-                key={other.id}
-                to="/playlists/$playlistId"
-                params={{ playlistId: other.id }}
-                className="max-w-40 truncate rounded-full bg-muted px-2 py-0.5 hover:text-foreground"
-              >
-                {other.name}
-              </Link>
-            ))}
-            {alsoOn.length > MAX_ALSO_ON && <span>+{alsoOn.length - MAX_ALSO_ON} more</span>}
-          </p>
-        )}
-      </div>
-      {play}
-      <TrackRating track={track} compactOnPhones />
-      {/* A steady width, so the play buttons and stars line up down the list. */}
-      <div className="shrink-0 text-right md:min-w-24">
-        <p className="font-semibold tabular-nums">{item.playCount}</p>
-        <p className="text-xs text-muted-foreground">
-          {item.playCount === 1 ? 'play' : 'plays'}
-          {item.playsHere > 0 && item.playsHere !== item.playCount && <span className="hidden sm:inline"> · {item.playsHere} here</span>}
-        </p>
-      </div>
-      {actions}
-    </div>
+    <TrackRow
+      playing={playing}
+      lead={
+        <span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums sm:block">{item.position + 1}</span>
+      }
+      art={<AlbumArt src={track.album.thumbUrl} className="size-11" />}
+      title={<TrackNameLink track={track} playing={playing} />}
+      subtitle={track.artists.map((artist) => artist.name).join(', ')}
+      chips={<TrackChips playlists={alsoOn} playlistsLabel="Also on" genres={track.genres} />}
+      actions={<TrackRowActions track={track} play={play} />}
+      side={
+        <>
+          <TrackRating track={track} compactOnPhones />
+          {/* A steady width, so the stars line up down the list. */}
+          <div className="shrink-0 text-right md:min-w-24">
+            <p className="font-semibold tabular-nums">{item.playCount}</p>
+            <p className="text-xs text-muted-foreground">
+              {item.playCount === 1 ? 'play' : 'plays'}
+              {item.playsHere > 0 && item.playsHere !== item.playCount && <span className="hidden sm:inline"> · {item.playsHere} here</span>}
+            </p>
+          </div>
+        </>
+      }
+      menu={actions}
+    />
   )
 }

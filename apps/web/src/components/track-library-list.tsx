@@ -7,6 +7,7 @@ import { PlayTrackButton } from './play-track-button.tsx'
 import { TrackRating } from './star-rating.tsx'
 import { TrackActions } from './track-actions.tsx'
 import { TrackNameLink } from './track-name-link.tsx'
+import { TrackChips, TrackRow, TrackRowActions } from './track-row.tsx'
 
 const monthFormat = new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' })
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
@@ -14,7 +15,7 @@ const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
 /** Which tracks are picked, by id; present while selecting. */
 export type TrackSelection = { selected: { has(trackId: string): boolean }; toggle: (item: LibraryTrack) => void }
 
-/** The library: every track played, with its play count and its last and first plays. */
+/** The library: every track played, with its play count and its last and first plays, its playlists and genres. */
 export function TrackLibraryList({
   items,
   selection,
@@ -37,49 +38,53 @@ export function TrackLibraryList({
         const { track, playCount, firstPlayedAt, lastPlayedAt } = item
         const playing = track.id === playingTrackId
         return (
-          <li
-            key={track.id}
-            aria-current={playing || undefined}
-            className={cn('flex items-center gap-2 py-2 sm:gap-3', playing && '-mx-2 rounded-lg bg-accent px-2')}
-          >
-            {selection && (
-              <input
-                type="checkbox"
-                aria-label={`Select ${track.name}`}
-                checked={selection.selected.has(track.id)}
-                onChange={() => selection.toggle(item)}
-                className="size-5 shrink-0 accent-primary"
-              />
-            )}
-            <AlbumArt src={track.album.thumbUrl} className="size-12" />
-            <div className="min-w-0 flex-1">
-              <TrackNameLink track={track} playing={playing} />
-              <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
-            </div>
-            {!selection && <PlayTrackButton track={track} />}
-            <TrackRating track={track} compactOnPhones />
-            {/* A steady width, so the play buttons and stars line up down the list. On phones, only
-                the count (and the month of the first play when that's the sort): the title needs the
-                room, and the playing row is highlighted anyway. */}
-            <div className="min-w-14 shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:min-w-24">
-              {playing ? (
-                <p className="hidden items-center justify-end gap-1 text-primary sm:flex">
-                  <AudioLines aria-hidden className="size-4 motion-safe:animate-pulse" /> Now playing
-                </p>
-              ) : (
-                <p className="hidden sm:block">{formatRelative(new Date(lastPlayedAt), now)}</p>
-              )}
-              <p>
-                <span className="font-medium text-foreground">{playCount.toLocaleString()}</span> {playCount === 1 ? 'play' : 'plays'}
-              </p>
-              <p className={cn('sm:block', !firstPlayedOnPhones && 'hidden')}>
-                <span className="sr-only sm:not-sr-only">since </span>
-                <time dateTime={firstPlayedAt} title={`First played ${dateFormat.format(new Date(firstPlayedAt))}`}>
-                  {monthFormat.format(new Date(firstPlayedAt))}
-                </time>
-              </p>
-            </div>
-            {!selection && <TrackActions track={track} />}
+          <li key={track.id}>
+            <TrackRow
+              playing={playing}
+              lead={
+                selection && (
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${track.name}`}
+                    checked={selection.selected.has(track.id)}
+                    onChange={() => selection.toggle(item)}
+                    className="size-5 shrink-0 accent-primary"
+                  />
+                )
+              }
+              art={<AlbumArt src={track.album.thumbUrl} className="size-12" />}
+              title={<TrackNameLink track={track} playing={playing} />}
+              subtitle={track.artists.map((artist) => artist.name).join(', ')}
+              chips={<TrackChips playlists={track.playlists} genres={track.genres} />}
+              actions={!selection && <TrackRowActions track={track} play={<PlayTrackButton track={track} />} />}
+              side={
+                <>
+                  <TrackRating track={track} compactOnPhones />
+                  {/* A steady width, so the stars line up down the list. On phones, only the count (and
+                      the month of the first play when that's the sort): the title needs the room, and
+                      the playing row is highlighted anyway. */}
+                  <div className="min-w-14 shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:min-w-24">
+                    {playing ? (
+                      <p className="hidden items-center justify-end gap-1 text-primary sm:flex">
+                        <AudioLines aria-hidden className="size-4 motion-safe:animate-pulse" /> Now playing
+                      </p>
+                    ) : (
+                      <p className="hidden sm:block">{formatRelative(new Date(lastPlayedAt), now)}</p>
+                    )}
+                    <p>
+                      <span className="font-medium text-foreground">{playCount.toLocaleString()}</span> {playCount === 1 ? 'play' : 'plays'}
+                    </p>
+                    <p className={cn('sm:block', !firstPlayedOnPhones && 'hidden')}>
+                      <span className="sr-only sm:not-sr-only">since </span>
+                      <time dateTime={firstPlayedAt} title={`First played ${dateFormat.format(new Date(firstPlayedAt))}`}>
+                        {monthFormat.format(new Date(firstPlayedAt))}
+                      </time>
+                    </p>
+                  </div>
+                </>
+              }
+              menu={!selection && <TrackActions track={track} />}
+            />
           </li>
         )
       })}

@@ -31,24 +31,22 @@ export const Default = meta.story({
 
 /**
  * Each row lists the playlists of yours holding the track, each a link to it. The one a play came
- * from leads, ringed; a play from somewhere else (an album, a Spotify playlist) keeps its own chip.
+ * from leads; a play from somewhere else (an album, a Spotify playlist) keeps its own chip first.
  */
 export const PlaylistsOfEachTrack = meta.story({
   play: async ({ canvas }) => {
     const [fromCrate, fromDiscover] = canvas.getAllByText('Brass Monkey Business').map((title) => within(title.closest('li')!))
-    // Played from Late Night Crate, which holds it: ringed, and also on Boom Bap Essentials.
-    const source = fromCrate!.getByRole('link', { name: 'Late Night Crate' })
-    await expect(source).toHaveAttribute('href', '/playlists/p1')
-    await expect(source).toHaveAttribute('title', 'Played from Late Night Crate')
-    await expect(source).toHaveClass('ring-1')
+    // Played from Late Night Crate, which holds it: first, then Boom Bap Essentials.
+    const links = fromCrate!.getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/playlists/'))
+    await expect(links.map((link) => link.textContent)).toEqual(['Late Night Crate', 'Boom Bap Essentials'])
     const alsoOn = within(fromCrate!.getByRole('list', { name: 'Also on' }))
     await expect(alsoOn.getByRole('link', { name: 'Boom Bap Essentials' })).toHaveAttribute('href', '/playlists/p2')
     await expect(alsoOn.queryByText('Late Night Crate')).toBeNull()
-    // Played from a Spotify playlist: that chip isn't a link, and both of yours follow, unringed.
+    // Played from a Spotify playlist: that chip isn't a link, and both of yours follow.
     await expect(fromDiscover!.getByText('Spotify playlist').closest('a')).toBeNull()
     const yours = within(fromDiscover!.getByRole('list', { name: 'On your playlists' }))
     for (const name of ['Late Night Crate', 'Boom Bap Essentials']) {
-      await expect(yours.getByRole('link', { name })).not.toHaveClass('ring-1')
+      await expect(yours.getByRole('link', { name })).toBeVisible()
     }
     // From an album: the album, then the playlist it's on.
     const fromAlbum = within(canvas.getByText('Sunday Morning Static').closest('li')!)

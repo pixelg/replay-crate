@@ -47,11 +47,11 @@ export const OtherPlaylist = meta.story({
   },
 })
 
-/** Where a play came from, among the track's playlists. */
-export const Ringed = meta.story({
-  args: { mine: true, ringed: true },
+/** One of the track's playlists: known to be yours, so a link without looking it up. */
+export const Mine = meta.story({
+  args: { context: { type: 'playlist', uri: 'spotify:playlist:p9', name: 'Not In The List', imageUrl: null }, mine: true },
   play: async ({ canvas }) => {
-    await expect(canvas.getByRole('link', { name: 'Late Night Crate' })).toHaveClass('ring-1')
+    await expect(canvas.getByRole('link', { name: 'Not In The List' })).toHaveAttribute('href', '/playlists/p9')
   },
 })
 

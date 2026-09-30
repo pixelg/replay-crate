@@ -90,7 +90,8 @@ test('lists every played track, by plays or name', async ({ page }) => {
 
   await main.getByRole('button', { name: 'A–Z' }).click()
   await expect(page).toHaveURL(/[?&]sort=name/)
-  const names = await main.getByRole('listitem').getByRole('link').allTextContents()
+  // The track links: rows also link to their playlists and genres.
+  const names = await main.locator('a[href^="/tracks/"]').allTextContents()
   expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })))
 })
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createTestContext, play, track } from '../testing.ts'
+import { createTestContext, paged, play, playlist, playlistEntry, track } from '../testing.ts'
 
 describe('GET /api/v1/tracks', () => {
   let ctx: Awaited<ReturnType<typeof createTestContext>>
@@ -58,6 +58,8 @@ describe('GET /api/v1/tracks', () => {
         explicit: false,
         album: { id: expect.any(String), name: expect.any(String), thumbUrl: expect.any(String) },
         artists: [expect.objectContaining({ name: expect.any(String) })],
+        genres: [],
+        playlists: [],
         rating: null,
       },
       playCount: 3,
@@ -66,6 +68,29 @@ describe('GET /api/v1/tracks', () => {
     })
     // Ties (Deep Cut and Aria, 2 plays each) go by track id.
     expect(page.items.map((item: { track: { name: string } }) => item.track.name)).toEqual(['banger', 'Aria', 'Deep Cut', 'zebra'])
+  })
+
+  it("gives each track its genres and the user's playlists holding it", async () => {
+    const [artist] = (await json(await get())).items[0].track.artists
+    await ctx.giveGenres(artist.id, ['hip hop', 'jazz'])
+    ctx.spotify.getMyPlaylists.mockImplementation(async (_token, offset) => paged([playlist('road'), playlist('gym')])(offset))
+    ctx.spotify.getPlaylistItems.mockImplementation(async (_token, id, offset) =>
+      paged(id === 'road' ? [playlistEntry(banger), playlistEntry(aria)] : [playlistEntry(banger)])(offset),
+    )
+    await ctx.app.request('/api/v1/playlists/sync', { method: 'POST', headers: { Cookie: cookie, Origin: 'http://127.0.0.1:5173' } })
+
+    const byName = new Map(
+      (await json(await get())).items.map((item: { track: { name: string } }) => [item.track.name, item.track] as const),
+    )
+    expect(byName.get('banger')).toMatchObject({
+      genres: [expect.objectContaining({ name: 'hip hop' }), expect.objectContaining({ name: 'jazz' })],
+      playlists: [
+        { id: 'road', name: 'Playlist road' },
+        { id: 'gym', name: 'Playlist gym' },
+      ],
+    })
+    expect(byName.get('Aria')).toMatchObject({ playlists: [{ id: 'road', name: 'Playlist road' }] })
+    expect(byName.get('zebra')).toMatchObject({ playlists: [] })
   })
 
   it('sorts by last play and by name (ignoring case)', async () => {

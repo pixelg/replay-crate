@@ -40,6 +40,12 @@ function App({ path }: { path: string }) {
   return <RouterProvider router={router} />
 }
 
+/** A list's rows: its items, without the chip lists nested in them. */
+const rowsOf = (container: HTMLElement) =>
+  within(container)
+    .getAllByRole('listitem')
+    .filter((item) => !item.parentElement?.closest('li'))
+
 const meta = preview.meta({
   title: 'App',
   component: App,
@@ -386,11 +392,16 @@ export const PlaylistSortedByPlays = meta.story({
   args: { path: '/playlists/p1' },
   play: async ({ canvas, userEvent }) => {
     await expect(await canvas.findByRole('heading', { level: 1, name: 'Late Night Crate' })).toBeVisible()
-    await expect(canvas.getByText('+1 more')).toBeVisible()
+    // Each track's other playlists, all of them, and its genres; the same actions as every track row.
+    const firstRow = within(rowsOf(await canvas.findByRole('region', { name: 'Tracks' }))[0]!)
+    await expect(within(firstRow.getByRole('list', { name: 'Also on' })).getAllByRole('link')).toHaveLength(3)
+    await expect(firstRow.getByRole('link', { name: 'hip hop' })).toBeVisible()
+    await expect(firstRow.getByRole('button', { name: /^Add .+ to a playlist$/ })).toBeVisible()
+    await expect(firstRow.getByRole('button', { name: /^New playlist with / })).toBeVisible()
 
     await userEvent.click(canvas.getByRole('button', { name: 'Most played' }))
     const tracks = canvas.getByRole('region', { name: 'Tracks' })
-    const firstTrack = within(tracks).getAllByRole('listitem')[0]!
+    const firstTrack = rowsOf(tracks)[0]!
     await expect(within(firstTrack).getByText('Searched And Played')).toBeVisible()
   },
 })
@@ -1579,10 +1590,11 @@ export const HistoryPlaysFromContext = meta.story({
     const toast = await screen.findByText('Playing “Sunday Morning Static” from Sunday Sessions')
     await waitFor(() => expect(toast).toBeVisible())
 
-    // Liked Songs can't start at a given track, and a play from search has no context at all.
+    // Liked Songs can't start at a given track, and a play from search has no context at all: those
+    // rows play the track on its own.
     const main = within(canvas.getByRole('main'))
-    await expect(main.queryByRole('button', { name: /^Play A Very Long Track Title/ })).toBeNull()
-    await expect(main.queryByRole('button', { name: /^Play Searched And Played/ })).toBeNull()
+    await expect(main.getByRole('button', { name: /^Play A Very Long Track Title/ })).toHaveAccessibleName(/Small Screens$/)
+    await expect(main.getByRole('button', { name: 'Play Searched And Played' })).toBeVisible()
     // Now playing is already playing from its context: nothing to start there.
     const nowPlaying = within(await main.findByRole('group', { name: 'Now playing' }))
     await expect(nowPlaying.getByText('Late Night Crate')).toBeVisible()
@@ -1629,9 +1641,9 @@ export const HistorySelectCreatesPlaylist = meta.story({
     const bar = await pick(canvas, userEvent, [/^Select Brass Monkey Business/, /^Select Sunday Morning Static/])
     await userEvent.click(canvas.getAllByRole('checkbox', { name: /^Select Brass Monkey Business/ })[1]!)
     await expect(bar.getByRole('status')).toHaveTextContent('2 tracks selected')
-    // Row menus and the chips' play buttons make way for the checkboxes.
+    // Row menus and actions make way for the checkboxes.
     await expect(canvas.queryByRole('button', { name: /^Actions for/ })).toBeNull()
-    await expect(canvas.queryByRole('button', { name: /^Play .* from / })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: /^Play / })).toBeNull()
 
     await userEvent.click(bar.getByRole('button', { name: 'Create playlist…' }))
     const dialog = within(await screen.findByRole('dialog', { name: 'Create playlist' }))
@@ -1747,12 +1759,17 @@ export const Tracks = meta.story({
     await expect(await canvas.findByRole('heading', { level: 1, name: 'Tracks' })).toBeVisible()
     await expect(canvas.getByText("Every track you've played: 4 so far.")).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Most played' })).toHaveAttribute('aria-pressed', 'true')
-    const main = within(canvas.getByRole('main'))
-    const first = main.getAllByRole('listitem')[0]!
+    const first = rowsOf(canvas.getByRole('main'))[0]!
     await expect(within(first).getByRole('link', { name: 'Brass Monkey Business' })).toHaveAttribute('href', '/tracks/t1')
     await expect(first).toHaveTextContent('12 plays')
     // It's the fixture's playing track.
-    await waitFor(() => expect(first).toHaveAttribute('aria-current', 'true'))
+    await waitFor(() => expect(first.firstElementChild).toHaveAttribute('aria-current', 'true'))
+    // Its playlists and genres, and the same actions as every track row.
+    await expect(within(first).getByRole('link', { name: 'Boom Bap Essentials' })).toHaveAttribute('href', '/playlists/p2')
+    await expect(within(first).getByRole('link', { name: 'hip hop' })).toBeVisible()
+    await expect(within(first).getByRole('button', { name: 'Play Brass Monkey Business' })).toBeVisible()
+    await expect(within(first).getByRole('button', { name: 'Add Brass Monkey Business to a playlist' })).toBeVisible()
+    await expect(within(first).getByRole('button', { name: 'New playlist with Brass Monkey Business' })).toBeVisible()
     await expect(within(first).getByRole('button', { name: 'Actions for Brass Monkey Business' })).toBeVisible()
     await expect(canvas.getAllByRole('link', { name: 'Tracks' }).find((link) => link.checkVisibility())).toHaveAttribute('aria-current', 'page')
   },
@@ -2119,8 +2136,7 @@ export const TracksByRating = meta.story({
     await userEvent.click(canvas.getByRole('button', { name: '4★ and up' }))
     await waitFor(() => expect(libraryRequests).toHaveBeenLastCalledWith('rating', '4'))
     await expect(await canvas.findByText('1 track rated 4 stars and up.')).toBeVisible()
-    const main = within(canvas.getByRole('main'))
-    await expect(main.getAllByRole('listitem')).toHaveLength(1)
+    await expect(rowsOf(canvas.getByRole('main'))).toHaveLength(1)
 
     await userEvent.click(canvas.getByRole('button', { name: '5★' }))
     await expect(await canvas.findByText('Nothing rated that high yet')).toBeVisible()
@@ -2312,8 +2328,8 @@ export const PlaylistPages = meta.story({
   globals: { viewport: { value: 'desktop', isRotated: false } },
   play: async ({ canvas, userEvent }) => {
     const tracks = within(await canvas.findByRole('region', { name: 'Tracks' }))
-    const total = (await tracks.findAllByRole('listitem')).length
-    await expect(total).toBeLessThanOrEqual(5)
+    await tracks.findAllByRole('listitem')
+    await expect(rowsOf(await canvas.findByRole('region', { name: 'Tracks' })).length).toBeLessThanOrEqual(5)
     // Sorting lives in the URL now, and starts again from page 1.
     await userEvent.click(tracks.getByRole('button', { name: 'Most played' }))
     await expect(tracks.getByRole('button', { name: 'Most played' })).toHaveAttribute('aria-pressed', 'true')
