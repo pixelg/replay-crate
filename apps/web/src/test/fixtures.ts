@@ -70,6 +70,15 @@ const trackGenres: Record<string, GenreRef[]> = {
   t4: [genre.funk],
 }
 
+/** The fictional tracks' places in the fixture playlists (t1 was played from Late Night Crate). */
+const trackPlaylists: Record<string, PlayItem['track']['playlists']> = {
+  t1: [
+    { id: 'p1', name: 'Late Night Crate' },
+    { id: 'p2', name: 'Boom Bap Essentials' },
+  ],
+  t2: [{ id: 'p3', name: 'Road Trip (with Sam)' }],
+}
+
 const track = (id: string, name: string, artists: string[], album: string): PlayItem['track'] => ({
   rating: ratingOf(id),
   id,
@@ -79,6 +88,7 @@ const track = (id: string, name: string, artists: string[], album: string): Play
   album: { id: `album-${id}`, name: album, thumbUrl: null },
   artists: artists.map((artist, i) => ({ id: `${id}-artist-${i}`, name: artist })),
   genres: trackGenres[id] ?? [],
+  playlists: trackPlaylists[id] ?? [],
 })
 
 export const plays: PlayItem[] = [

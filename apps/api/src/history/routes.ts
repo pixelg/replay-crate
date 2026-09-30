@@ -6,7 +6,8 @@ import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
 import { loadTrackGenres, playInGenre } from '../genres/queries.ts'
-import { ArtistRef, ContextRef, GenreRef, IsoDateTime, jsonResponse, Rating } from '../lib/schemas.ts'
+import { ArtistRef, ContextRef, GenreRef, IsoDateTime, jsonResponse, PlaylistRef, Rating } from '../lib/schemas.ts'
+import { loadTrackPlaylists } from '../playlists/queries.ts'
 import { localDay, timeZone } from '../stats/ranges.ts'
 import { pauseSpotify, pausedUntil } from '../jobs/budget.ts'
 import { loadRatings } from '../tracks/ratings.ts'
@@ -38,7 +39,9 @@ const PlayItem = z
     msPlayed: z.number().int().nullable().openapi({ description: 'Known for imported plays; null for polled ones.' }),
     source: z.enum(schema.playSource.enumValues),
     context: ContextRef.nullable(),
-    track: PlayTrack,
+    track: PlayTrack.extend({
+      playlists: z.array(PlaylistRef).openapi({ description: "The user's playlists holding it now, in their Spotify order." }),
+    }),
   })
   .openapi('PlayItem')
 
@@ -368,6 +371,11 @@ export function historyRoutes(deps: AppDeps) {
         user.id,
         page.map((row) => row.trackId),
       )
+      const playlistsByTrack = await loadTrackPlaylists(
+        db,
+        user.id,
+        page.map((row) => row.trackId),
+      )
 
       return c.json(
         {
@@ -385,6 +393,7 @@ export function historyRoutes(deps: AppDeps) {
               artists: artistsByTrack.get(row.trackId) ?? [],
               genres: genresByTrack.get(row.trackId) ?? [],
               rating: ratings.get(row.trackId) ?? null,
+              playlists: playlistsByTrack.get(row.trackId) ?? [],
             },
           })),
           nextCursor: more ? (after ? page[0]! : page.at(-1)!).playedAt.toISOString() : null,

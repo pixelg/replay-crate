@@ -21,6 +21,8 @@ test('opens a track, then a playlist with play counts and "also on"', async ({ p
   await expect(page.getByText('Plays', { exact: true })).toBeVisible()
 
   await mainNav(page).getByRole('link', { name: 'Playlists' }).click()
+  // The track page links to its playlists too: wait for the Playlists page.
+  await expect(page.getByRole('heading', { level: 1, name: 'Playlists' })).toBeVisible()
   await page.getByRole('link', { name: /Late Night Crate/ }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Late Night Crate' })).toBeVisible()
   const tracks = page.getByRole('region', { name: 'Tracks' })

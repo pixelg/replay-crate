@@ -1051,6 +1051,8 @@ export interface components {
                 /** @description Its artists' genres, the primary artist's first; at most 3. */
                 genres: components["schemas"]["GenreRef"][];
                 rating: components["schemas"]["Rating"];
+                /** @description The user's playlists holding it now, in their Spotify order. */
+                playlists: components["schemas"]["PlaylistRef"][];
             };
         };
         ContextRef: {
@@ -1061,6 +1063,10 @@ export interface components {
             name: string | null;
             imageUrl: string | null;
         } | null;
+        PlaylistRef: {
+            id: string;
+            name: string;
+        };
         LibraryTrack: {
             track: {
                 id: string;

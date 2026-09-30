@@ -11,3 +11,9 @@ export const playableContext = (context: PlayContext | null | undefined) =>
 export function contextName(context: PlayContext) {
   return context.name ?? (context.type === 'album' ? 'the album' : 'the playlist')
 }
+
+/** The Spotify id of a playlist context, else null. */
+export function playlistIdOf(context: PlayContext | null | undefined) {
+  const prefix = 'spotify:playlist:'
+  return context?.type === 'playlist' && context.uri.startsWith(prefix) ? context.uri.slice(prefix.length) : null
+}
