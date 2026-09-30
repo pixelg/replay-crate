@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import * as schema from './schema/index.ts'
 import { createTestDb } from './testing.ts'
 
-const { albums, artists, contexts, playlistItems, playlists, plays, searchOutbox, trackArtists, trackRatings, tracks, userPlaylists, users } =
+const { albums, artistGenres, artists, contexts, genres, playlistItems, playlists, plays, searchOutbox, trackArtists, trackRatings, tracks, userPlaylists, users } =
   schema
 
 describe('search outbox triggers', () => {
@@ -87,5 +87,15 @@ describe('search outbox triggers', () => {
     expect(await waiting()).toEqual([])
     await db().update(contexts).set({ name: 'Road Trip' })
     expect(await waiting()).toEqual(['* context spotify:playlist:x'])
+  })
+
+  it("rebuilds an artist's documents when its genres change", async () => {
+    const [jazz] = await db().select().from(genres).where(sql`name = 'jazz'`)
+    await db().insert(artistGenres).values({ artistId: 'ar1', genreId: jazz!.id, weight: 100, source: 'lastfm' })
+    expect(await waiting()).toEqual(['* artist-name ar1'])
+    await clear()
+    await db().update(artistGenres).set({ weight: 50 })
+    await db().delete(artistGenres)
+    expect(await waiting()).toEqual(['* artist-name ar1'])
   })
 })

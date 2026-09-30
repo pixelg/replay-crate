@@ -53,6 +53,8 @@ const MAPPINGS: estypes.MappingTypeMapping = {
     album: { type: 'text', analyzer: 'folded', fields: { folded: { type: 'keyword', normalizer: 'folded' } } },
     playlists: { type: 'keyword', normalizer: 'folded', fields: { text: { type: 'text', analyzer: 'folded' } } },
     contexts: { type: 'keyword', fields: { folded: { type: 'keyword', normalizer: 'folded' } } },
+    // Keywords for the facet; words for `genre:` (a phrase match, so "rock" finds art rock).
+    genres: { type: 'keyword', fields: { text: { type: 'text', analyzer: 'folded' } } },
     year: { type: 'short' },
     playCount: { type: 'integer' },
     rating: { type: 'byte' },
@@ -259,6 +261,9 @@ function filterQuery(filter: SearchFilter, timeZone: string): estypes.QueryDslQu
       return onType('playlist', 'name.folded', 'playlists')
     case 'from':
       return contains('contexts.folded')
+    case 'genre':
+      // The words in order within one genre (array entries sit far apart, so never across two).
+      return { match_phrase: { 'genres.text': filter.value } }
   }
 }
 
@@ -359,6 +364,7 @@ async function searchElastic(
                 ratings: { terms: { field: 'rating', size: 5, order: { _key: 'desc' } } },
                 artists: { terms: { field: 'artists.keyword', size: FACET_SIZE, order: [{ _count: 'desc' }, { _key: 'asc' }] } },
                 contexts: { terms: { field: 'contexts', size: FACET_SIZE, order: [{ _count: 'desc' }, { _key: 'asc' }] } },
+                genres: { terms: { field: 'genres', size: FACET_SIZE, order: [{ _count: 'desc' }, { _key: 'asc' }] } },
               },
             },
           }
@@ -407,6 +413,7 @@ function facets(aggregations: Record<string, estypes.AggregationsAggregate> | un
     ratings: buckets<number>(focus?.ratings),
     artists: buckets<string>(focus?.artists),
     contexts: buckets<string>(focus?.contexts),
+    genres: buckets<string>(focus?.genres),
   }
 }
 

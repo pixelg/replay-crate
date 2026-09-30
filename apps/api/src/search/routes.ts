@@ -21,6 +21,7 @@ const SearchHit = z
     name: z.string().openapi({ description: "The track's, artist's, album's or playlist's name; a play's track name." }),
     artists: z.array(z.string()).openapi({ description: "A track's, album's or play's artists; a playlist's owner." }),
     album: z.string().nullable(),
+    genres: z.array(z.string()).openapi({ description: "Its artists' genres (an artist's own), first artist's first. None for playlists." }),
     year: z.number().int().nullable(),
     playCount: z.number().int().openapi({ description: 'Your plays: of the track, the artist, the album, or from the playlist.' }),
     rating: Rating,
@@ -71,6 +72,7 @@ const SearchResponse = z
         ratings: z.array(Bucket(z.number().int())),
         artists: z.array(Bucket(z.string())),
         contexts: z.array(Bucket(z.string())),
+        genres: z.array(Bucket(z.string())),
       })
       .optional()
       .openapi({ description: 'With `facets=true`. Types count everything; the rest the tracks (or the one type asked for).' }),
@@ -89,10 +91,11 @@ const searchRoute = createRoute({
   description:
     'Tracks, artists, albums, playlists and plays in your library, grouped by type, as you type. `q` is free text ' +
     '(typo-tolerant, matched at word starts) plus filters: `artist:` `album:` `in:` (playlist) `from:` ' +
-    '(played from) `rating:` `plays:` `year:` `played:` `type:`, with comparisons (`rating:>=4`), ranges ' +
+    '(played from) `genre:` `rating:` `plays:` `year:` `played:` `type:`, with comparisons (`rating:>=4`), ranges ' +
     '(`year:1990..1995`), decades (`year:90s`), quotes, and `-` to exclude. `played:` is when you played it: a day, ' +
     'month or year (`2024-09-29`, `2024-09`, `2024`), `>=2025-01`, `2019..2020`, or `today`, `yesterday`, `7d`, `4w`, ' +
-    'in the days of `tz`. Ranked by match, then your plays and ratings.',
+    'in the days of `tz`. `genre:` matches whole words of an artist\'s genres in order (`genre:rock` finds art ' +
+    'rock, not rockabilly). Ranked by match, then your plays and ratings.',
   security: signedIn,
   request: {
     query: z.object({
@@ -276,6 +279,7 @@ export function searchRoutes(deps: AppDeps) {
               name: hit.name,
               artists: hit.artists,
               album: hit.album,
+              genres: hit.genres,
               year: hit.year,
               playCount: hit.playCount,
               rating: hit.rating,

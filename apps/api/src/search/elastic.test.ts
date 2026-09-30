@@ -37,6 +37,7 @@ describe.skipIf(!node)('elasticsearch rebuilds', () => {
     album: null,
     playlists: [],
     contexts: [],
+    genres: [],
     year: null,
     playCount: 0,
     rating: null,

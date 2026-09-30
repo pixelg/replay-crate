@@ -25,11 +25,12 @@ describe('parseSearchQuery', () => {
   })
 
   it('reads text filters, quoted or not, in any case', () => {
-    expect(filtersOf('artist:"Pete Rock" ALBUM:Mecca in:"road trip" from:radio')).toEqual([
+    expect(filtersOf('artist:"Pete Rock" ALBUM:Mecca in:"road trip" from:radio GENRE:"hip hop"')).toEqual([
       { field: 'artist', value: 'Pete Rock', negate: false },
       { field: 'album', value: 'Mecca', negate: false },
       { field: 'in', value: 'road trip', negate: false },
       { field: 'from', value: 'radio', negate: false },
+      { field: 'genre', value: 'hip hop', negate: false },
     ])
   })
 
@@ -189,8 +190,9 @@ describe('formatting', () => {
 
   it('describes filters for chips', () => {
     const describe = (input: string) => parseSearchQuery(input).filters.map(describeFilter)
-    expect(describe('artist:"Pete Rock" -type:play rating:>=4 rating:5 year:90s year:1994..1996 plays:<=3')).toEqual([
+    expect(describe('artist:"Pete Rock" -genre:jazz -type:play rating:>=4 rating:5 year:90s year:1994..1996 plays:<=3')).toEqual([
       'Artist: Pete Rock',
+      'Not Genre: jazz',
       'Not Type: play',
       'Rating: 4★ or more',
       'Rating: 5★',

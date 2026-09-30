@@ -601,6 +601,7 @@ export const march2019Plays = (count: number): PlayItem[] =>
 const hit = (partial: Partial<SearchHit> & Pick<SearchHit, 'type' | 'id' | 'name'>): SearchHit => ({
   artists: [],
   album: null,
+  genres: [],
   year: null,
   playCount: 0,
   rating: null,
@@ -630,6 +631,7 @@ export const searchResponse: SearchResponse = {
           name: 'T.R.O.Y. (They Reminisce Over You)',
           artists: ['Pete Rock', 'C.L. Smooth'],
           album: 'Mecca and the Soul Brother',
+          genres: ['hip hop', 'boom bap'],
           year: 1992,
           playCount: 30,
           rating: 5,
@@ -643,6 +645,7 @@ export const searchResponse: SearchResponse = {
           name: 'Straighten It Out',
           artists: ['Pete Rock', 'C.L. Smooth'],
           album: 'Mecca and the Soul Brother',
+          genres: ['hip hop', 'boom bap'],
           year: 1992,
           playCount: 6,
           score: 2.4,
@@ -653,7 +656,7 @@ export const searchResponse: SearchResponse = {
     {
       type: 'artist',
       total: 1,
-      hits: [hit({ type: 'artist', id: 'pete', name: 'Pete Rock', playCount: 36, score: 4.2, highlights: { name: [[0, 4]], artists: [] } })],
+      hits: [hit({ type: 'artist', id: 'pete', name: 'Pete Rock', genres: ['hip hop', 'boom bap'], playCount: 36, score: 4.2, highlights: { name: [[0, 4]], artists: [] } })],
     },
     {
       type: 'album',
@@ -705,6 +708,10 @@ export const searchResponse: SearchResponse = {
       { value: 'C.L. Smooth', count: 2 },
     ],
     contexts: [{ value: 'Road Trip', count: 1 }],
+    genres: [
+      { value: 'boom bap', count: 2 },
+      { value: 'hip hop', count: 2 },
+    ],
   },
   suggestion: null,
 }

@@ -51,6 +51,25 @@ describe('GET /api/v1/search', () => {
     expect(body.query.issues.map((issue: { kind: string }) => issue.kind)).toEqual(['unknown-field', 'unclosed-quote'])
   })
 
+  it("finds by genre once an artist's genres arrive, on every document that repeats them", async () => {
+    const ids = async (q: string) =>
+      (await json(await get(`q=${encodeURIComponent(q)}`))).groups.flatMap((group: { hits: { type: string; id: string }[] }) =>
+        group.hits.map((hit) => `${hit.type}:${hit.id}`),
+      )
+    expect(await ids('genre:"boom bap"')).toEqual([])
+
+    // The genre jobs store them; the trigger queues the artist's documents for the indexer.
+    await ctx.giveGenres('loop', ['boom bap', 'jazz'])
+    await ctx.indexSearch()
+    expect((await ids('genre:"boom bap"')).toSorted()).toEqual(['album:album-brass', 'artist:loop', 'play:1', 'track:brass'])
+    const body = await json(await get('q=genre:jazz&types=track&facets=true'))
+    expect(body.groups[0].hits[0].genres).toEqual(['boom bap', 'jazz'])
+    expect(body.facets.genres).toEqual([
+      { value: 'boom bap', count: 1 },
+      { value: 'jazz', count: 1 },
+    ])
+  })
+
   it('reads played: in the days of tz, up to today there', async () => {
     const ids = async (query: string) =>
       (await json(await get(query))).groups.flatMap((group: { hits: { type: string; id: string }[] }) =>

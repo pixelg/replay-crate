@@ -149,6 +149,7 @@ describe('responses match the spec', () => {
     await ctx.indexSearch()
     await call('GET', '/search?q=song')
     await call('GET', '/search?q=song rating:>=4 -type:play title:x artist:"unclosed&facets=true')
+    await call('GET', '/search?q=genre:rock&facets=true')
     await call('GET', '/search?q=zzzzzz')
     await call('GET', '/search?q=song&types=track&limit=1&offset=1')
     await call('GET', '/search?q=played:>=2026-01 -played:7d&tz=Europe/Berlin')

@@ -859,7 +859,7 @@ export interface paths {
         };
         /**
          * Search your library
-         * @description Tracks, artists, albums, playlists and plays in your library, grouped by type, as you type. `q` is free text (typo-tolerant, matched at word starts) plus filters: `artist:` `album:` `in:` (playlist) `from:` (played from) `rating:` `plays:` `year:` `played:` `type:`, with comparisons (`rating:>=4`), ranges (`year:1990..1995`), decades (`year:90s`), quotes, and `-` to exclude. `played:` is when you played it: a day, month or year (`2024-09-29`, `2024-09`, `2024`), `>=2025-01`, `2019..2020`, or `today`, `yesterday`, `7d`, `4w`, in the days of `tz`. Ranked by match, then your plays and ratings.
+         * @description Tracks, artists, albums, playlists and plays in your library, grouped by type, as you type. `q` is free text (typo-tolerant, matched at word starts) plus filters: `artist:` `album:` `in:` (playlist) `from:` (played from) `genre:` `rating:` `plays:` `year:` `played:` `type:`, with comparisons (`rating:>=4`), ranges (`year:1990..1995`), decades (`year:90s`), quotes, and `-` to exclude. `played:` is when you played it: a day, month or year (`2024-09-29`, `2024-09`, `2024`), `>=2025-01`, `2019..2020`, or `today`, `yesterday`, `7d`, `4w`, in the days of `tz`. `genre:` matches whole words of an artist's genres in order (`genre:rock` finds art rock, not rockabilly). Ranked by match, then your plays and ratings.
          */
         get: operations["search"];
         put?: never;
@@ -1473,6 +1473,10 @@ export interface components {
                     value: string;
                     count: number;
                 }[];
+                genres: {
+                    value: string;
+                    count: number;
+                }[];
             };
             /** @description When nothing matched: something close in your library. */
             suggestion: string | null;
@@ -1486,6 +1490,8 @@ export interface components {
             /** @description A track's, album's or play's artists; a playlist's owner. */
             artists: string[];
             album: string | null;
+            /** @description Its artists' genres (an artist's own), first artist's first. None for playlists. */
+            genres: string[];
             year: number | null;
             /** @description Your plays: of the track, the artist, the album, or from the playlist. */
             playCount: number;
