@@ -12,7 +12,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "varlock run -- drizzle-kit migrate",
-    "db:studio": "varlock run -- drizzle-kit studio"
+    "db:studio": "varlock run -- drizzle-kit studio",
+    "genres": "node scripts/genres.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@replay-crate/core": "workspace:*",
     "@types/node": "^24.13.3",
     "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.31.10",

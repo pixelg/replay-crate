@@ -24,7 +24,7 @@ Requirements: Node 24, pnpm (the version is pinned in `package.json`), Docker wi
 
    ```bash
    SPOTIFY_CLIENT_ID=your-client-id
-   LASTFM_API_KEY=...                   # needed from M4
+   LASTFM_API_KEY=...                   # optional: artist genres (free at last.fm/api/account/create)
    TOKEN_ENCRYPTION_KEY=...             # openssl rand -base64 32
    CRON_SECRET=...                      # openssl rand -hex 32
    ```

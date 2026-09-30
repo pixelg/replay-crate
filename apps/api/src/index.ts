@@ -5,7 +5,8 @@ import { createTokenCipher } from './lib/crypto.ts'
 import { createServer } from './server.ts'
 import { createSpotifyGateway } from './spotify/gateway.ts'
 import { safeBudget } from './jobs/budget.ts'
-import { startJobRunner } from './jobs/runner.ts'
+import { startJobRunners } from './jobs/runner.ts'
+import { createLastfmGateway, createMusicBrainzGateway } from './genres/gateway.ts'
 import { startSyncScheduler } from './sync/scheduler.ts'
 import { enqueueEverything, startSearchIndexer } from './search/indexer.ts'
 import { createAnalytics, createSearchIndex, isElastic } from './search/engine.ts'
@@ -19,6 +20,8 @@ const deps = {
   cronSecret: ENV.CRON_SECRET,
   search: createSearchIndex(db, { elasticsearchUrl: ENV.ELASTICSEARCH_URL }),
   analytics: createAnalytics({ elasticsearchUrl: ENV.ELASTICSEARCH_URL }),
+  lastfm: createLastfmGateway(ENV.LASTFM_API_KEY),
+  musicbrainz: createMusicBrainzGateway(ENV.MUSICBRAINZ_USER_AGENT),
 }
 
 const server = createServer(deps, { webDistDir: ENV.WEB_DIST_DIR })
@@ -33,11 +36,13 @@ if (ENV.SYNC_INTERVAL_MINUTES > 0) {
   console.log(`Syncing recently played every ${ENV.SYNC_INTERVAL_MINUTES} minutes`)
 }
 
-// Background Spotify lookups (e.g. tracks named in an import), one at a time, within a daily budget.
-// A missing setting (a `pnpm dev` that reloaded after the schema gained it) falls back to the default.
+// Background lookups, one at a time per API: Spotify (e.g. tracks named in an import) within a
+// daily budget, and artists' genres from Last.fm and MusicBrainz. A missing setting (a `pnpm dev`
+// that reloaded after the schema gained it) falls back to the default.
 const budget = safeBudget({ perDay: ENV.JOB_CALLS_PER_DAY, burst: 200 })
-startJobRunner(deps, { budget })
+startJobRunners(deps, { spotifyBudget: budget })
 console.log(`Background Spotify calls: up to ${budget.perDay} a day, ${budget.burst} at once`)
+console.log(`Genres: ${deps.lastfm ? 'Last.fm, then MusicBrainz' : 'MusicBrainz (set LASTFM_API_KEY to try Last.fm first)'}`)
 // Keeps the search index in step with what syncs and imports write.
 if (isElastic(deps.search)) {
   try {

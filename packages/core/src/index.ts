@@ -1,4 +1,5 @@
 export { MIN_STREAM_MS } from './constants.ts'
+export { genreKey, MAX_GENRES, MIN_GENRE_WEIGHT, pickGenres, type PickedGenre, type WeightedTag } from './genres.ts'
 export { formatDayLabel, formatDuration, formatRelative, groupByDay, localDayKey } from './format.ts'
 export {
   DEFAULT_PAGE_SIZE,

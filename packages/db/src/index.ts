@@ -3,6 +3,9 @@ export * as schema from './schema/index.ts'
 export type {
   Album,
   Artist,
+  ArtistGenre,
+  Genre,
+  GenreSource,
   Import,
   Job,
   Play,

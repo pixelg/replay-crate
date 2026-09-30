@@ -16,6 +16,10 @@ export const artists = pgTable('artists', {
   name: text('name').notNull(),
   /** Filled by enrichment (M3); simplified artist objects carry no images. */
   imageUrl: text('image_url'),
+  /** MusicBrainz's id, when the genre lookup found the artist there. */
+  mbid: text('mbid'),
+  /** When the genre jobs last looked this artist up; null until they have (see `artist_genres`). */
+  genresCheckedAt: timestamp('genres_checked_at', { withTimezone: true }),
   ...timestamps,
 })
 
