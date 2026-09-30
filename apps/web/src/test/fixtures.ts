@@ -341,6 +341,14 @@ export const statsTop: StatsTop = {
   ],
 }
 
+/** The top genres for the same plays: a play counts for each genre its artists have. */
+export const topGenres: StatsTop['items'] = [
+  { rank: 1, id: String(genre.hipHop.id), name: 'hip hop', subtitle: '2 artists', imageUrl: null, plays: 27, minutes: 96, rating: null },
+  { rank: 2, id: String(genre.boomBap.id), name: 'boom bap', subtitle: '1 artist', imageUrl: null, plays: 27, minutes: 96, rating: null },
+  { rank: 3, id: String(genre.funk.id), name: 'funk', subtitle: '1 artist', imageUrl: null, plays: 18, minutes: 64, rating: null },
+  { rank: 4, id: String(genre.indiePop.id), name: 'indie pop', subtitle: '1 artist', imageUrl: null, plays: 9, minutes: 31, rating: null },
+]
+
 export const spotifyTop: SpotifyTop = {
   type: 'tracks',
   timeRange: 'short_term',

@@ -4,9 +4,9 @@ import { loadTrackArtists } from '../history/queries.ts'
 import { loadRatings } from '../tracks/ratings.ts'
 import { periodDays, rangeStart, type Span } from './ranges.ts'
 
-const { albumArtists, albums, artists, plays, trackArtists, tracks } = schema
+const { albumArtists, albums, artistGenres, artists, genres, plays, trackArtists, tracks } = schema
 
-export type TopType = 'tracks' | 'artists' | 'albums'
+export type TopType = 'tracks' | 'artists' | 'albums' | 'genres'
 export type TopMetric = 'plays' | 'minutes'
 export type TopItem = {
   rank: number
@@ -20,8 +20,9 @@ export type TopItem = {
 }
 
 /**
- * Most played tracks, artists or albums in a rolling range or a calendar year or month (local
- * days in `tz`), by play count or listening time.
+ * Most played tracks, artists, albums or genres in a rolling range or a calendar year or month
+ * (local days in `tz`), by play count or listening time. A play counts for every genre its
+ * track's artists have (once each), and only for artists whose genres have been looked up.
  */
 export async function top(
   db: Db,
@@ -109,6 +110,47 @@ export async function top(
             .where(and(inArray(albumArtists.albumId, ids), eq(albumArtists.position, 0)))
         : []
       subtitles = new Map(primary.map((row) => [row.albumId, row.name]))
+      break
+    }
+    case 'genres': {
+      // Each play once per genre, even when two of its artists share the genre.
+      const pairs = db
+        .selectDistinct({
+          playId: plays.id,
+          genreId: artistGenres.genreId,
+          ms: sql<number>`coalesce(${plays.msPlayed}, ${tracks.durationMs})`.as('ms'),
+        })
+        .from(plays)
+        .innerJoin(tracks, eq(tracks.id, plays.trackId))
+        .innerJoin(trackArtists, eq(trackArtists.trackId, plays.trackId))
+        .innerJoin(artistGenres, eq(artistGenres.artistId, trackArtists.artistId))
+        .where(inRange)
+        .as('pairs')
+      const genrePlays = count()
+      const genreMs = sum(pairs.ms).mapWith(Number)
+      const [byFirst, bySecond] = metric === 'plays' ? [genrePlays, genreMs] : [genreMs, genrePlays]
+      const genreRows = await db
+        .select({ id: genres.id, name: genres.name, plays: genrePlays, ms: genreMs })
+        .from(pairs)
+        .innerJoin(genres, eq(genres.id, pairs.genreId))
+        .groupBy(genres.id, genres.name)
+        .orderBy(desc(byFirst), desc(bySecond), asc(genres.name))
+        .limit(limit)
+      rows = genreRows.map((row) => ({ ...row, id: String(row.id), imageUrl: null }))
+      // How many of the span's artists each genre covers.
+      const ids = genreRows.map((row) => row.id)
+      const artistCounts = ids.length
+        ? await db
+            .select({ genreId: artistGenres.genreId, artists: countDistinct(trackArtists.artistId) })
+            .from(plays)
+            .innerJoin(trackArtists, eq(trackArtists.trackId, plays.trackId))
+            .innerJoin(artistGenres, eq(artistGenres.artistId, trackArtists.artistId))
+            .where(and(inRange, inArray(artistGenres.genreId, ids)))
+            .groupBy(artistGenres.genreId)
+        : []
+      subtitles = new Map(
+        artistCounts.map((row) => [String(row.genreId), `${row.artists} ${row.artists === 1 ? 'artist' : 'artists'}`]),
+      )
       break
     }
   }

@@ -1147,7 +1147,7 @@
               "string",
               "null"
             ],
-            "description": "Artists, for tracks and albums."
+            "description": "Artists, for tracks and albums; a track count for artists, an artist count for genres."
           },
           "imageUrl": {
             "type": [
@@ -4916,8 +4916,8 @@
           "Stats"
         ],
         "operationId": "getStatsTop",
-        "summary": "Most played tracks, artists or albums",
-        "description": "Ranked by play count or listening time, over a rolling `range` or a calendar `period`. Plays without a known duration count the track length.",
+        "summary": "Most played tracks, artists, albums or genres",
+        "description": "Ranked by play count or listening time, over a rolling `range` or a calendar `period`. Plays without a known duration count the track length. A play counts for every genre its track's artists have, once each; a genre's `id` is a `GenreRef` id (the `genre` filter on `/history/plays`).",
         "security": [
           {
             "session": []
@@ -4933,7 +4933,8 @@
               "enum": [
                 "tracks",
                 "artists",
-                "albums"
+                "albums",
+                "genres"
               ],
               "default": "tracks"
             },
@@ -5009,7 +5010,8 @@
                       "enum": [
                         "tracks",
                         "artists",
-                        "albums"
+                        "albums",
+                        "genres"
                       ],
                       "default": "tracks"
                     },

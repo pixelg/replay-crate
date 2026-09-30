@@ -5,13 +5,14 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
-export type TopType = 'tracks' | 'artists' | 'albums'
+export type TopType = 'tracks' | 'artists' | 'albums' | 'genres'
 export type TopMetric = 'plays' | 'minutes'
 
 const types = [
   { value: 'tracks', label: 'Tracks' },
   { value: 'artists', label: 'Artists' },
   { value: 'albums', label: 'Albums' },
+  { value: 'genres', label: 'Genres' },
 ] as const
 const metrics = [
   { value: 'plays', label: 'Plays' },
@@ -39,8 +40,9 @@ function NameLabel(props: { x?: number | string; y?: number | string; value?: un
 }
 
 /**
- * Top tracks/artists/albums as a horizontal bar chart (shadcn "Bar Chart - Custom Label"):
- * names inside the bars, values at the end. Track bars open the track page.
+ * Top tracks/artists/albums/genres as a horizontal bar chart (shadcn "Bar Chart - Custom Label"):
+ * names inside the bars, values at the end. Track bars open the track page, genre bars History
+ * filtered to the genre.
  */
 export function TopChart({
   top,
@@ -64,10 +66,11 @@ export function TopChart({
     <Card>
       <CardHeader>
         <CardTitle>Top {top.type}</CardTitle>
-        <CardDescription>
+        <CardDescription className="col-start-1">
           By {top.metric === 'plays' ? 'play count' : 'listening time'}, {scope}
         </CardDescription>
-        <CardAction className="flex flex-wrap justify-end gap-2">
+        {/* Four kinds and two measures: on a phone they get their own row under the title. */}
+        <CardAction className="col-span-2 col-start-1 row-span-1 row-start-3 mt-2 flex flex-wrap justify-start gap-2 justify-self-start sm:col-span-1 sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:mt-0 sm:justify-end sm:justify-self-end">
           <ToggleGroup
             aria-label="What to rank"
             multiple={false}
@@ -111,10 +114,12 @@ export function TopChart({
                 dataKey={top.metric}
                 fill={`var(--color-${top.metric})`}
                 radius={4}
-                cursor={top.type === 'tracks' ? 'pointer' : undefined}
+                cursor={top.type === 'tracks' || top.type === 'genres' ? 'pointer' : undefined}
                 onClick={(entry) => {
                   const id = (entry as { payload?: { id?: string } }).payload?.id
-                  if (top.type === 'tracks' && id) void navigate({ to: '/tracks/$trackId', params: { trackId: id } })
+                  if (!id) return
+                  if (top.type === 'tracks') void navigate({ to: '/tracks/$trackId', params: { trackId: id } })
+                  if (top.type === 'genres') void navigate({ to: '/history', search: { genre: Number(id) } })
                 }}
               >
                 <LabelList dataKey="label" content={<NameLabel />} />

@@ -438,8 +438,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Most played tracks, artists or albums
-         * @description Ranked by play count or listening time, over a rolling `range` or a calendar `period`. Plays without a known duration count the track length.
+         * Most played tracks, artists, albums or genres
+         * @description Ranked by play count or listening time, over a rolling `range` or a calendar `period`. Plays without a known duration count the track length. A play counts for every genre its track's artists have, once each; a genre's `id` is a `GenreRef` id (the `genre` filter on `/history/plays`).
          */
         get: operations["getStatsTop"];
         put?: never;
@@ -1228,7 +1228,7 @@ export interface components {
             rank: number;
             id: string;
             name: string;
-            /** @description Artists, for tracks and albums. */
+            /** @description Artists, for tracks and albums; a track count for artists, an artist count for genres. */
             subtitle: string | null;
             imageUrl: string | null;
             plays: number;
@@ -3100,7 +3100,7 @@ export interface operations {
     getStatsTop: {
         parameters: {
             query?: {
-                type?: "tracks" | "artists" | "albums";
+                type?: "tracks" | "artists" | "albums" | "genres";
                 /** @description A rolling window ending now. `30d` unless `period` is given. */
                 range?: components["schemas"]["StatsRange"];
                 /** @description A calendar year (`2019`) or month (`2019-03`), in local days of `tz`. Not with `range`. */
@@ -3127,7 +3127,7 @@ export interface operations {
                          * @default tracks
                          * @enum {string}
                          */
-                        type: "tracks" | "artists" | "albums";
+                        type: "tracks" | "artists" | "albums" | "genres";
                         range?: components["schemas"]["StatsRange"];
                         period?: components["schemas"]["StatsPeriod"];
                         /**
