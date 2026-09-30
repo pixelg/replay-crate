@@ -1051,7 +1051,7 @@ export interface components {
                 /** @description Its artists' genres, the primary artist's first; at most 3. */
                 genres: components["schemas"]["GenreRef"][];
                 rating: components["schemas"]["Rating"];
-                /** @description The user's playlists holding it now, in their Spotify order. */
+                /** @description The user's playlists holding it now, the one it was added to most recently first. */
                 playlists: components["schemas"]["PlaylistRef"][];
             };
         };
@@ -1081,7 +1081,7 @@ export interface components {
                 artists: components["schemas"]["ArtistRef"][];
                 /** @description Its artists' genres, the primary artist's first; at most 3. */
                 genres: components["schemas"]["GenreRef"][];
-                /** @description The user's playlists holding it, in their Spotify order. */
+                /** @description The user's playlists holding it, the one it was added to most recently first. */
                 playlists: components["schemas"]["PlaylistRef"][];
                 rating: components["schemas"]["Rating"];
             };

@@ -5,6 +5,7 @@ import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { loadTrackGenres } from '../genres/queries.ts'
 import { loadTrackArtists } from '../history/queries.ts'
+import { latestAddedFirst } from './queries.ts'
 import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
 import { ArtistRef, GenreRef, IsoDateTime, jsonResponse, Rating } from '../lib/schemas.ts'
 import { loadRatings } from '../tracks/ratings.ts'
@@ -259,13 +260,9 @@ export function playlistRoutes(deps: AppDeps) {
           .groupBy(plays.trackId)
         const statsByTrack = new Map(stats.map((row) => [row.trackId, row]))
 
+        // The playlist each track went into most recently first, like everywhere else rows list them.
         const alsoOn = await db
-          .selectDistinct({
-            trackId: playlistItems.trackId,
-            id: playlists.id,
-            name: playlists.name,
-            position: userPlaylists.position,
-          })
+          .select({ trackId: playlistItems.trackId, id: playlists.id, name: playlists.name })
           .from(playlistItems)
           .innerJoin(
             userPlaylists,
@@ -273,7 +270,8 @@ export function playlistRoutes(deps: AppDeps) {
           )
           .innerJoin(playlists, eq(playlists.id, playlistItems.playlistId))
           .where(and(ne(playlistItems.playlistId, playlistId), inArray(playlistItems.trackId, trackIdsHere)))
-          .orderBy(asc(userPlaylists.position))
+          .groupBy(playlistItems.trackId, playlists.id, playlists.name, userPlaylists.position)
+          .orderBy(...latestAddedFirst())
         const alsoOnByTrack = new Map<string, Array<{ id: string; name: string }>>()
         for (const { trackId, id, name } of alsoOn) {
           alsoOnByTrack.set(trackId, [...(alsoOnByTrack.get(trackId) ?? []), { id, name }])

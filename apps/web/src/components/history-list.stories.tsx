@@ -32,16 +32,19 @@ export const Default = meta.story({
 /**
  * Each row lists the playlists of yours holding the track, each a link to it. The one a play came
  * from leads; a play from somewhere else (an album, a Spotify playlist) keeps its own chip first.
+ * Genres sit on their own line above.
  */
 export const PlaylistsOfEachTrack = meta.story({
   play: async ({ canvas }) => {
     const [fromCrate, fromDiscover] = canvas.getAllByText('Brass Monkey Business').map((title) => within(title.closest('li')!))
     // Played from Late Night Crate, which holds it: first, then Boom Bap Essentials.
-    const links = fromCrate!.getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/playlists/'))
-    await expect(links.map((link) => link.textContent)).toEqual(['Late Night Crate', 'Boom Bap Essentials'])
-    const alsoOn = within(fromCrate!.getByRole('list', { name: 'Also on' }))
-    await expect(alsoOn.getByRole('link', { name: 'Boom Bap Essentials' })).toHaveAttribute('href', '/playlists/p2')
-    await expect(alsoOn.queryByText('Late Night Crate')).toBeNull()
+    const yoursFromCrate = within(fromCrate!.getByRole('list', { name: 'On your playlists' }))
+    await expect(yoursFromCrate.getAllByRole('link').map((link) => link.textContent)).toEqual(['Late Night Crate', 'Boom Bap Essentials'])
+    await expect(yoursFromCrate.getByRole('link', { name: 'Boom Bap Essentials' })).toHaveAttribute('href', '/playlists/p2')
+    // The genres come first, on a line of their own.
+    const genres = fromCrate!.getByRole('list', { name: 'Genres' })
+    await expect(genres.compareDocumentPosition(fromCrate!.getByRole('list', { name: 'On your playlists' }))).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    await expect(genres.parentElement).toBe(fromCrate!.getByRole('list', { name: 'On your playlists' }).parentElement!.parentElement)
     // Played from a Spotify playlist: that chip isn't a link, and both of yours follow.
     await expect(fromDiscover!.getByText('Spotify playlist').closest('a')).toBeNull()
     const yours = within(fromDiscover!.getByRole('list', { name: 'On your playlists' }))

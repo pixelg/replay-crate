@@ -55,7 +55,7 @@ const LibraryTrack = z
       album: z.object({ id: z.string(), name: z.string(), thumbUrl: z.string().nullable() }),
       artists: z.array(ArtistRef),
       genres: z.array(GenreRef).openapi({ description: "Its artists' genres, the primary artist's first; at most 3." }),
-      playlists: z.array(PlaylistRef).openapi({ description: "The user's playlists holding it, in their Spotify order." }),
+      playlists: z.array(PlaylistRef).openapi({ description: "The user's playlists holding it, the one it was added to most recently first." }),
       rating: Rating,
     }),
     playCount: z.number().int(),
