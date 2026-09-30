@@ -1,7 +1,7 @@
 import { schema } from '@replay-crate/db'
 import { SpotifyApiError, SpotifyAuthError } from '@replay-crate/spotify'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createTestContext, play, playlistContext, track } from '../testing.ts'
+import { createTestContext, paged, play, playlist, playlistContext, playlistEntry, track } from '../testing.ts'
 
 const MINUTE = 60_000
 const ORIGIN = 'http://127.0.0.1:5173'
@@ -195,9 +195,36 @@ describe('history', () => {
           ],
           genres: [],
           rating: null,
+          playlists: [],
         },
       })
       expect(body.items[1].context).toBeNull()
+    })
+
+    it("lists the user's playlists holding each track, in their Spotify order", async () => {
+      const library = [playlist('road'), playlist('gym'), playlist('theirs', { ownerId: 'someone-else' })]
+      const contents: Record<string, ReturnType<typeof playlistEntry>[]> = {
+        road: [playlistEntry(songA), playlistEntry(songA)],
+        gym: [playlistEntry(songA)],
+        theirs: [playlistEntry(songB)],
+      }
+      ctx.spotify.getMyPlaylists.mockImplementation(async (_token, offset) => paged(library)(offset))
+      ctx.spotify.getPlaylistItems.mockImplementation(async (_token, id, offset) => paged(contents[id] ?? [])(offset))
+      await ctx.app.request('/api/v1/playlists/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })
+
+      const body = await json(await get('/api/v1/history/plays'))
+      // Each playlist once, though Song A is on Road twice; followed playlists aren't the user's.
+      expect(body.items.map((p: { track: { playlists: unknown } }) => p.track.playlists)).toEqual([
+        [
+          { id: 'road', name: 'Playlist road' },
+          { id: 'gym', name: 'Playlist gym' },
+        ],
+        [],
+        [
+          { id: 'road', name: 'Playlist road' },
+          { id: 'gym', name: 'Playlist gym' },
+        ],
+      ])
     })
 
     it('paginates with the before cursor', async () => {

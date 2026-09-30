@@ -9,6 +9,9 @@ export const ArtistRef = z.object({ id: z.string(), name: z.string() }).openapi(
 /** A genre from the canonical list (MusicBrainz's), found for an artist on Last.fm or MusicBrainz. */
 export const GenreRef = z.object({ id: z.number().int(), name: z.string().openapi({ example: 'hip hop' }) }).openapi('GenreRef')
 
+/** One of the user's playlists (one they own or collaborate on). */
+export const PlaylistRef = z.object({ id: z.string(), name: z.string() }).openapi('PlaylistRef')
+
 /** Where a play came from: an album, playlist, artist, or Liked Songs. */
 export const ContextRef = z
   .object({

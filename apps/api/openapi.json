@@ -537,6 +537,13 @@
               },
               "rating": {
                 "$ref": "#/components/schemas/Rating"
+              },
+              "playlists": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PlaylistRef"
+                },
+                "description": "The user's playlists holding it now, in their Spotify order."
               }
             },
             "required": [
@@ -547,7 +554,8 @@
               "album",
               "artists",
               "genres",
-              "rating"
+              "rating",
+              "playlists"
             ]
           }
         },
@@ -591,6 +599,21 @@
           "uri",
           "name",
           "imageUrl"
+        ]
+      },
+      "PlaylistRef": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
         ]
       },
       "LibraryTrack": {

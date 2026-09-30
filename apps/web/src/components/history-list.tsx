@@ -1,4 +1,5 @@
-import type { HistoryGap, PlayContext, PlayerItem, PlayItem } from '@replay-crate/api-client'
+import { trackQueryOptions, type HistoryGap, type PlayContext, type PlayerItem, type PlayItem } from '@replay-crate/api-client'
+import { useQuery } from '@tanstack/react-query'
 import { formatDayLabel, groupByDay } from '@replay-crate/core'
 import { Link } from '@tanstack/react-router'
 import { AudioLines, CircleDashed, Pause } from 'lucide-react'
@@ -8,7 +9,8 @@ import { AlbumArt } from './album-art.tsx'
 import { TrackRating } from './star-rating.tsx'
 import { PlaylistShortcuts } from './playlist-shortcuts.tsx'
 import { TrackActions } from './track-actions.tsx'
-import { ContextChip } from './context-chip.tsx'
+import { PlayedFromChips } from './played-from-chips.tsx'
+import { api } from '../lib/api.ts'
 import { GenreChips } from './genre-chips.tsx'
 import { subtitleOf, thumbOf } from './player/items.ts'
 import { TrackNameLink } from './track-name-link.tsx'
@@ -118,6 +120,9 @@ export function NowPlayingSection({
 }) {
   // Local files have no Spotify id, and episodes no track page or rating.
   const track = item.type === 'track' && item.id ? { ...item, id: item.id } : null
+  // Its playlists, as its rows below list them; a track not recorded yet has none.
+  const { data: detail } = useQuery({ ...trackQueryOptions(api, track?.id ?? ''), enabled: track !== null, retry: false })
+  const playlists = (track && detail?.playlists) || []
   return (
     // A group, not a region: the mini player is already the "Now playing" landmark.
     // It stays in view under the header while the plays scroll by.
@@ -139,9 +144,9 @@ export function NowPlayingSection({
             <p className={cn('truncate font-medium', isPlaying && 'text-primary')}>{item.name}</p>
           )}
           <p className="truncate text-sm text-muted-foreground">{subtitleOf(item)}</p>
-          {(context || (track && !selecting)) && (
-            <div className="mt-1 flex min-w-0 items-center gap-1">
-              {context && <ContextChip context={context} className="min-w-0" />}
+          {(context || playlists.length > 0 || (track && !selecting)) && (
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
+              <PlayedFromChips context={context} playlists={playlists} />
               {track && !selecting && <PlaylistShortcuts track={track} />}
             </div>
           )}
@@ -207,9 +212,9 @@ function PlayRow({ play, selection, playing }: { play: PlayItem; selection?: Pla
       <div className="min-w-0 flex-1">
         <TrackNameLink track={track} playing={playing} />
         <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
-        {(play.context || !selection || track.genres.length > 0) && (
-          <div className="mt-1 flex min-w-0 items-center gap-1">
-            {play.context && <ContextChip context={play.context} track={selection ? undefined : track} className="min-w-0" />}
+        {(play.context || track.playlists.length > 0 || !selection || track.genres.length > 0) && (
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
+            <PlayedFromChips context={play.context} playlists={track.playlists} track={selection ? undefined : track} />
             {!selection && <PlaylistShortcuts track={track} />}
             {/* From `sm` up, where a row has room; on a phone the track's page lists them. */}
             <GenreChips genres={track.genres} max={2} className="hidden flex-nowrap sm:flex" />

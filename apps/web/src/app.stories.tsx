@@ -1271,7 +1271,9 @@ export const Player = meta.story({
     await expect(await canvas.findByRole('heading', { level: 1, name: 'Player' })).toBeVisible()
     const main = within(await canvas.findByRole('main'))
     const panel = within(await main.findByRole('region', { name: 'Brass Monkey Business' }))
-    await expect(panel.getByText('Playing from Late Night Crate')).toBeVisible()
+    // One of your playlists: a link to it.
+    await expect(panel.getByText(/^Playing from/)).toHaveTextContent('Playing from Late Night Crate')
+    await expect(await panel.findByRole('link', { name: 'Late Night Crate' })).toHaveAttribute('href', '/playlists/p1')
     await expect(panel.getByRole('slider', { name: 'Seek' })).toHaveAttribute('aria-valuetext', expect.stringMatching(/^1:2\d of 3:33$/))
     // The position counts up; the length beside it stays put.
     await expect(panel.getByText('3:33')).toBeVisible()

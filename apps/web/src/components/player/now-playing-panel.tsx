@@ -1,4 +1,4 @@
-import type { Playback, PlayerCommand, PlayerItem, RepeatMode } from '@replay-crate/api-client'
+import type { PlayContext, Playback, PlayerCommand, PlayerItem, RepeatMode } from '@replay-crate/api-client'
 import { formatDuration } from '@replay-crate/core'
 import { Link } from '@tanstack/react-router'
 import { Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react'
@@ -7,6 +7,8 @@ import { useId, useState } from 'react'
 import { AlbumArt } from '../album-art.tsx'
 import { Slider } from '../ui/slider.tsx'
 import { TrackRating } from '../star-rating.tsx'
+import { useIsLibraryPlaylist } from '../../lib/use-library-playlist.ts'
+import { playlistIdOf } from '../../lib/play-context.ts'
 import { IconButton } from './icon-button.tsx'
 import { imageOf, subtitleOf } from './items.ts'
 
@@ -36,11 +38,7 @@ export function NowPlayingPanel({
       <AlbumArt src={imageOf(item)} className="size-56 rounded-lg shadow-lg md:size-64" />
       <div className="flex w-full min-w-0 flex-1 flex-col gap-4">
         <div className="min-w-0 text-center md:text-left">
-          {playback.context && (
-            <p className="truncate text-xs text-muted-foreground">
-              Playing from {playback.context.name ?? (playback.context.type === 'collection' ? 'Liked Songs' : playback.context.type)}
-            </p>
-          )}
+          {playback.context && <PlayingFrom context={playback.context} />}
           <h2 id={titleId} className="truncate text-2xl font-semibold tracking-tight">
             {item.type === 'track' && item.id ? (
               <Link to="/tracks/$trackId" params={{ trackId: item.id }} className="hover:underline">
@@ -161,5 +159,24 @@ function VolumeControl({ playback, send }: { playback: Playback; send: (command:
         }}
       />
     </div>
+  )
+}
+
+/** Where playback is from; one of the user's playlists links to its page. */
+function PlayingFrom({ context }: { context: PlayContext }) {
+  const name = context.name ?? (context.type === 'collection' ? 'Liked Songs' : context.type)
+  const playlistId = playlistIdOf(context)
+  const linked = useIsLibraryPlaylist(playlistId)
+  return (
+    <p className="truncate text-xs text-muted-foreground">
+      Playing from{' '}
+      {linked && playlistId ? (
+        <Link to="/playlists/$playlistId" params={{ playlistId }} className="hover:text-foreground hover:underline">
+          {name}
+        </Link>
+      ) : (
+        name
+      )}
+    </p>
   )
 }
