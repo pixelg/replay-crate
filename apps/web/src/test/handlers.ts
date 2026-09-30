@@ -3,6 +3,7 @@ import type { paths } from './api.gen.ts'
 import {
   devices,
   genres,
+  topGenres,
   libraryPage,
   onThisDay,
   pixelg,
@@ -89,10 +90,12 @@ export const handlers = {
     http.get('/api/v1/stats/top', ({ query, response }) => {
       const { range, ...top } = statsTop
       const period = query.get('period')
+      const type = (query.get('type') as typeof statsTop.type | null) ?? 'tracks'
       return response(200).json({
         ...top,
+        items: type === 'genres' ? topGenres : top.items,
         ...(period ? { period } : { range }),
-        type: (query.get('type') as typeof statsTop.type | null) ?? 'tracks',
+        type,
         metric: (query.get('metric') as typeof statsTop.metric | null) ?? 'plays',
       })
     }),

@@ -209,6 +209,28 @@ describe('stats', () => {
       expect((await get('/api/v1/stats/top?range=all&period=2026')).status).toBe(400)
     })
 
+    it('ranks genres, a play once per genre however many of its artists share it', async () => {
+      const [hipHop, jazz] = await ctx.giveGenres('band', ['hip hop', 'jazz'])
+      const [, soul] = await ctx.giveGenres('guest', ['hip hop', 'soul'])
+      await ctx.giveGenres('solo', ['funk'])
+      const body = await json(await get('/api/v1/stats/top?type=genres&range=30d'))
+      expect(body).toMatchObject({ type: 'genres', range: '30d' })
+      expect(body.items).toEqual([
+        // Loop's four plays (Band and Guest are both hip hop) and Fresh's one; ties go A–Z.
+        { rank: 1, id: String(hipHop!.id), name: 'hip hop', subtitle: '2 artists', imageUrl: null, plays: 5, minutes: 17, rating: null },
+        { rank: 2, id: String(jazz!.id), name: 'jazz', subtitle: '1 artist', imageUrl: null, plays: 5, minutes: 17, rating: null },
+        { rank: 3, id: String(soul!.id), name: 'soul', subtitle: '1 artist', imageUrl: null, plays: 4, minutes: 13, rating: null },
+      ])
+      // Solo's June play is outside 30 days, inside the year.
+      const year = await json(await get('/api/v1/stats/top?type=genres&period=2026&metric=minutes'))
+      expect(year.items.map((i: { name: string; plays: number }) => [i.name, i.plays])).toEqual([
+        ['hip hop', 5],
+        ['jazz', 5],
+        ['soul', 4],
+        ['funk', 1],
+      ])
+    })
+
     it('still echoes the default range', async () => {
       expect(await json(await get('/api/v1/stats/top?limit=1'))).toMatchObject({ range: '30d', tz: 'UTC' })
     })

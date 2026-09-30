@@ -775,6 +775,22 @@ export const StatsSwitchesToTopArtists = meta.story({
   },
 })
 
+/** Genres rank like the rest; a genre's bar opens History filtered to it. */
+export const StatsTopGenresOpenHistory = meta.story({
+  args: { path: '/stats?range=90d' },
+  play: async ({ canvas, userEvent }) => {
+    const topCard = (await canvas.findByText('Top tracks')).closest('[data-slot=card]') as HTMLElement
+    await userEvent.click(within(topCard).getByRole('button', { name: 'Genres' }))
+    await expect(await canvas.findByText('Top genres')).toBeVisible()
+    await within(topCard).findByText('hip hop · 2 artists')
+    // The first bar is hip hop's (the name above it is only a label).
+    await waitFor(() => expect(topCard.querySelector('.recharts-bar-rectangle path')).not.toBeNull())
+    await userEvent.click(topCard.querySelector('.recharts-bar-rectangle path')!)
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'History' })).toBeVisible()
+    await waitFor(() => expect(canvas.getByRole('combobox', { name: 'Genre' })).toHaveTextContent('hip hop'))
+  },
+})
+
 export const StatsMobile = meta.story({
   args: { path: '/stats' },
   globals: { viewport: { value: 'mobile2', isRotated: false } },

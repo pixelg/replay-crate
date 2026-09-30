@@ -126,6 +126,7 @@ describe('responses match the spec', () => {
     await call('DELETE', '/playlists/{id}/items', { id: created }, { trackIds: ['b'] })
     await call('GET', '/stats/overview?range=all')
     await call('GET', '/stats/top?type=tracks')
+    await call('GET', '/stats/top?type=genres&range=all')
     await call('GET', '/stats/top?type=artists&metric=minutes')
     await call('GET', '/stats/top?type=albums')
     await call('GET', '/stats/overview?period=2026&tz=Europe/Berlin')

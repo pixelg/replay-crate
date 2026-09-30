@@ -314,7 +314,7 @@ export const statsOverviewQueryOptions = (api: ApiClient, scope: StatsScope, tz:
 
 export const statsTopQueryOptions = (
   api: ApiClient,
-  query: StatsScope & { type: 'tracks' | 'artists' | 'albums'; metric: 'plays' | 'minutes'; tz: string },
+  query: StatsScope & { type: StatsTop['type']; metric: StatsTop['metric']; tz: string },
 ) =>
   queryOptions({
     queryKey: ['stats', 'top', query],

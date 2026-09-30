@@ -71,7 +71,7 @@ const getOverview = createRoute({
 })
 
 const TopQuery = z.object({
-  type: z.enum(['tracks', 'artists', 'albums']).default('tracks'),
+  type: z.enum(['tracks', 'artists', 'albums', 'genres']).default('tracks'),
   ...Scope,
   tz: Tz,
   metric: z.enum(['plays', 'minutes']).default('plays'),
@@ -83,10 +83,11 @@ const getTop = createRoute({
   path: '/stats/top',
   tags: ['Stats'],
   operationId: 'getStatsTop',
-  summary: 'Most played tracks, artists or albums',
+  summary: 'Most played tracks, artists, albums or genres',
   description:
     'Ranked by play count or listening time, over a rolling `range` or a calendar `period`. Plays without a known ' +
-    'duration count the track length.',
+    "duration count the track length. A play counts for every genre its track's artists have, once each; a genre's " +
+    '`id` is a `GenreRef` id (the `genre` filter on `/history/plays`).',
   security: signedIn,
   request: { query: TopQuery },
   responses: {
@@ -98,7 +99,10 @@ const getTop = createRoute({
               rank: z.number().int(),
               id: z.string(),
               name: z.string(),
-              subtitle: z.string().nullable().openapi({ description: 'Artists, for tracks and albums.' }),
+              subtitle: z
+                .string()
+                .nullable()
+                .openapi({ description: "Artists, for tracks and albums; a track count for artists, an artist count for genres." }),
               imageUrl: z.string().nullable(),
               plays: z.number().int(),
               minutes: z.number().int(),
