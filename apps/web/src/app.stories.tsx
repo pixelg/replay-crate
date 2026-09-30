@@ -11,6 +11,7 @@ import {
   calendarYears,
   devices,
   gaps,
+  genre,
   importDone,
   importInProgress,
   libraryPage,
@@ -645,18 +646,61 @@ export const HistoryFiltersByGenre = meta.story({
   play: async ({ canvas, userEvent }) => {
     const main = within(await canvas.findByRole('main'))
     await expect(await main.findByRole('link', { name: 'Sunday Morning Static' })).toBeVisible()
-    await userEvent.click(await main.findByRole('combobox', { name: 'Genre' }))
-    await userEvent.click(await screen.findByRole('option', { name: /^jazz/ }))
+    await userEvent.click(await main.findByRole('button', { name: 'Filter' }))
+    await userEvent.click(await screen.findByRole('menuitemradio', { name: /^jazz/ }))
 
-    // The picker follows the URL, which the pick navigates to.
-    await waitFor(() => expect(main.getByRole('combobox', { name: 'Genre' })).toHaveTextContent('jazz'))
+    // The button follows the URL, which the pick navigates to.
+    await waitFor(() => expect(main.getByRole('button', { name: 'Filter: jazz' })).toHaveTextContent('jazz'))
     await waitFor(() => expect(main.queryByRole('link', { name: 'Sunday Morning Static' })).toBeNull())
     await expect(main.getAllByRole('link', { name: 'Brass Monkey Business' }).length).toBeGreaterThan(0)
 
-    await userEvent.click(main.getByRole('combobox', { name: 'Genre' }))
-    await userEvent.click(await screen.findByRole('option', { name: 'All genres' }))
+    // The menu stays open for another pick.
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'All genres' }))
     await expect(await main.findByRole('link', { name: 'Sunday Morning Static' })).toBeVisible()
-    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull())
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    await expect(main.getByRole('button', { name: 'Filter' })).toBeVisible()
+  },
+})
+
+/** Quick date filters sit in the same menu, and combine with a genre. */
+export const HistoryFiltersByDate = meta.story({
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('link', { name: 'Sunday Morning Static' })).toBeVisible()
+    await userEvent.click(await main.findByRole('button', { name: 'Filter' }))
+    const menu = within(await screen.findByRole('menu'))
+    await expect(menu.getByRole('menuitemradio', { name: 'Any time' })).toHaveAttribute('aria-checked', 'true')
+    await userEvent.click(menu.getByRole('menuitemradio', { name: 'Yesterday' }))
+
+    // Yesterday's plays only: today's are gone, and so is the one from three days ago.
+    await waitFor(() => expect(main.queryByRole('link', { name: 'Sunday Morning Static' })).toBeNull())
+    await expect(main.getByRole('heading', { name: 'Yesterday' })).toBeVisible()
+    await expect(main.queryByRole('heading', { name: 'Today' })).toBeNull()
+    await expect(main.queryByRole('link', { name: 'Searched And Played' })).toBeNull()
+    await expect(main.getByRole('link', { name: /^A Very Long Track Title/ })).toBeVisible()
+
+    // With a genre too: yesterday's jazz is Brass Monkey Business alone.
+    await userEvent.click(menu.getByRole('menuitemradio', { name: /^jazz/ }))
+    await waitFor(() => expect(main.getByRole('button', { name: 'Filter: Yesterday · jazz' })).toBeVisible())
+    await waitFor(() => expect(main.queryByRole('link', { name: /^A Very Long Track Title/ })).toBeNull())
+    const yesterday = within(main.getByRole('region', { name: 'Yesterday' }))
+    await expect(yesterday.getByRole('link', { name: 'Brass Monkey Business' })).toBeVisible()
+    await expect(yesterday.getAllByRole('time')).toHaveLength(1)
+
+    await userEvent.click(menu.getByRole('menuitemradio', { name: 'Any time' }))
+    await waitFor(() => expect(main.getByRole('button', { name: 'Filter: jazz' })).toBeVisible())
+    await expect(await main.findByRole('heading', { name: 'Today' })).toBeVisible()
+  },
+})
+
+/** Nothing in a date range: says so, with a way back to any time. */
+export const HistoryDateEmpty = meta.story({
+  args: { path: `/history?when=today&genre=${genre.funk.id}` },
+  play: async ({ canvas, userEvent }) => {
+    await expect(await canvas.findByRole('heading', { name: 'No funk plays today' })).toBeVisible()
+    await userEvent.click(canvas.getByRole('link', { name: 'Show any time' }))
+    await expect(await canvas.findByRole('link', { name: 'Searched And Played' })).toBeVisible()
   },
 })
 
@@ -671,7 +715,7 @@ export const TrackGenresOpenHistory = meta.story({
     await userEvent.click(within(trackGenres!).getByRole('link', { name: 'jazz' }))
 
     await expect(await canvas.findByRole('heading', { level: 1, name: 'History' })).toBeVisible()
-    await expect(await main.findByRole('combobox', { name: 'Genre' })).toHaveTextContent('jazz')
+    await expect(await main.findByRole('button', { name: 'Filter: jazz' })).toBeVisible()
     await waitFor(() => expect(main.queryByRole('link', { name: 'Sunday Morning Static' })).toBeNull())
   },
 })
@@ -788,7 +832,7 @@ export const StatsTopGenresOpenHistory = meta.story({
     await waitFor(() => expect(topCard.querySelector('.recharts-bar-rectangle path')).not.toBeNull())
     await userEvent.click(topCard.querySelector('.recharts-bar-rectangle path')!)
     await expect(await canvas.findByRole('heading', { level: 1, name: 'History' })).toBeVisible()
-    await waitFor(() => expect(canvas.getByRole('combobox', { name: 'Genre' })).toHaveTextContent('hip hop'))
+    await waitFor(() => expect(canvas.getByRole('button', { name: 'Filter: hip hop' })).toHaveTextContent('hip hop'))
   },
 })
 

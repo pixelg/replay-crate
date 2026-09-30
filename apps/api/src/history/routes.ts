@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import { schema } from '@replay-crate/db'
 import { SpotifyApiError } from '@replay-crate/spotify'
-import { and, asc, count, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, gte, isNull, lt, sql } from 'drizzle-orm'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
@@ -56,7 +56,7 @@ const listPlays = createRoute({
     'scroll); pass `after` for the plays just newer than a time, to scroll back up from a point in the past (still ' +
     'listed newest first, and their `nextCursor` goes back in as `after` for newer ones still); or pass `offset` for ' +
     'numbered pages, which also returns `total` and `olderPlayedAt`. `genre` keeps only plays of tracks whose artists ' +
-    'have that genre (see `/genres`), with any way of paging.',
+    'have that genre (see `/genres`), and `since` / `until` only plays in that stretch of time, with any way of paging.',
   security: signedIn,
   request: {
     query: z.object({
@@ -65,6 +65,8 @@ const listPlays = createRoute({
       limit: z.coerce.number().int().min(1).max(100).default(50),
       offset: z.coerce.number().int().min(0).optional().openapi({ description: 'Plays to skip, for numbered pages.' }),
       genre: z.coerce.number().int().min(1).optional().openapi({ description: 'Only plays in this genre (a `GenreRef` id).' }),
+      since: IsoDateTime.optional().openapi({ description: 'Only plays at or after this time.' }),
+      until: IsoDateTime.optional().openapi({ description: 'Only plays strictly before this time.' }),
     }),
   },
   responses: {
@@ -75,7 +77,11 @@ const listPlays = createRoute({
           description: 'Where the next page starts, in the direction paged (older, or newer with `after`); null on the last page.',
         }),
         lastSyncedAt: IsoDateTime.nullable(),
-        total: z.number().int().optional().openapi({ description: 'All of the user’s plays (in `genre`, if given). With `offset` only.' }),
+        total: z
+          .number()
+          .int()
+          .optional()
+          .openapi({ description: 'All of the user’s plays (in `genre` and between `since` and `until`, if given). With `offset` only.' }),
         olderPlayedAt: IsoDateTime.nullable().optional().openapi({
           description:
             'When the play just after this page was played (null on the last page), so a gap across the page ' +
@@ -299,14 +305,19 @@ export function historyRoutes(deps: AppDeps) {
 
     .openapi({ ...listPlays, middleware: auth }, async (c) => {
       const user = c.var.user
-      const { before, after, limit, offset, genre } = c.req.valid('query')
+      const { before, after, limit, offset, genre, since, until } = c.req.valid('query')
       if (before !== undefined && offset !== undefined) {
         return c.json(invalidRequest({ issues: [{ path: ['offset'], message: 'Pass either before or offset, not both' }] }), 400)
       }
       if (after !== undefined && (before !== undefined || offset !== undefined)) {
         return c.json(invalidRequest({ issues: [{ path: ['after'], message: 'Pass after on its own, not with before or offset' }] }), 400)
       }
-      const mine = and(eq(plays.userId, user.id), genre ? playInGenre(genre) : undefined)
+      const mine = and(
+        eq(plays.userId, user.id),
+        genre ? playInGenre(genre) : undefined,
+        since ? gte(plays.playedAt, new Date(since)) : undefined,
+        until ? lt(plays.playedAt, new Date(until)) : undefined,
+      )
 
       // Numbered pages skip plays by position. Skip on `plays` alone (an index-only scan of
       // (user_id, played_at)), then join just this page, rather than joining every skipped row.
@@ -400,7 +411,7 @@ export function historyRoutes(deps: AppDeps) {
           lastSyncedAt: user.lastSyncedAt?.toISOString() ?? null,
           ...(offset !== undefined && {
             // plays.track_id is a foreign key, so the joins above drop nothing: this counts the same rows.
-            // (`mine` includes the genre filter.)
+            // (`mine` includes the genre and time filters.)
             total: (await db.select({ n: count() }).from(plays).where(mine))[0]?.n ?? 0,
             olderPlayedAt: rows[limit]?.playedAt.toISOString() ?? null,
           }),

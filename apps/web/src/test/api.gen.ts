@@ -207,7 +207,7 @@ export interface paths {
         };
         /**
          * Play history
-         * @description Newest first. Three ways to page, one at a time: pass `nextCursor` back as `before` for older plays (infinite scroll); pass `after` for the plays just newer than a time, to scroll back up from a point in the past (still listed newest first, and their `nextCursor` goes back in as `after` for newer ones still); or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`. `genre` keeps only plays of tracks whose artists have that genre (see `/genres`), with any way of paging.
+         * @description Newest first. Three ways to page, one at a time: pass `nextCursor` back as `before` for older plays (infinite scroll); pass `after` for the plays just newer than a time, to scroll back up from a point in the past (still listed newest first, and their `nextCursor` goes back in as `after` for newer ones still); or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`. `genre` keeps only plays of tracks whose artists have that genre (see `/genres`), and `since` / `until` only plays in that stretch of time, with any way of paging.
          */
         get: operations["listPlays"];
         put?: never;
@@ -2018,6 +2018,10 @@ export interface operations {
                 offset?: number | null;
                 /** @description Only plays in this genre (a `GenreRef` id). */
                 genre?: number;
+                /** @description Only plays at or after this time. */
+                since?: string;
+                /** @description Only plays strictly before this time. */
+                until?: string;
             };
             header?: never;
             path?: never;
@@ -2044,7 +2048,7 @@ export interface operations {
                          * @example 2026-09-21T12:00:00.000Z
                          */
                         lastSyncedAt: string | null;
-                        /** @description All of the user’s plays (in `genre`, if given). With `offset` only. */
+                        /** @description All of the user’s plays (in `genre` and between `since` and `until`, if given). With `offset` only. */
                         total?: number;
                         /**
                          * Format: date-time

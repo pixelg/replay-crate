@@ -52,10 +52,17 @@ export const handlers = {
     http.post('/api/v1/auth/logout', ({ response }) => response(204).empty()),
   ],
   history: [
-    // With `genre`, only the plays whose track has it.
+    // With `genre`, only the plays whose track has it; with `since` / `until`, only those in between.
     http.get('/api/v1/history/plays', ({ query, response }) => {
       const genre = Number(query.get('genre'))
-      const matching = genre ? playsPage.items.filter((play) => play.track.genres.some((g) => g.id === genre)) : playsPage.items
+      const since = query.get('since')
+      const until = query.get('until')
+      const matching = playsPage.items.filter(
+        (play) =>
+          (!genre || play.track.genres.some((g) => g.id === genre)) &&
+          (!since || Date.parse(play.playedAt) >= Date.parse(since)) &&
+          (!until || Date.parse(play.playedAt) < Date.parse(until)),
+      )
       const { items, rest, next } = pageBy(matching, query)
       const older = 'total' in rest ? { olderPlayedAt: next?.playedAt ?? null } : {}
       return response(200).json({ ...playsPage, items, ...rest, ...older })
