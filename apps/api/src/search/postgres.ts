@@ -49,6 +49,13 @@ function filterCondition(filter: SearchFilter, timeZone: string): SQL {
       return sql`case when d.type = 'playlist' then ${like(sql`d.name`)} else ${anyLike(sql`d.playlists`)} end`
     case 'from':
       return anyLike(sql`d.contexts`)
+    case 'genre': {
+      // Whole words in order, as Elasticsearch's phrase match on the analysed field: "rock" finds
+      // art rock but not rockabilly, "rap" not trap; "hip-hop" and "hip hop" are the same.
+      const words = queryWords(filter.value).join(' ')
+      const genreWords = sql`' ' || regexp_replace(${folded(sql`g.x`)}, '[^[:alnum:]]+', ' ', 'g') || ' '`
+      return sql`exists (select 1 from unnest(d.genres) as g(x) where ${genreWords} like ${`% ${words} %`})`
+    }
     case 'type':
       return sql`d.type = ${filter.value}`
   }
@@ -74,6 +81,7 @@ export function createPostgresSearchIndex(db: Db): SearchIndex {
         album: doc.album,
         playlists: doc.playlists,
         contexts: doc.contexts,
+        genres: doc.genres,
         year: doc.year,
         playCount: doc.playCount,
         rating: doc.rating,
@@ -97,6 +105,7 @@ export function createPostgresSearchIndex(db: Db): SearchIndex {
               ['album', 'album'],
               ['playlists', 'playlists'],
               ['contexts', 'contexts'],
+              ['genres', 'genres'],
               ['year', 'year'],
               ['playCount', 'play_count'],
               ['rating', 'rating'],
@@ -174,7 +183,7 @@ async function searchPostgres(db: Db, userId: string, query: SearchQuery, option
 
   const matched = sql`matched as (
     -- Everything but play_times: only filters need those, and they can run long.
-    select d.user_id, d.type, d.id, d.name, d.artists, d.album, d.playlists, d.contexts, d.year, d.play_count, d.rating,
+    select d.user_id, d.type, d.id, d.name, d.artists, d.album, d.playlists, d.contexts, d.genres, d.year, d.play_count, d.rating,
       d.last_played_at, d.played_at, d.image_url, d.track_id, d.search_text, ${score} as score
     from search_docs d where ${sql.join(conditions, sql` and `)}
   )`
@@ -187,6 +196,7 @@ async function searchPostgres(db: Db, userId: string, query: SearchQuery, option
     album: string | null
     playlists: string[]
     contexts: string[]
+    genres: string[]
     year: number | null
     play_count: number
     rating: number | null
@@ -222,6 +232,7 @@ async function searchPostgres(db: Db, userId: string, query: SearchQuery, option
       album: row.album,
       playlists: row.playlists,
       contexts: row.contexts,
+      genres: row.genres,
       year: row.year,
       playCount: row.play_count,
       rating: row.rating,
@@ -264,7 +275,7 @@ async function facets(db: Db, matched: SQL, types: EntityType[]): Promise<Search
       value: row.value,
       count: Number(row.count),
     }))
-  const [typeBuckets, decades, ratings, artists, contexts] = await Promise.all([
+  const [typeBuckets, decades, ratings, artists, contexts, genres] = await Promise.all([
     count<EntityType>(sql`select type as value, count(*) as count from matched group by type order by count desc`),
     count<number>(sql`select (year / 10) * 10 as value, count(*) as count from matched
       where type = ${focus} and year is not null group by 1 order by 1`),
@@ -274,8 +285,10 @@ async function facets(db: Db, matched: SQL, types: EntityType[]): Promise<Search
       where type = ${focus} group by a order by count desc, a limit ${FACET_SIZE}`),
     count<string>(sql`select c as value, count(*) as count from matched, unnest(contexts) as c
       where type = ${focus} group by c order by count desc, c limit ${FACET_SIZE}`),
+    count<string>(sql`select g as value, count(*) as count from matched, unnest(genres) as g
+      where type = ${focus} group by g order by count desc, g limit ${FACET_SIZE}`),
   ])
-  return { types: typeBuckets, decades, ratings, artists, contexts }
+  return { types: typeBuckets, decades, ratings, artists, contexts, genres }
 }
 
 /** The name in the library closest to what was typed, for "did you mean". */

@@ -2306,6 +2306,20 @@ export const SearchPage = meta.story({
   },
 })
 
+/** The Genre facet narrows to a genre, as `genre:` (whole words, so it keeps that genre's offshoots). */
+export const SearchRefinesByGenre = meta.story({
+  args: { path: '/search?q=pete' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    const refine = within(await main.findByRole('complementary', { name: 'Refine' }))
+    await expect(refine.getByRole('heading', { name: 'Genre' })).toBeVisible()
+    await userEvent.click(refine.getByRole('button', { name: /boom bap/ }))
+    await expect(await main.findByText('Genre: boom bap')).toBeVisible()
+    await expect(main.getByRole('searchbox')).toHaveValue('pete genre:"boom bap"')
+  },
+})
+
 export const SearchPageOneType = meta.story({
   args: { path: '/search?q=pete&type=track' },
   globals: { viewport: { value: 'desktop', isRotated: false } },

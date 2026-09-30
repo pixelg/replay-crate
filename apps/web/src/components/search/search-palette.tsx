@@ -37,6 +37,7 @@ const TIPS = [
   { insert: 'rating:>=4 ', label: 'rating:>=4', hint: 'rated 4 stars or more' },
   { insert: 'year:90s ', label: 'year:90s', hint: 'released in the 90s' },
   { insert: 'in:', label: 'in:"road trip"', hint: 'on a playlist' },
+  { insert: 'genre:', label: 'genre:jazz', hint: "by an artist's genre (jazz rap, acid jazz…)" },
   { insert: 'plays:>10 ', label: 'plays:>10', hint: 'played more than 10 times' },
   { insert: 'played:', label: 'played:2024-09', hint: 'played that month (or a day, a year, 7d, >=2025)' },
   { insert: 'type:artist ', label: 'type:artist', hint: 'only artists (or tracks, albums, playlists, plays)' },

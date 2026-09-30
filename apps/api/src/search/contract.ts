@@ -21,6 +21,7 @@ export function describeSearchIndexContract(
       album: null,
       playlists: [],
       contexts: [],
+      genres: [],
       year: null,
       playCount: 0,
       rating: null,
@@ -45,6 +46,7 @@ export function describeSearchIndexContract(
         album: 'Dusty Grooves',
         playlists: ['Late Night Crate'],
         contexts: ['Late Night Crate'],
+        genres: ['jazz rap', 'trip hop'],
         year: 1994,
         playCount: 12,
         rating: 4,
@@ -58,17 +60,18 @@ export function describeSearchIndexContract(
         album: 'Mecca and the Soul Brother',
         playlists: ['Road Trip'],
         contexts: ['Road Trip'],
+        genres: ['hip hop', 'east coast hip hop', 'boom bap'],
         year: 1992,
         playCount: 30,
         rating: 5,
         playTimes: troyTimes,
       }),
-      doc({ type: 'track', id: 'smooth', name: 'Smooth Operator', artists: ['Sade'], album: 'Diamond Life', year: 1984, playCount: 2 }),
-      doc({ type: 'track', id: 'crate-a', name: 'Crate Digger', artists: ['Needle Drop'], album: 'Wax', year: 2004, playCount: 1 }),
+      doc({ type: 'track', id: 'smooth', name: 'Smooth Operator', artists: ['Sade'], album: 'Diamond Life', genres: ['sophisti-pop', 'smooth jazz'], year: 1984, playCount: 2 }),
+      doc({ type: 'track', id: 'crate-a', name: 'Crate Digger', artists: ['Needle Drop'], album: 'Wax', genres: ['trap'], year: 2004, playCount: 1 }),
       doc({ type: 'track', id: 'crate-b', name: 'Crate Diggers', artists: ['Needle Drop'], album: 'Wax', year: 2004, playCount: 9 }),
-      doc({ type: 'artist', id: 'pete', name: 'Pete Rock', playCount: 30, playTimes: troyTimes }),
+      doc({ type: 'artist', id: 'pete', name: 'Pete Rock', genres: ['hip hop', 'boom bap'], playCount: 30, playTimes: troyTimes }),
       doc({ type: 'artist', id: 'beyonce', name: 'Beyoncé', playCount: 3 }),
-      doc({ type: 'album', id: 'mecca', name: 'Mecca and the Soul Brother', artists: ['Pete Rock', 'C.L. Smooth'], year: 1992 }),
+      doc({ type: 'album', id: 'mecca', name: 'Mecca and the Soul Brother', artists: ['Pete Rock', 'C.L. Smooth'], genres: ['hip hop', 'boom bap'], year: 1992 }),
       doc({ type: 'playlist', id: 'road', name: 'Road Trip', artists: ['Pixel G'], playCount: 4, playTimes: [troyTimes[0]!] }),
       doc({
         type: 'play',
@@ -77,6 +80,7 @@ export function describeSearchIndexContract(
         artists: ['Pete Rock', 'C.L. Smooth'],
         album: 'Mecca and the Soul Brother',
         contexts: ['Road Trip'],
+        genres: ['hip hop', 'east coast hip hop', 'boom bap'],
         year: 1992,
         rating: 5,
         playedAt: '2026-09-20T10:00:00.000Z',
@@ -179,6 +183,23 @@ export function describeSearchIndexContract(
       expect(await ids('from:"road trip"', { types: ['track', 'play'] })).toEqual(['track:troy', 'play:101'])
     })
 
+    it('filters by genre, by whole words in order', async () => {
+      const genre = async (text: string) => (await ids(text)).toSorted()
+      expect(await genre('genre:"hip hop"')).toEqual(['album:mecca', 'artist:pete', 'play:101', 'track:troy'])
+      // Any case, and hyphens are spaces.
+      expect(await genre('genre:HIP-HOP')).toEqual(['album:mecca', 'artist:pete', 'play:101', 'track:troy'])
+      // A word inside a genre ("jazz rap", "smooth jazz"), but not part of a word: "rap" isn't "trap".
+      expect(await genre('genre:jazz')).toEqual(['track:brass', 'track:smooth'])
+      expect(await genre('genre:rap')).toEqual(['track:brass'])
+      // "hop" alone is in "trip hop" and "hip hop"; "hop hip" is in neither.
+      expect(await genre('genre:"hop hip"')).toEqual([])
+      expect(await genre('genre:sophisti')).toEqual(['track:smooth'])
+      expect(await ids('-genre:"hip hop"', { types: ['track'] })).toEqual(
+        expect.arrayContaining(['track:brass', 'track:smooth', 'track:crate-a', 'track:crate-b']),
+      )
+      expect(await ids('-genre:"hip hop"', { types: ['track'] })).not.toContain('track:troy')
+    })
+
     it('applies number filters, negation and type', async () => {
       expect(await ids('rating:>=4', { types: ['track'] })).toEqual(['track:troy', 'track:brass'])
       expect(await ids('plays:>10', { types: ['track'] })).toEqual(['track:troy', 'track:brass'])
@@ -242,6 +263,11 @@ export function describeSearchIndexContract(
         ]),
       )
       expect(result.facets!.contexts).toEqual([{ value: 'Road Trip', count: 1 }])
+      expect(result.facets!.genres).toEqual([
+        { value: 'boom bap', count: 1 },
+        { value: 'east coast hip hop', count: 1 },
+        { value: 'hip hop', count: 1 },
+      ])
     })
 
     it('suggests something close when nothing matches', async () => {

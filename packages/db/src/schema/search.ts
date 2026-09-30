@@ -43,6 +43,8 @@ export const searchDocs = pgTable(
     album: text('album'),
     playlists: text('playlists').array().notNull().default(sql`'{}'`),
     contexts: text('contexts').array().notNull().default(sql`'{}'`),
+    /** Its artists' genres (see SearchDoc.genres), for `genre:`. */
+    genres: text('genres').array().notNull().default(sql`'{}'`),
     year: smallint('year'),
     playCount: integer('play_count').notNull().default(0),
     rating: smallint('rating'),

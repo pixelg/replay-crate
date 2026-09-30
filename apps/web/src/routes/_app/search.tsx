@@ -281,6 +281,7 @@ function Facets({ data, type, onRefine }: { data: SearchResponse; type?: SearchT
         onPick={(stars) => onRefine({ field: 'rating', range: { min: stars, max: stars }, negate: false })}
       />
       <FacetButtons title="Artist" buckets={facets.artists} onPick={(value) => onRefine({ field: 'artist', value, negate: false })} />
+      <FacetButtons title="Genre" buckets={facets.genres} onPick={(value) => onRefine({ field: 'genre', value, negate: false })} />
       <FacetButtons title="Played from" buckets={facets.contexts} onPick={(value) => onRefine({ field: 'from', value, negate: false })} />
     </aside>
   )

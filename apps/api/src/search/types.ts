@@ -20,6 +20,11 @@ export type SearchDoc = {
   playlists: string[]
   /** Where the user played a track from (context names); a play's context. */
   contexts: string[]
+  /**
+   * Its artists' genres, each once, the first artist's first: a track's, album's or play's
+   * artists', an artist's own. Playlists have none.
+   */
+  genres: string[]
   /** Release year: tracks, albums, plays. */
   year: number | null
   /** The user's plays: of a track, an artist's tracks, an album, or from a playlist. */
@@ -56,6 +61,7 @@ export type SearchFacets = {
   ratings: FacetBucket<number>[]
   artists: FacetBucket[]
   contexts: FacetBucket[]
+  genres: FacetBucket[]
 }
 
 export type SearchResult = {

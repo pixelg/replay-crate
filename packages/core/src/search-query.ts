@@ -3,11 +3,13 @@ import { localDayKey } from './format.ts'
 /**
  * The search box's query language: free text plus Lucene-style field filters.
  *
- *     pete rock artist:"pete rock" -in:"road trip" rating:>=4 plays:>10 year:1990..1995 year:90s type:track played:2024-09
+ *     pete rock artist:"pete rock" -in:"road trip" genre:jazz rating:>=4 plays:>10 year:1990..1995 year:90s type:track played:2024-09
  *
  * Free text matches names (typo-tolerant, as you type). Filters narrow it down:
  *
  * - `artist:` `album:` `in:` (a playlist) `from:` (where it was played from): text, quoted for spaces
+ * - `genre:` an artist's genre, by whole words: `genre:rock` finds art rock and indie rock, not
+ *   rockabilly; `genre:"hip hop"` finds underground hip hop
  * - `rating:` `plays:` `year:`: a number, a comparison (`>=4`, `<3`), a range (`1990..1995`, `4..`),
  *   and for years a decade (`90s`, `1970s`)
  * - `played:` when you played it: a day (`2024-09-29`), month (`2024-09`) or year (`2024`), a
@@ -22,7 +24,7 @@ import { localDayKey } from './format.ts'
  * whole search.
  */
 
-export const TEXT_FIELDS = ['artist', 'album', 'in', 'from'] as const
+export const TEXT_FIELDS = ['artist', 'album', 'in', 'from', 'genre'] as const
 export const NUMBER_FIELDS = ['rating', 'plays', 'year'] as const
 export const DATE_FIELDS = ['played'] as const
 export const ENTITY_TYPES = ['track', 'artist', 'album', 'playlist', 'play'] as const
@@ -326,6 +328,7 @@ const FIELD_LABELS: Record<SearchFilter['field'], string> = {
   album: 'Album',
   in: 'In playlist',
   from: 'Played from',
+  genre: 'Genre',
   rating: 'Rating',
   plays: 'Plays',
   year: 'Year',

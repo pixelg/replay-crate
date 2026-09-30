@@ -31,3 +31,20 @@ test('refines on the search page', async ({ page }) => {
   await expect(page).toHaveURL(/type=play/)
   await expect(main.getByRole('region', { name: 'History' }).getByRole('link', { name: /Brass Monkey Business/ }).first()).toBeVisible()
 })
+
+test('finds by genre once the background lookups have run', async ({ page }) => {
+  await signIn(page)
+  // (Fake) Last.fm tags The Loop Collective hip hop; the genre jobs store it and the indexer
+  // rebuilds its documents.
+  await expect
+    .poll(async () => (await (await page.request.get('/api/v1/search?q=genre:"hip hop"&types=track')).json()).total, { timeout: 15_000 })
+    .toBeGreaterThan(0)
+
+  await page.goto('/search?q=genre:"hip hop"')
+  const main = page.getByRole('main')
+  await expect(main.getByText('Genre: hip hop')).toBeVisible()
+  const tracks = main.getByRole('region', { name: 'Tracks' })
+  await expect(tracks.getByRole('link', { name: /Brass Monkey Business/ }).first()).toBeVisible()
+  // Paper Kites Club is indie pop.
+  await expect(tracks.getByRole('link', { name: /Sunday Morning Static/ })).toHaveCount(0)
+})
