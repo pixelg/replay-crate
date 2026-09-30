@@ -750,12 +750,13 @@ export const StatsArtistsOverTime = meta.story({
   play: async ({ canvas, userEvent }) => {
     const card = (await canvas.findByText('Who you listened to')).closest('[data-slot=card]') as HTMLElement
     const chart = within(card)
-    await expect(chart.getByText('Your top 4 artists by plays, and everyone else')).toBeVisible()
-    // A stacked area per top artist, then everyone else, named in the legend.
-    for (const name of ['Pete Rock', 'A Tribe Called Quest', 'Showbiz & A.G.', 'Miilkbone', 'Everyone else']) {
+    await expect(chart.getByText('Your top 4 artists by plays')).toBeVisible()
+    // A stacked area per top artist, named in the legend; the rest of the plays aren't charted.
+    for (const name of ['Pete Rock', 'A Tribe Called Quest', 'Showbiz & A.G.', 'Miilkbone']) {
       await expect(await chart.findByText(name)).toBeVisible()
     }
-    await waitFor(() => expect(card.querySelectorAll('.recharts-area')).toHaveLength(5))
+    await waitFor(() => expect(card.querySelectorAll('.recharts-area')).toHaveLength(4))
+    await expect(chart.queryByText('Everyone else')).not.toBeInTheDocument()
     // Plays by default; time played is a click away (the ranking stays by plays).
     const measure = chart.getByRole('group', { name: 'Measure' })
     await expect(within(measure).getByRole('button', { name: 'Plays' })).toHaveAttribute('aria-pressed', 'true')

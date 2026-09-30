@@ -28,14 +28,14 @@ function duration(minutes: number) {
   return hours ? `${hours} h ${minutes % 60} min` : `${minutes} min`
 }
 
-/** The chart's keys: one per top artist (a0…), then everyone else. */
+/** The chart's keys: one per top artist (a0…). */
 const artistKey = (index: number) => `a${index}`
-const OTHERS = 'others'
 
 /**
  * shadcn's "Area Chart - Interactive": who you listened to over time. Stacked areas for the
- * span's top artists (picked by plays, so long tracks don't win) and everyone else, in plays or
- * time played. The page picks the span (a rolling window, or a year or month).
+ * span's top artists (picked by plays, so long tracks don't win), in plays or time played. Everyone
+ * else is left out: it dwarfed the artists and flattened them. The page picks the span (a rolling
+ * window, or a year or month).
  */
 export function ListeningOverTime({
   overview,
@@ -49,20 +49,18 @@ export function ListeningOverTime({
   const perWeek = bucket === 'week'
   const [measure, setMeasure] = useState<Measure>('plays')
 
-  // Top artists get the chart colours in order; everyone else sits underneath in grey.
-  const chartConfig: ChartConfig = {
-    [OTHERS]: { label: 'Everyone else', color: 'var(--muted-foreground)' },
-    ...Object.fromEntries(artists.map((artist, index) => [artistKey(index), { label: artist.name, color: `var(--chart-${index + 1})` }])),
-  }
+  // Top artists get the chart colours in order.
+  const chartConfig: ChartConfig = Object.fromEntries(
+    artists.map((artist, index) => [artistKey(index), { label: artist.name, color: `var(--chart-${index + 1})` }]),
+  )
   const data = series.map((point) => ({
     date: point.date,
-    [OTHERS]: point.others[measure],
     ...Object.fromEntries(point.byArtist.map((listening, index) => [artistKey(index), listening[measure]])),
     // Both measures, for the tooltip.
-    listening: { [OTHERS]: point.others, ...Object.fromEntries(point.byArtist.map((listening, index) => [artistKey(index), listening])) },
+    listening: Object.fromEntries(point.byArtist.map((listening, index) => [artistKey(index), listening])),
   }))
-  const keys = [OTHERS, ...artists.map((_, index) => artistKey(index))]
-  const rank = (key: unknown) => (key === OTHERS ? keys.length : keys.indexOf(String(key)))
+  const keys = artists.map((_, index) => artistKey(index))
+  const rank = (key: unknown) => keys.indexOf(String(key))
 
   return (
     <Card className="@container/card">
@@ -70,8 +68,8 @@ export function ListeningOverTime({
         <CardTitle>Who you listened to</CardTitle>
         <CardDescription>
           {artists.length
-            ? `Your top ${artists.length === 1 ? 'artist' : `${artists.length} artists`} by plays, and everyone else`
-            : 'Your top artists by plays, and everyone else'}
+            ? `Your top ${artists.length === 1 ? 'artist' : `${artists.length} artists`} by plays`
+            : 'Your top artists by plays'}
           {perWeek && ' · per week'}
           {overview.openGaps > 0 && (
             <span className="block text-xs">
@@ -92,7 +90,7 @@ export function ListeningOverTime({
               <defs>
                 {keys.map((key) => (
                   <linearGradient key={key} id={`fill-${key}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={`var(--color-${key})`} stopOpacity={key === OTHERS ? 0.35 : 0.85} />
+                    <stop offset="5%" stopColor={`var(--color-${key})`} stopOpacity={0.85} />
                     <stop offset="95%" stopColor={`var(--color-${key})`} stopOpacity={0.08} />
                   </linearGradient>
                 ))}
@@ -119,7 +117,7 @@ export function ListeningOverTime({
                   <ChartTooltipContent
                     active={props.active}
                     label={props.label}
-                    // Top artists in rank order, everyone else last (the chart stacks them the other way up).
+                    // Top artists in rank order (the chart stacks them the other way up).
                     payload={[...(props.payload ?? [])].sort((x, y) => rank(x.dataKey) - rank(y.dataKey))}
                     indicator="dot"
                     labelFormatter={(value) => {

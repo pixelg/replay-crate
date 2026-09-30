@@ -6,18 +6,26 @@ import { TrackRating } from './star-rating.tsx'
 
 const ratingRequests = fn()
 
+/** When the story's query was "fetched": rating mustn't move it (the player's position counts from it). */
+const FETCHED_AT = 1_000
+
 /**
  * A row's rating as the app shows it: the track comes from the query cache, so a change shows
  * as soon as `useRateTrack` writes it there.
  */
 function Rated({ initial }: { initial: number | null }) {
-  const { data: track } = useQuery({
+  const { data: track, dataUpdatedAt } = useQuery({
     queryKey: ['story-track', initial],
     queryFn: () => ({ id: 't1', name: 'Brass Monkey Business', rating: initial }),
     initialData: { id: 't1', name: 'Brass Monkey Business', rating: initial },
+    initialDataUpdatedAt: FETCHED_AT,
     staleTime: Infinity,
   })
-  return <TrackRating track={track} compactOnPhones />
+  return (
+    <div data-fetched-at={dataUpdatedAt}>
+      <TrackRating track={track} compactOnPhones />
+    </div>
+  )
 }
 
 const meta = preview.meta({
@@ -62,7 +70,7 @@ export const Unrated = meta.story({
 })
 
 export const TapToRate = meta.story({
-  play: async ({ canvas, userEvent }) => {
+  play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(trigger(canvas, '4 stars'))
     const dialog = await waitFor(() => popover()!)
     // Focus moves to the current rating.
@@ -73,6 +81,8 @@ export const TapToRate = meta.story({
     await waitFor(() => expect(ratingRequests).toHaveBeenCalledWith('put', 't1', 2))
     await waitFor(() => expect(popover()).toBeNull())
     await expect(trigger(canvas, '2 stars')).toHaveTextContent('2')
+    // The cached response changed, but not when it was fetched.
+    await expect(canvasElement.querySelector('[data-fetched-at]')).toHaveAttribute('data-fetched-at', String(FETCHED_AT))
   },
 })
 

@@ -11,6 +11,7 @@ import { TrackActions } from './track-actions.tsx'
 import { ContextChip } from './context-chip.tsx'
 import { GenreChips } from './genre-chips.tsx'
 import { subtitleOf, thumbOf } from './player/items.ts'
+import { TrackNameLink } from './track-name-link.tsx'
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
 const gapFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -133,13 +134,7 @@ export function NowPlayingSection({
         <AlbumArt src={thumbOf(item)} className="size-12" />
         <div className="min-w-0 flex-1">
           {track ? (
-            <Link
-              to="/tracks/$trackId"
-              params={{ trackId: track.id }}
-              className={cn('block truncate font-medium hover:underline focus-visible:underline', isPlaying && 'text-primary')}
-            >
-              {item.name}
-            </Link>
+            <TrackNameLink track={{ id: track.id, name: item.name }} playing={isPlaying} />
           ) : (
             <p className={cn('truncate font-medium', isPlaying && 'text-primary')}>{item.name}</p>
           )}
@@ -210,13 +205,7 @@ function PlayRow({ play, selection, playing }: { play: PlayItem; selection?: Pla
       )}
       <AlbumArt src={track.album.thumbUrl} className="size-12" />
       <div className="min-w-0 flex-1">
-        <Link
-          to="/tracks/$trackId"
-          params={{ trackId: track.id }}
-          className={cn('block truncate font-medium hover:underline focus-visible:underline', playing && 'text-primary')}
-        >
-          {track.name}
-        </Link>
+        <TrackNameLink track={track} playing={playing} />
         <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
         {(play.context || !selection || track.genres.length > 0) && (
           <div className="mt-1 flex min-w-0 items-center gap-1">

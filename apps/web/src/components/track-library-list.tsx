@@ -1,12 +1,12 @@
 import type { LibraryTrack } from '@replay-crate/api-client'
 import { formatRelative } from '@replay-crate/core'
-import { Link } from '@tanstack/react-router'
 import { AudioLines } from 'lucide-react'
 import { cn } from 'cn'
 import { AlbumArt } from './album-art.tsx'
 import { PlayTrackButton } from './play-track-button.tsx'
 import { TrackRating } from './star-rating.tsx'
 import { TrackActions } from './track-actions.tsx'
+import { TrackNameLink } from './track-name-link.tsx'
 
 const monthFormat = new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' })
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
@@ -53,13 +53,7 @@ export function TrackLibraryList({
             )}
             <AlbumArt src={track.album.thumbUrl} className="size-12" />
             <div className="min-w-0 flex-1">
-              <Link
-                to="/tracks/$trackId"
-                params={{ trackId: track.id }}
-                className={cn('block truncate font-medium hover:underline focus-visible:underline', playing && 'text-primary')}
-              >
-                {track.name}
-              </Link>
+              <TrackNameLink track={track} playing={playing} />
               <p className="truncate text-sm text-muted-foreground">{track.artists.map((artist) => artist.name).join(', ')}</p>
             </div>
             {!selection && <PlayTrackButton track={track} />}
