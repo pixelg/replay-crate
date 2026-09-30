@@ -193,6 +193,7 @@ describe('history', () => {
             { id: 'art-1', name: 'Band' },
             { id: 'art-2', name: 'Guest' },
           ],
+          genres: [],
           rating: null,
         },
       })
@@ -378,6 +379,7 @@ describe('history', () => {
               { id: 'art-1', name: 'Band' },
               { id: 'art-2', name: 'Guest' },
             ],
+            genres: [],
             rating: 5,
           },
         },

@@ -1,5 +1,6 @@
 import { schema, type Db } from '@replay-crate/db'
 import { eq, inArray, min, sql } from 'drizzle-orm'
+import { loadTrackGenres, type GenreRef } from '../genres/queries.ts'
 import { localDay } from '../stats/ranges.ts'
 import { loadRatings } from '../tracks/ratings.ts'
 import { loadTrackArtists, type ArtistRef } from './queries.ts'
@@ -16,6 +17,7 @@ export type PlayTrack = {
   explicit: boolean
   album: { id: string; name: string; thumbUrl: string | null }
   artists: ArtistRef[]
+  genres: GenreRef[]
   rating: number | null
 }
 export type OnThisDayYear = { year: number; date: string; plays: number; tracks: { track: PlayTrack; plays: number }[] }
@@ -69,7 +71,7 @@ export async function onThisDay(db: Db, userId: string, { date, tz }: { date: st
   if (!rows.length) return []
 
   const ids = [...new Set(rows.map((row) => row.track_id))]
-  const [trackRows, artistsByTrack, ratings] = await Promise.all([
+  const [trackRows, artistsByTrack, genresByTrack, ratings] = await Promise.all([
     db
       .select({
         id: tracks.id,
@@ -84,6 +86,7 @@ export async function onThisDay(db: Db, userId: string, { date, tz }: { date: st
       .innerJoin(albums, eq(tracks.albumId, albums.id))
       .where(inArray(tracks.id, ids)),
     loadTrackArtists(db, ids),
+    loadTrackGenres(db, ids),
     loadRatings(db, userId, ids),
   ])
   const byId = new Map(
@@ -96,6 +99,7 @@ export async function onThisDay(db: Db, userId: string, { date, tz }: { date: st
         explicit: row.explicit,
         album: { id: row.albumId, name: row.albumName, thumbUrl: row.albumThumbUrl },
         artists: artistsByTrack.get(row.id) ?? [],
+        genres: genresByTrack.get(row.id) ?? [],
         rating: ratings.get(row.id) ?? null,
       },
     ]),

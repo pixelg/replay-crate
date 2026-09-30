@@ -1,4 +1,6 @@
+import { schema } from '@replay-crate/db'
 import { createTestDb } from '@replay-crate/db/testing'
+import { inArray } from 'drizzle-orm'
 import { vi } from 'vitest'
 import { createApp } from './app.ts'
 import type { AppDeps, LastfmGateway, MusicBrainzGateway, SpotifyGateway } from './deps.ts'
@@ -85,6 +87,20 @@ export async function createTestContext() {
 
   const app = createApp(deps)
 
+  /** Gives an artist (already in the catalog) genres by name, strongest first, as a lookup would. */
+  async function giveGenres(artistId: string, names: string[]) {
+    const found = await db.select().from(schema.genres).where(inArray(schema.genres.name, names))
+    const idOf = new Map(found.map((genre) => [genre.name, genre.id]))
+    await db.insert(schema.artistGenres).values(
+      names.map((name, i) => {
+        const genreId = idOf.get(name)
+        if (genreId === undefined) throw new Error(`"${name}" isn't a genre`)
+        return { artistId, genreId, weight: 100 - i * 10, source: 'lastfm' as const }
+      }),
+    )
+    return names.map((name) => ({ id: idOf.get(name)!, name }))
+  }
+
   /** Runs the login callback and returns the session token from the Set-Cookie header. */
   async function login() {
     const res = await app.request('/api/v1/auth/callback', {
@@ -109,6 +125,7 @@ export async function createTestContext() {
     /** The fake player behind the player calls; seed it with `player.nowPlaying(track)`. */
     player,
     login,
+    giveGenres,
     /** Runs the search indexer until the outbox is empty (the app does this in the background). */
     indexSearch: () => drainAll(deps),
     advance: (ms: number) => {

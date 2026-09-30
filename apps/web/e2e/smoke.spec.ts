@@ -27,6 +27,27 @@ test('opens a track, then a playlist with play counts and "also on"', async ({ p
   await expect(tracks.getByRole('link', { name: 'Boom Bap Essentials' })).toBeVisible() // also on
 })
 
+test("shows a track's genres, found in the background, and filters History by one", async ({ page }) => {
+  await signIn(page)
+  await page.getByRole('link', { name: 'Brass Monkey Business' }).first().click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Brass Monkey Business' })).toBeVisible()
+  // The genre jobs look the artist up on (fake) Last.fm moments after the first sync.
+  const hipHop = page.getByRole('list', { name: 'Genres' }).first().getByRole('link', { name: 'hip hop' })
+  await expect(async () => {
+    await page.reload()
+    await expect(hipHop).toBeVisible({ timeout: 1_000 })
+  }).toPass({ timeout: 15_000 })
+  await expect(page.getByRole('link', { name: 'Last.fm' })).toBeVisible()
+
+  await hipHop.click()
+  await expect(page.getByRole('heading', { level: 1, name: 'History' })).toBeVisible()
+  await expect(page.getByRole('combobox', { name: 'Genre' })).toHaveText(/hip hop/)
+  const main = page.getByRole('main')
+  await expect(main.getByRole('link', { name: 'Brass Monkey Business' }).first()).toBeVisible()
+  // Paper Kites Club is indie pop.
+  await expect(main.getByRole('link', { name: 'Sunday Morning Static' })).toHaveCount(0)
+})
+
 test('builds a playlist from listening history', async ({ page }) => {
   await signIn(page)
   await page.goto('/playlists/new')

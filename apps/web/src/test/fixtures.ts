@@ -1,5 +1,7 @@
 import type {
   Device,
+  GenrePlays,
+  GenreRef,
   HistoryGap,
   HistoryTimeline,
   ImportStatus,
@@ -51,6 +53,23 @@ const dayAt = (daysAgo: number, hour: number) => new Date(startOfDay(daysAgo) + 
 const ratings: Record<string, number> = { t1: 4, t3: 2 }
 const ratingOf = (id: string) => ratings[id] ?? null
 
+/** Genres from the canonical list (ids are fictional). */
+export const genre = {
+  hipHop: { id: 957, name: 'hip hop' },
+  boomBap: { id: 234, name: 'boom bap' },
+  jazz: { id: 1041, name: 'jazz' },
+  indiePop: { id: 1003, name: 'indie pop' },
+  dreamPop: { id: 551, name: 'dream pop' },
+  funk: { id: 640, name: 'funk' },
+} satisfies Record<string, GenreRef>
+
+/** The fictional tracks' genres, as History lists them (t3's artist hasn't been looked up yet). */
+const trackGenres: Record<string, GenreRef[]> = {
+  t1: [genre.hipHop, genre.boomBap, genre.jazz],
+  t2: [genre.indiePop, genre.dreamPop],
+  t4: [genre.funk],
+}
+
 const track = (id: string, name: string, artists: string[], album: string): PlayItem['track'] => ({
   rating: ratingOf(id),
   id,
@@ -59,6 +78,7 @@ const track = (id: string, name: string, artists: string[], album: string): Play
   explicit: false,
   album: { id: `album-${id}`, name: album, thumbUrl: null },
   artists: artists.map((artist, i) => ({ id: `${id}-artist-${i}`, name: artist })),
+  genres: trackGenres[id] ?? [],
 })
 
 export const plays: PlayItem[] = [
@@ -101,6 +121,16 @@ export const plays: PlayItem[] = [
 
 export const playsPage: PlaysPage = { items: plays, nextCursor: null, lastSyncedAt: hoursAgo(0.05) }
 
+/** The genres in the fictional plays, most played first. */
+export const genres: GenrePlays[] = [
+  { ...genre.hipHop, playCount: 2 },
+  { ...genre.boomBap, playCount: 2 },
+  { ...genre.jazz, playCount: 2 },
+  { ...genre.dreamPop, playCount: 1 },
+  { ...genre.funk, playCount: 1 },
+  { ...genre.indiePop, playCount: 1 },
+]
+
 export const trackDetail: TrackDetail = {
   track: {
     rating: ratingOf('t1'),
@@ -110,9 +140,10 @@ export const trackDetail: TrackDetail = {
     explicit: false,
     album: { id: 'album-t1', name: 'Dusty Grooves', imageUrl: null, releaseDate: '1994-03-08' },
     artists: [
-      { id: 'a1', name: 'The Loop Collective' },
-      { id: 'a2', name: 'MC Vinyl' },
+      { id: 'a1', name: 'The Loop Collective', genres: [genre.hipHop, genre.boomBap] },
+      { id: 'a2', name: 'MC Vinyl', genres: [genre.jazz, genre.hipHop] },
     ],
+    genres: [genre.hipHop, genre.boomBap, genre.jazz],
   },
   stats: { playCount: 12, firstPlayedAt: hoursAgo(24 * 40), lastPlayedAt: hoursAgo(0.2) },
   playedFrom: [
