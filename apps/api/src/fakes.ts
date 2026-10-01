@@ -323,6 +323,22 @@ export function createFakeSpotify(
       })
       return paged(matches.slice(0, Math.min(limit, 10)))(0)
     },
+    // Every episode the fake knows, and their shows, by name.
+    searchPodcasts: async (_token, q, limit = 10) => {
+      const words = q.toLowerCase().split(/\s+/).filter(Boolean)
+      const matches = (text: string) => words.every((word) => text.toLowerCase().includes(word))
+      const known = [...library.episodes.values()]
+      const shows = [...new Map([...known.map((e) => e.show), ...library.savedShows.map((s) => s.show)].map((show) => [show.id, show])).values()]
+      return {
+        shows: await paged(shows.filter((show) => matches(show.name)).slice(0, Math.min(limit, 10)))(0),
+        episodes: await paged(
+          known
+            .filter((e) => matches(e.name))
+            .slice(0, Math.min(limit, 10))
+            .map(({ show: _show, ...rest }) => rest),
+        )(0),
+      }
+    },
     // Top artists are the credited artists of the top tracks, in order, with images.
     getTopArtists: async () => {
       const seen = new Map<string, { id: string; name: string; uri: string; images: SpotifyImage[] }>()

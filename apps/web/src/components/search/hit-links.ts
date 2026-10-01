@@ -1,6 +1,6 @@
 import type { SearchHit, SearchType } from '@replay-crate/api-client'
 import type { LinkProps } from '@tanstack/react-router'
-import { Disc3, History, ListMusic, MicVocal, Music, type LucideIcon } from 'lucide-react'
+import { AudioLines, Disc3, History, ListMusic, MicVocal, Music, Podcast, type LucideIcon } from 'lucide-react'
 
 export const TYPE_LABELS: Record<SearchType, { plural: string; singular: string; icon: LucideIcon }> = {
   track: { plural: 'Tracks', singular: 'Track', icon: Music },
@@ -8,14 +8,16 @@ export const TYPE_LABELS: Record<SearchType, { plural: string; singular: string;
   album: { plural: 'Albums', singular: 'Album', icon: Disc3 },
   playlist: { plural: 'Playlists', singular: 'Playlist', icon: ListMusic },
   play: { plural: 'History', singular: 'Play', icon: History },
+  show: { plural: 'Shows', singular: 'Show', icon: Podcast },
+  episode: { plural: 'Episodes', singular: 'Episode', icon: AudioLines },
 }
 
 /** Quotes a name for the query language: artist:"Pete Rock". */
 const quoted = (value: string) => `"${value.replaceAll('"', '')}"`
 
 /**
- * Where a hit leads. Tracks, plays (their track) and playlists have pages; artists and albums
- * don't yet, so they open a search for everything by them.
+ * Where a hit leads. Tracks, plays (their track), playlists, shows and episodes have pages;
+ * artists and albums don't yet, so they open a search for everything by them.
  */
 export function hitLink(hit: SearchHit): LinkProps {
   switch (hit.type) {
@@ -29,6 +31,10 @@ export function hitLink(hit: SearchHit): LinkProps {
       return { to: '/search', search: { q: `artist:${quoted(hit.name)}` } }
     case 'album':
       return { to: '/search', search: { q: `album:${quoted(hit.name)}` } }
+    case 'show':
+      return { to: '/shows/$showId', params: { showId: hit.id } }
+    case 'episode':
+      return { to: '/episodes/$episodeId', params: { episodeId: hit.id } }
   }
 }
 

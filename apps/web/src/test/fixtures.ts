@@ -1,5 +1,6 @@
 import type {
   Device,
+  SpotifyPodcastHits,
   NewEpisodes,
   ListensTimeline,
   PodcastStatsCalendar,
@@ -1003,4 +1004,33 @@ export const podcastPlaylistDetail: PlaylistDetail = {
     const listened = episodesPage.items.find((item) => item.episode.id === episode.id)!
     return { position, addedAt: hoursAgo(5 + position), episode, listens: listened.listens, listenedMs: listened.listenedMs, lastListenedAt: listened.lastListenedAt }
   }),
+}
+
+/** Search in podcast mode: "sample" finds the show and two of its episodes. */
+export const podcastSearchResponse: SearchResponse = {
+  query: { text: 'sample', filters: [], issues: [] },
+  engine: 'postgres',
+  tookMs: 3,
+  total: 3,
+  groups: [
+    {
+      type: 'show',
+      total: 1,
+      hits: [hit({ type: 'show', id: 's1', name: 'Sample Science', playCount: 4, score: 3, highlights: { name: [[0, 6]], artists: [] } })],
+    },
+    {
+      type: 'episode',
+      total: 2,
+      hits: [
+        hit({ type: 'episode', id: 'e1', name: 'The History of the Breakbeat', artists: ['Sample Science'], year: 2026, playCount: 2, rating: 4, score: 2, highlights: { name: [], artists: [[[0, 6]]] } }),
+        hit({ type: 'episode', id: 'e2', name: 'Six Seconds of Amen', artists: ['Sample Science'], year: 2026, playCount: 2, score: 1.8, highlights: { name: [], artists: [[[0, 6]]] } }),
+      ],
+    },
+  ],
+  suggestion: null,
+}
+
+export const spotifyPodcastHits: SpotifyPodcastHits = {
+  shows: [{ id: 's9', name: 'Sampling Stories', imageUrl: null, listens: 0 }],
+  episodes: [{ id: 'e9', name: 'Who Sampled Whom', imageUrl: null, releaseDate: '2026-08-12', durationMs: 50 * MIN, listens: 0 }],
 }

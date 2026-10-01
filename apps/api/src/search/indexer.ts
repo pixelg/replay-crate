@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
 import type { EntityType } from '@replay-crate/core'
 import { playEvents } from './analytics.ts'
-import { allKeys, buildDocs, expand, type Change, type Keys } from './docs.ts'
+import { allKeys, buildDocs, expand, type Change, emptyKeys } from './docs.ts'
 
 type Logger = Pick<Console, 'info' | 'error'>
 
@@ -151,7 +151,7 @@ export async function buildEverything(
     for (const type of Object.keys(keys) as EntityType[]) {
       const ids = [...keys[type]]
       for (let i = 0; i < ids.length; i += CHUNK) {
-        const batch: Keys = { track: new Set(), artist: new Set(), album: new Set(), playlist: new Set(), play: new Set() }
+        const batch = emptyKeys()
         batch[type] = new Set(ids.slice(i, i + CHUNK))
         const { docs } = await buildDocs(db, userId, batch)
         await search.upsert(docs)

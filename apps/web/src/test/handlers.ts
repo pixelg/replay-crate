@@ -2,6 +2,8 @@ import { createOpenApiHttp } from 'openapi-msw'
 import type { paths } from './api.gen.ts'
 import {
   devices,
+  podcastSearchResponse,
+  spotifyPodcastHits,
   episodes,
   podcastPlaylistDetail,
   newEpisodes,
@@ -199,10 +201,12 @@ export const handlers = {
   search: [
     http.post('/api/v1/search/events', ({ response }) => response(204).empty()),
     http.get('/api/v1/search', ({ query, response }) => {
-      const { facets, ...rest } = searchResponse
+      // Podcast mode asks for shows and episodes.
+      const { facets, ...rest } = query.get('types')?.includes('episode') ? { ...podcastSearchResponse, facets: undefined } : searchResponse
       return response(200).json({ ...rest, query: { ...rest.query, text: query.get('q') ?? '' }, ...(query.get('facets') === 'true' && { facets }) })
     }),
     http.get('/api/v1/search/spotify', ({ response }) => response(200).json({ tracks: spotifyTracks })),
+    http.get('/api/v1/search/spotify/podcasts', ({ response }) => response(200).json(spotifyPodcastHits)),
   ],
   // Something is playing on the laptop; every command is accepted.
   player: [

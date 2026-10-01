@@ -16,6 +16,8 @@ export { allowedEdits, foldText, highlightRanges, type TextRange } from './searc
 export {
   DATE_FIELDS,
   ENTITY_TYPES,
+  MUSIC_TYPES,
+  PODCAST_TYPES,
   NUMBER_FIELDS,
   TEXT_FIELDS,
   addDays,

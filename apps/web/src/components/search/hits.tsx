@@ -1,7 +1,8 @@
-import type { SearchHit, SpotifyTrackHit } from '@replay-crate/api-client'
+import type { SearchHit, SpotifyEpisodeHit, SpotifyTrackHit } from '@replay-crate/api-client'
 import { formatRelative } from '@replay-crate/core'
 import { Star } from 'lucide-react'
 import { cn } from 'cn'
+import { formatRelease } from '../../lib/podcast-format.ts'
 import { AlbumArt } from '../album-art.tsx'
 import { Highlighted } from './highlighted.tsx'
 import { TYPE_LABELS } from './hit-links.ts'
@@ -21,6 +22,11 @@ function details(hit: SearchHit): string[] {
       return [hit.playedAt ? formatRelative(new Date(hit.playedAt)) : null, hit.context ? `from ${hit.context}` : null].filter(
         (part): part is string => Boolean(part),
       )
+    case 'show':
+    case 'episode': {
+      const listens = hit.playCount ? `${hit.playCount.toLocaleString()} ${hit.playCount === 1 ? 'listen' : 'listens'}` : null
+      return [hit.type === 'episode' && hit.year ? String(hit.year) : null, listens].filter((part): part is string => Boolean(part))
+    }
   }
 }
 
@@ -69,6 +75,20 @@ export function HitSummary({ hit, size = 'md' }: { hit: SearchHit; size?: 'md' |
 }
 
 /** A track from Spotify's catalogue: art, name, artists and album, marked when it's new to you. */
+/** An episode from Spotify's catalogue: its art, name and release date, marked when it's new to you. */
+export function SpotifyEpisodeSummary({ episode }: { episode: SpotifyEpisodeHit }) {
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-3">
+      <AlbumArt src={episode.imageUrl} className="size-10" />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm font-medium">{episode.name}</span>
+        <span className="truncate text-xs text-muted-foreground">Episode{episode.releaseDate && ` · ${formatRelease(episode.releaseDate)}`}</span>
+      </span>
+      {episode.listens === 0 && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">New to you</span>}
+    </span>
+  )
+}
+
 export function SpotifyTrackSummary({ track }: { track: SpotifyTrackHit }) {
   return (
     <span className="flex min-w-0 flex-1 items-center gap-3">

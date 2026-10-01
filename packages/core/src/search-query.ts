@@ -7,7 +7,8 @@ import { localDayKey } from './format.ts'
  *
  * Free text matches names (typo-tolerant, as you type). Filters narrow it down:
  *
- * - `artist:` `album:` `in:` (a playlist) `from:` (where it was played from): text, quoted for spaces
+ * - `artist:` `album:` `in:` (a playlist) `from:` (where it was played from) `show:` (a podcast's):
+ *   text, quoted for spaces
  * - `genre:` an artist's genre, by whole words: `genre:rock` finds art rock and indie rock, not
  *   rockabilly; `genre:"hip hop"` finds underground hip hop
  * - `rating:` `plays:` `year:`: a number, a comparison (`>=4`, `<3`), a range (`1990..1995`, `4..`),
@@ -15,7 +16,7 @@ import { localDayKey } from './format.ts'
  * - `played:` when you played it: a day (`2024-09-29`), month (`2024-09`) or year (`2024`), a
  *   comparison (`>=2025-01`, `<2020`), a range (`2019..2020`, `2024-06..`), or a recent stretch
  *   (`today`, `yesterday`, `7d`, `4w`). Days are the viewer's own (the caller says which is today)
- * - `type:` one of track, artist, album, playlist, play (several OR together)
+ * - `type:` one of track, artist, album, playlist, play, show, episode (several OR together)
  * - `-` in front of a filter excludes what it matches
  *
  * Parsing never fails: the box is parsed on every keystroke, so a half-typed filter
@@ -24,10 +25,13 @@ import { localDayKey } from './format.ts'
  * whole search.
  */
 
-export const TEXT_FIELDS = ['artist', 'album', 'in', 'from', 'genre'] as const
+export const TEXT_FIELDS = ['artist', 'album', 'in', 'from', 'genre', 'show'] as const
 export const NUMBER_FIELDS = ['rating', 'plays', 'year'] as const
 export const DATE_FIELDS = ['played'] as const
-export const ENTITY_TYPES = ['track', 'artist', 'album', 'playlist', 'play'] as const
+export const ENTITY_TYPES = ['track', 'artist', 'album', 'playlist', 'play', 'show', 'episode'] as const
+/** What music mode searches by default, and what podcast mode does. */
+export const MUSIC_TYPES = ['track', 'artist', 'album', 'playlist', 'play'] as const
+export const PODCAST_TYPES = ['show', 'episode'] as const
 
 export type TextField = (typeof TEXT_FIELDS)[number]
 export type NumberField = (typeof NUMBER_FIELDS)[number]
@@ -329,6 +333,7 @@ const FIELD_LABELS: Record<SearchFilter['field'], string> = {
   in: 'In playlist',
   from: 'Played from',
   genre: 'Genre',
+  show: 'Show',
   rating: 'Rating',
   plays: 'Plays',
   year: 'Year',

@@ -49,6 +49,7 @@ export async function createTestContext() {
     reorderPlaylistItems: vi.fn<SpotifyGateway['reorderPlaylistItems']>(fake.reorderPlaylistItems),
     getTopTracks: vi.fn<SpotifyGateway['getTopTracks']>(fake.getTopTracks),
     searchTracks: vi.fn<SpotifyGateway['searchTracks']>(fake.searchTracks),
+    searchPodcasts: vi.fn<SpotifyGateway['searchPodcasts']>(fake.searchPodcasts),
     getTopArtists: vi.fn<SpotifyGateway['getTopArtists']>(fake.getTopArtists),
     getTrack: vi.fn<SpotifyGateway['getTrack']>(fake.getTrack),
     getEpisode: vi.fn<SpotifyGateway['getEpisode']>(fake.getEpisode),

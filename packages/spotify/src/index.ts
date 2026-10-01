@@ -24,6 +24,7 @@ export {
   removePlaylistItems,
   reorderPlaylistItems,
   SEARCH_LIMIT,
+  searchPodcasts,
   searchTracks,
   seek,
   setRepeat,

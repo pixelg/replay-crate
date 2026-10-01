@@ -8,6 +8,7 @@ import type {
   SpotifyEpisode,
   SavedShow,
   SpotifyShowEpisode,
+  SpotifySimplifiedShow,
   SpotifyPlaybackState,
   SpotifyQueue,
   SpotifyArtist,
@@ -47,6 +48,8 @@ export type SpotifyGateway = {
   getTopTracks(accessToken: string, timeRange: TopTimeRange): Promise<Paging<SpotifyTrack>>
   /** Spotify's catalogue, tracks only, at most 10. */
   searchTracks(accessToken: string, q: string, limit?: number): Promise<Paging<SpotifyTrack>>
+  /** Spotify's catalogue, shows and episodes, at most 10 of each. */
+  searchPodcasts(accessToken: string, q: string, limit?: number): Promise<{ shows: Paging<SpotifySimplifiedShow>; episodes: Paging<SpotifyShowEpisode> }>
   getTopArtists(accessToken: string, timeRange: TopTimeRange): Promise<Paging<SpotifyArtist>>
   getTrack(accessToken: string, id: string): Promise<SpotifyTrack>
   /** One episode, with the user's resume point. */

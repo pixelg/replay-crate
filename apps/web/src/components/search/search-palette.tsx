@@ -3,17 +3,22 @@ import { Dialog } from '@base-ui/react/dialog'
 import {
   recordSearchEvent,
   searchQueryOptions,
+  SPOTIFY_SEARCH_MIN_LENGTH,
+  spotifyPodcastSearchQueryOptions,
   spotifySearchQueryOptions,
   type SearchHit,
   type SearchResponse,
+  type SpotifyEpisodeHit,
   type SpotifyTrackHit,
 } from '@replay-crate/api-client'
+import { MUSIC_TYPES, PODCAST_TYPES } from '@replay-crate/core'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { cn } from 'cn'
 import { ArrowRight, Clock, CornerDownLeft, Lightbulb, Loader2, Search, X } from 'lucide-react'
 import { useId, useReducer, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { api } from '../../lib/api.ts'
+import { useMode, type Mode } from '../../lib/mode.ts'
 import { timeZone } from '../../lib/months.ts'
 import { forgetSearches, recentSearches, rememberSearch } from '../../lib/recent-searches.ts'
 import { modKey, useSearchPalette } from '../../lib/search-palette.ts'
@@ -21,7 +26,7 @@ import { useDebouncedValue } from '../../lib/use-debounced-value.ts'
 import { useSearchActions } from '../../lib/use-search-actions.ts'
 import { FilterChips } from './filter-chips.tsx'
 import { hitLink, TYPE_LABELS } from './hit-links.ts'
-import { HitSummary, SpotifyTrackSummary } from './hits.tsx'
+import { HitSummary, SpotifyEpisodeSummary, SpotifyTrackSummary } from './hits.tsx'
 
 /** Keeps typing snappy: ask once the keys pause. */
 const DEBOUNCE_MS = 120
@@ -31,8 +36,8 @@ const PER_GROUP = 4
 /** Spotify results worth showing: ones not already in the library's results. */
 const SPOTIFY_SHOWN = 4
 
-/** Examples that teach the query language, inserted with a click. */
-const TIPS = [
+/** Examples that teach the query language, inserted with a click (podcast mode's below). */
+const MUSIC_TIPS = [
   { insert: 'artist:', label: 'artist:"pete rock"', hint: 'by an artist' },
   { insert: 'rating:>=4 ', label: 'rating:>=4', hint: 'rated 4 stars or more' },
   { insert: 'year:90s ', label: 'year:90s', hint: 'released in the 90s' },
@@ -42,6 +47,14 @@ const TIPS = [
   { insert: 'played:', label: 'played:2024-09', hint: 'played that month (or a day, a year, 7d, >=2025)' },
   { insert: 'type:artist ', label: 'type:artist', hint: 'only artists (or tracks, albums, playlists, plays)' },
 ] as const
+const PODCAST_TIPS = [
+  { insert: 'show:', label: 'show:"sample science"', hint: 'episodes of a show' },
+  { insert: 'rating:>=4 ', label: 'rating:>=4', hint: 'rated 4 stars or more' },
+  { insert: 'played:', label: 'played:7d', hint: 'listened to lately (or a day, a month, >=2025)' },
+  { insert: 'year:', label: 'year:2025', hint: 'released that year' },
+  { insert: 'type:show ', label: 'type:show', hint: 'only shows (or episodes)' },
+] as const
+const TIPS: Record<Mode, ReadonlyArray<{ insert: string; label: string; hint: string }>> = { music: MUSIC_TIPS, podcasts: PODCAST_TIPS }
 
 type Entry =
   | { kind: 'hit'; key: string; hit: SearchHit }
@@ -50,24 +63,36 @@ type Entry =
   | { kind: 'tip'; key: string; insert: string; label: string; hint: string }
   | { kind: 'suggestion'; key: string; q: string }
   | { kind: 'spotify'; key: string; track: SpotifyTrackHit }
+  | { kind: 'spotify-episode'; key: string; episode: SpotifyEpisodeHit }
 type Group = { label: string; items: Entry[] }
 
 /**
  * The groups to show: the best match first, then each type, then tracks from Spotify you've
  * never played, then a way to see everything.
  */
-function groupsFor(q: string, data: SearchResponse | undefined, spotify: SpotifyTrackHit[] = []): Group[] {
+function groupsFor(
+  q: string,
+  data: SearchResponse | undefined,
+  spotify: SpotifyTrackHit[] = [],
+  spotifyEpisodes: SpotifyEpisodeHit[] = [],
+  tips: (typeof TIPS)[Mode] = MUSIC_TIPS,
+): Group[] {
   if (!q.trim()) {
     const recent = recentSearches()
     return [
       ...(recent.length ? [{ label: 'Recent', items: recent.map((query) => ({ kind: 'recent' as const, key: `recent:${query}`, q: query })) }] : []),
-      { label: 'Try', items: TIPS.map((tip) => ({ kind: 'tip' as const, key: `tip:${tip.label}`, ...tip })) },
+      { label: 'Try', items: tips.map((tip) => ({ kind: 'tip' as const, key: `tip:${tip.label}`, ...tip })) },
     ]
   }
-  const fresh = spotify.filter((track) => track.playCount === 0).slice(0, SPOTIFY_SHOWN)
-  const fromSpotify: Group[] = fresh.length
-    ? [{ label: 'From Spotify', items: fresh.map((track) => ({ kind: 'spotify' as const, key: `spotify:${track.id}`, track })) }]
-    : []
+  const fresh: Entry[] = [
+    ...spotify
+      .filter((track) => track.playCount === 0)
+      .map((track) => ({ kind: 'spotify' as const, key: `spotify:${track.id}`, track })),
+    ...spotifyEpisodes
+      .filter((episode) => episode.listens === 0)
+      .map((episode) => ({ kind: 'spotify-episode' as const, key: `spotify-episode:${episode.id}`, episode })),
+  ].slice(0, SPOTIFY_SHOWN)
+  const fromSpotify: Group[] = fresh.length ? [{ label: 'From Spotify', items: fresh }] : []
   if (!data) return fromSpotify
   if (!data.total) {
     return [
@@ -123,9 +148,14 @@ function PaletteBody({ initialQuery, onDone }: { initialQuery: string; onDone: (
   // Recent searches live in localStorage; clearing them needs a re-render.
   const [, rerender] = useReducer((n: number) => n + 1, 0)
   const settled = useDebouncedValue(q, DEBOUNCE_MS)
-  const results = useQuery(searchQueryOptions(api, { q: settled, limit: PER_GROUP, tz: timeZone }))
+  // The half of the library the screens show: music, or podcasts.
+  const mode = useMode()
+  const types = [...(mode === 'podcasts' ? PODCAST_TYPES : MUSIC_TYPES)]
+  const results = useQuery(searchQueryOptions(api, { q: settled, types, limit: PER_GROUP, tz: timeZone }))
   const spotifyQ = useDebouncedValue(q, SPOTIFY_DEBOUNCE_MS)
-  const spotify = useQuery(spotifySearchQueryOptions(api, spotifyQ))
+  const spotifyReady = spotifyQ.trim().length >= SPOTIFY_SEARCH_MIN_LENGTH
+  const spotify = useQuery({ ...spotifySearchQueryOptions(api, spotifyQ), enabled: mode === 'music' && spotifyReady })
+  const spotifyPodcasts = useQuery({ ...spotifyPodcastSearchQueryOptions(api, spotifyQ), enabled: mode === 'podcasts' && spotifyReady })
   const navigate = useNavigate()
   const actions = useSearchActions()
   const highlighted = useRef<Entry | undefined>(undefined)
@@ -134,7 +164,13 @@ function PaletteBody({ initialQuery, onDone }: { initialQuery: string; onDone: (
   // Results for an older query stay up (dimmed) until the new ones arrive.
   const data = q.trim() ? results.data : undefined
   const stale = q.trim() !== settled.trim() || results.isPlaceholderData
-  const groups = groupsFor(q, data, q.trim() ? spotify.data?.tracks : undefined)
+  const groups = groupsFor(
+    q,
+    data,
+    q.trim() && mode === 'music' ? spotify.data?.tracks : undefined,
+    q.trim() && mode === 'podcasts' ? spotifyPodcasts.data?.episodes : undefined,
+    TIPS[mode],
+  )
 
   /** For the search dashboards: what was searched, and which result (by position) was picked. */
   const record = (picked?: SearchHit) => {
@@ -177,6 +213,10 @@ function PaletteBody({ initialQuery, onDone }: { initialQuery: string; onDone: (
         rememberSearch(q)
         actions.playTrack(entry.track)
         break
+      case 'spotify-episode':
+        rememberSearch(q)
+        actions.playEpisode(entry.episode)
+        break
     }
   }
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement> & { preventBaseUIHandler?: () => void }) => {
@@ -197,6 +237,8 @@ function PaletteBody({ initialQuery, onDone }: { initialQuery: string; onDone: (
       actions.queue(entry.hit)
     } else if (entry?.kind === 'spotify' && event.shiftKey) actions.playTrack(entry.track)
     else if (entry?.kind === 'spotify' && event.altKey) actions.queueTrack(entry.track)
+    else if (entry?.kind === 'spotify-episode' && event.shiftKey) actions.playEpisode(entry.episode)
+    else if (entry?.kind === 'spotify-episode' && event.altKey) actions.queueEpisode(entry.episode)
   }
 
   return (
@@ -224,7 +266,7 @@ function PaletteBody({ initialQuery, onDone }: { initialQuery: string; onDone: (
           ref={inputRef}
           aria-label="Search your library"
           aria-describedby={hintsId}
-          placeholder="Search tracks, artists, albums, playlists…"
+          placeholder={mode === 'podcasts' ? 'Search shows and episodes…' : 'Search tracks, artists, albums, playlists…'}
           onKeyDown={onKeyDown}
           className="h-14 min-w-0 flex-1 bg-transparent text-base outline-hidden placeholder:text-muted-foreground"
         />
@@ -339,6 +381,8 @@ function EntryContent({ entry, top }: { entry: Entry; top: boolean }): ReactNode
       )
     case 'spotify':
       return <SpotifyTrackSummary track={entry.track} />
+    case 'spotify-episode':
+      return <SpotifyEpisodeSummary episode={entry.episode} />
     case 'suggestion':
       return (
         <span className="flex flex-1 items-center gap-3 text-sm">
