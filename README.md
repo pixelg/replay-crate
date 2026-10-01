@@ -8,6 +8,7 @@ A personal Spotify companion that remembers everything you play.
 - **Playlists**: see play counts inside each playlist and which of your other playlists a track is on; build new playlists from your history
 - **Stats**: top tracks, artists, albums and genres over any time range
 - **Search**: everything in your library as you type (⌘K), typo-tolerant, with a small query language (by artist, genre, rating, when you played it…) and facets, on Elasticsearch or plain Postgres
+- **Podcasts**: flip the Music | Podcasts switch and every screen but the player is about podcasts: listens with how far you got, your shows and their new episodes, episode playlists, podcast stats and search
 
 Status and roadmap: [project board](https://github.com/users/pixelg/projects/4) · [milestones](https://github.com/pixelg/replay-crate/milestones)
 
@@ -45,7 +46,7 @@ Requirements: Node 24, pnpm (the version is pinned in `package.json`), Docker wi
 
 ## Run it all day
 
-Spotify only remembers your last 50 plays, so Replay Crate needs to be running to catch them all. The API syncs every connected account every 30 minutes (`SYNC_INTERVAL_MINUTES`) for as long as it's running, whether or not the app is open.
+Spotify only remembers your last 50 plays, so Replay Crate needs to be running to catch them all. The API syncs every connected account every 30 minutes (`SYNC_INTERVAL_MINUTES`) for as long as it's running, whether or not the app is open. Podcast episodes aren't in that list at all, so it also looks at what's playing every 2 minutes (`PLAYER_WATCH_SECONDS`; see [Podcasts](#podcasts)).
 
 For everyday use, run the built app and the API as one server on http://127.0.0.1:4173. It uses port 4173 so it can run alongside `pnpm dev`.
 
@@ -90,14 +91,14 @@ The app works on one origin only, so `http://127.0.0.1:4173` now moves you over 
 
 ## Import your full history
 
-Replay Crate only sees plays from while it's running. To fill in everything before that, and any gaps since:
+Replay Crate only sees plays (and podcast listens) from while it's running. To fill in everything before that, and any gaps since:
 
 1. On Spotify's [Account privacy page](https://www.spotify.com/account/privacy/), request your **Extended streaming history**. It can take up to 30 days to arrive by email.
 2. Open **Settings → Import** (or `/import`) and drop in `my_spotify_data.zip`. You don't need to unzip it.
 
-The zip is read in your browser. Only each play's time, length and track id are uploaded, not the IP addresses, devices and other details in the export. Plays under 30 seconds are skipped, since Spotify doesn't count them as streams. Plays Replay Crate already has are skipped too, so importing again is safe.
+The zip is read in your browser. Only each play's time, length and track id (or episode id) are uploaded, not the IP addresses, devices, episode names and other details in the export. Plays under 30 seconds are skipped, since Spotify doesn't count them as streams. Podcast episodes come in too: the export splits a listen at every pause, so stretches of one episode less than 15 minutes apart are joined into one listen first. Plays and listens Replay Crate already has are skipped (a listen it recorded live wins over the export's), so importing again is safe.
 
-Spotify no longer offers batch lookups, so tracks new to Replay Crate are fetched one at a time in the background while the app runs. For a large export this can take hours. The import page shows progress, and imported plays appear in History and Stats as their tracks arrive.
+Spotify no longer offers batch lookups, so tracks and episodes new to Replay Crate are fetched one at a time in the background while the app runs. For a large export this can take hours. The import page shows progress, and imported plays and listens appear in History and Stats as their tracks and episodes arrive.
 
 ## Genres
 
@@ -109,21 +110,37 @@ Genres show as chips on tracks, each opening History filtered to that genre. His
 
 A Last.fm API key is optional but finds more. It's free and issued instantly at [last.fm/api/account/create](https://www.last.fm/api/account/create): only the application name is required, and you can leave the callback URL empty. Put the key (not the shared secret) in `.env.local` as `LASTFM_API_KEY`. Without it, genres come from MusicBrainz alone.
 
+## Podcasts
+
+The **Music | Podcasts** switch (top of the sidebar, the top bar on a phone, and Settings) picks which half of your library the app shows. It's only a view: you can flip it at any time, even halfway through an episode, and the player keeps playing and showing whatever is on. Everything else follows it:
+
+- **History** lists your listens under the day they ended: the show, how much you heard, and a bar showing how far through the episode you are (or Finished). Filter by show or by date. In music mode the same page is your plays, as before.
+- **Episodes** takes Tracks' place: every episode you've listened to (sort by recent, most listened, newest or rating; show only unfinished ones), **New**, the latest unfinished episodes of the shows you follow on Spotify, and **Shows**. Episodes and shows have their own pages, and episodes can be rated. Play resumes where you left off.
+- **Playlists** shows the playlists with episodes in them. A playlist's page lists its episodes, to play, queue, reorder or remove, and a new playlist can be built from your podcast listening: Unfinished, New from your shows, Recently played or Top rated.
+- **Stats** charts time heard by your top shows, with listens, episodes, shows and episodes finished, top shows and episodes, and minutes per day.
+- **Search** finds shows and episodes (`show:"name"` narrows to one show), plus Spotify's episodes you haven't heard.
+
+When what's playing is the other kind from the mode on screen, a banner offers to switch. It never switches by itself, and Settings can turn it off.
+
+**How listens are recorded.** Spotify's recently-played list leaves podcasts out, so Replay Crate looks at the player instead: every few seconds while the app is open, and every 2 minutes in the background otherwise (`PLAYER_WATCH_SECONDS`, 0 turns it off; one Spotify call per user each time). Those looks are joined into listens with where you started and stopped, so a listen at 2× counts the episode time you heard. The start of a listen can be up to one look late while the app is closed; importing your Spotify data fills that in exactly. The shows you follow are read twice a day, with their latest episodes and where you are in them.
+
+Podcasts need two Spotify permissions the app didn't ask for before (your place in episodes, and the shows you follow): reconnect when the banner asks.
+
 ## Search
 
-Press **⌘K** (Ctrl+K) or **/** anywhere, or use the box at the top of the sidebar. Results come in as you type, grouped by type with the best match on top: tracks, artists, albums, playlists, and plays in your history. They're ranked by how well they match, then by how much you play and rate them. Enter opens a result, Shift+Enter plays it, Alt+Enter queues it, and ⌘Enter opens the full search page with facets.
+Press **⌘K** (Ctrl+K) or **/** anywhere, or use the box at the top of the sidebar. Results come in as you type, grouped by type with the best match on top: tracks, artists, albums, playlists, and plays in your history (or, in podcast mode, shows and episodes). They're ranked by how well they match, then by how much you play and rate them. Enter opens a result, Shift+Enter plays it, Alt+Enter queues it, and ⌘Enter opens the full search page with facets.
 
 Plain words match the start of any word in a name, artist or album, and forgive a typo or two ("pete rok", "beyonse"). Filters narrow things down:
 
 | Filter | Example |
 |---|---|
-| `artist:` `album:` | `artist:"pete rock"` |
+| `artist:` `album:` `show:` | `artist:"pete rock"`, `show:"sample science"` |
 | `in:` (on a playlist) / `from:` (played from) | `in:"road trip"` |
 | `genre:` (whole words, so `rock` finds art rock but not rockabilly) | `genre:jazz`, `genre:"hip hop"` |
 | `rating:` `plays:` | `rating:>=4`, `plays:>10`, `rating:3..4` |
 | `year:` | `year:1994`, `year:1990..1995`, `year:90s` |
 | `played:` (when you played it, in your time zone) | `played:2024-09`, `played:2019..2020`, `played:>=2025-01`, `played:7d`, `played:today` |
-| `type:` | `type:artist` (track, artist, album, playlist, play) |
+| `type:` | `type:artist` (track, artist, album, playlist, play, show, episode) |
 | `-` excludes | `-type:play` |
 
 ### How it works
