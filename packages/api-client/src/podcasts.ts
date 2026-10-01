@@ -178,6 +178,25 @@ export const showQueryOptions = (api: ApiClient, showId: string) =>
     },
   })
 
+export type NewEpisodes = InferResponseType<ApiClient['shows']['new-episodes']['$get'], 200>
+export type ShowsSyncResult = InferResponseType<ApiClient['shows']['sync']['$post'], 200>
+
+/** The unfinished latest episodes of the shows the user follows, newest release first. */
+export const newEpisodesQueryOptions = (api: ApiClient) =>
+  queryOptions({
+    queryKey: ['shows', 'new-episodes'],
+    queryFn: async (): Promise<NewEpisodes> => {
+      const endpoint = 'GET /api/v1/shows/new-episodes'
+      return expectOk(await send(endpoint, () => api.shows['new-episodes'].$get({ query: {} })), endpoint)
+    },
+  })
+
+/** Reads the shows the user follows from Spotify; their latest episodes follow in the background. */
+export async function syncShows(api: ApiClient): Promise<ShowsSyncResult> {
+  const endpoint = 'POST /api/v1/shows/sync'
+  return expectOk(await send(endpoint, () => api.shows.sync.$post()), endpoint)
+}
+
 /** Rates an episode 1–5 stars, or clears its rating with `null`. */
 export async function setEpisodeRating(api: ApiClient, episodeId: string, rating: number | null): Promise<void> {
   if (rating === null) {

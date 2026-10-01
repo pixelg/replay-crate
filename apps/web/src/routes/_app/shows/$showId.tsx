@@ -45,6 +45,7 @@ function ShowPage() {
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">{show.name}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
+            {data.followed && <span className="font-medium text-foreground">Following on Spotify · </span>}
             {stats.episodes} {stats.episodes === 1 ? 'episode' : 'episodes'} listened to
             {stats.listenedMs > 0 && ` · ${formatListened(stats.listenedMs)}`}
             {stats.lastListenedAt && ` · last ${formatRelative(new Date(stats.lastListenedAt))}`}

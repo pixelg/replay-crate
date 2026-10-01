@@ -13,12 +13,15 @@ export function EpisodeLibraryList({
   items,
   playingEpisodeId = null,
   showShow = true,
+  detail = 'listened',
   now = new Date(),
 }: {
   items: Array<Omit<LibraryEpisode, 'lastListenedAt'> & { lastListenedAt: string | null }>
   playingEpisodeId?: string | null
   /** Off on a show's own page, where every row is from it: the release date instead. */
   showShow?: boolean
+  /** What the right-hand column says: how long and when you listened, or when it came out. */
+  detail?: 'listened' | 'released'
   now?: Date
 }) {
   return (
@@ -48,10 +51,12 @@ export function EpisodeLibraryList({
                       <p className="hidden items-center justify-end gap-1 text-primary sm:flex">
                         <AudioLines aria-hidden className="size-4 motion-safe:animate-pulse" /> Now playing
                       </p>
-                    ) : lastListenedAt ? (
+                    ) : detail === 'listened' && lastListenedAt ? (
                       <p className="hidden sm:block">{formatRelative(new Date(lastListenedAt), now)}</p>
                     ) : null}
-                    {listens > 0 ? (
+                    {detail === 'released' ? (
+                      <p>{released ?? '—'}</p>
+                    ) : listens > 0 ? (
                       <p>
                         <span className="font-medium text-foreground">{formatListened(listenedMs)}</span>
                       </p>
@@ -73,14 +78,17 @@ export function EpisodeLibraryList({
 export function ShowList({ items, now = new Date() }: { items: LibraryShow[]; now?: Date }) {
   return (
     <ol className="flex flex-col divide-y divide-border">
-      {items.map(({ show, stats }) => (
+      {items.map(({ show, followed, stats }) => (
         <li key={show.id}>
           <Link to="/shows/$showId" params={{ showId: show.id }} className="flex items-center gap-3 py-2 hover:bg-accent sm:rounded-lg sm:px-2">
             <AlbumArt src={show.thumbUrl} className="size-12" />
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">{show.name}</p>
               <p className="truncate text-sm text-muted-foreground">
-                {stats.episodes} {stats.episodes === 1 ? 'episode' : 'episodes'} · {formatListened(stats.listenedMs)}
+                {followed && <span className="font-medium text-foreground">Following · </span>}
+                {stats.listens > 0
+                  ? `${stats.episodes} ${stats.episodes === 1 ? 'episode' : 'episodes'} · ${formatListened(stats.listenedMs)}`
+                  : 'Not listened to yet'}
               </p>
             </div>
             {stats.lastListenedAt && (

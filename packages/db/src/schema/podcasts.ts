@@ -23,6 +23,8 @@ export const shows = pgTable('shows', {
   imageUrl: text('image_url'),
   /** ~64px, for list rows. */
   thumbUrl: text('thumb_url'),
+  /** When its latest episodes were last fetched (followed shows only). */
+  episodesCheckedAt: timestamp('episodes_checked_at', { withTimezone: true }),
   ...timestamps,
 })
 
@@ -134,6 +136,21 @@ export const episodeRatings = pgTable(
     check('episode_ratings_rating_range', sql`${t.rating} between 1 and 5`),
     index('episode_ratings_user_rating_idx').on(t.userId, t.rating),
   ],
+)
+
+/** The shows a user saved ("followed") on Spotify, as of the last sync. */
+export const userShows = pgTable(
+  'user_shows',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    showId: text('show_id')
+      .notNull()
+      .references(() => shows.id),
+    addedAt: timestamp('added_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.showId] })],
 )
 
 export type Show = typeof shows.$inferSelect

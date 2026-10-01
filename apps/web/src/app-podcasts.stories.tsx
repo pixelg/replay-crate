@@ -243,3 +243,52 @@ export const CalendarDayOpensPodcastHistory = meta.story({
     await expect(main.queryByRole('group', { name: 'Now playing' })).toBeNull()
   },
 })
+
+export const NewEpisodesOfFollowedShows = meta.story({
+  args: { path: '/episodes?view=new' },
+  beforeEach: inPodcastMode,
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('link', { name: 'Chopping Soul' })).toBeVisible()
+    await expect(main.getByRole('link', { name: 'The Gatefold Issue' })).toBeVisible()
+    // Started elsewhere: it resumes.
+    await expect(main.getByRole('button', { name: 'Resume The Gatefold Issue' })).toBeVisible()
+    await expect(main.getByText(/^Checked/)).toBeVisible()
+    await expect(main.getByRole('button', { name: 'Check for new episodes' })).toBeEnabled()
+  },
+})
+
+export const NewEpisodesCheckWhenStale = meta.story({
+  args: { path: '/episodes?view=new' },
+  beforeEach({ msw }) {
+    let synced = false
+    msw.use(
+      http.get('/api/v1/shows/new-episodes', () =>
+        HttpResponse.json(synced ? { items: [], syncedAt: new Date().toISOString() } : { items: [], syncedAt: null }),
+      ),
+      http.post('/api/v1/shows/sync', () => {
+        synced = true
+        return HttpResponse.json({ total: 0, queued: 0 })
+      }),
+    )
+    inPodcastMode()
+  },
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    // Never checked: it checks on its own, then says there's nothing new.
+    await expect(await main.findByText(/^Checked/)).toBeVisible()
+    await expect(main.getByText("You're all caught up")).toBeVisible()
+  },
+})
+
+export const FollowedShows = meta.story({
+  args: { path: '/episodes?view=shows' },
+  beforeEach: inPodcastMode,
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    const liner = await main.findByRole('link', { name: /Liner Notes/ })
+    await expect(liner).toHaveTextContent(/Following/)
+    await expect(liner).toHaveTextContent(/Not listened to yet/)
+    await expect(main.getByRole('link', { name: /Crate Talk/ })).not.toHaveTextContent(/Following/)
+  },
+})

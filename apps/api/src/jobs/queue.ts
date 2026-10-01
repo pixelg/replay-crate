@@ -8,6 +8,7 @@ import { discardEpisode, promoteListens } from '../imports/listens.ts'
 import { discardTrack, promote } from '../imports/service.ts'
 import { saveProgress, upsertEpisodes } from '../podcasts/catalog.ts'
 import { parseEpisodeJobRef } from '../podcasts/listens.ts'
+import { refreshShowEpisodes } from '../podcasts/shows.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
 import { DEFAULT_BUDGET, pauseApi, pausedUntil, takeCall, type Api, type CallBudget } from './budget.ts'
 import type { JobKind } from './enqueue.ts'
@@ -69,6 +70,11 @@ const handlers: Record<JobKind, Handler> = {
       const { userId, episodeId } = parseEpisodeJobRef(ref)
       return discardEpisode(deps.db, userId, episodeId)
     },
+  },
+  /** Fetch a followed show's latest episodes, with the user's resume points. */
+  show: {
+    api: 'spotify',
+    run: async (deps, ref, { accessToken }) => refreshShowEpisodes(deps, ref, await accessToken()),
   },
   ...genreHandlers,
 }

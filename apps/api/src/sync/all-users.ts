@@ -3,6 +3,8 @@ import { eq } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
 import { SpotifyApiError } from '@replay-crate/spotify'
 import { pauseSpotify } from '../jobs/budget.ts'
+import { missingScopes } from '../auth/me.ts'
+import { SHOWS_SYNC_STALE_MS, syncFollowedShows } from '../podcasts/shows.ts'
 import { ReauthRequiredError } from '../spotify/access-token.ts'
 import { syncRecentlyPlayed } from './recently-played.ts'
 
@@ -15,12 +17,16 @@ export type UserSyncResult = { userId: string; inserted: number } | { userId: st
  */
 export async function syncAllUsers(deps: AppDeps): Promise<UserSyncResult[]> {
   const active = await deps.db
-    .select({ id: schema.users.id })
+    .select({ id: schema.users.id, scope: schema.users.scope, showsSyncedAt: schema.users.showsSyncedAt })
     .from(schema.users)
     .where(eq(schema.users.needsReauth, false))
 
   const results: UserSyncResult[] = []
-  for (const { id } of active) {
+  const pauseFor = async (error: SpotifyApiError) => {
+    const now = deps.now?.() ?? new Date()
+    await pauseSpotify(deps.db, new Date(now.getTime() + (error.retryAfter ?? 60) * 1000), now)
+  }
+  for (const { id, scope, showsSyncedAt } of active) {
     try {
       const { inserted } = await syncRecentlyPlayed(deps, id)
       results.push({ userId: id, inserted })
@@ -28,8 +34,22 @@ export async function syncAllUsers(deps: AppDeps): Promise<UserSyncResult[]> {
       if (!(error instanceof ReauthRequiredError)) console.error(`sync failed for ${id}`, error)
       results.push({ userId: id, error: error instanceof ReauthRequiredError ? 'reauth_required' : 'failed' })
       if (error instanceof SpotifyApiError && error.status === 429) {
-        const now = deps.now?.() ?? new Date()
-        await pauseSpotify(deps.db, new Date(now.getTime() + (error.retryAfter ?? 60) * 1000), now)
+        await pauseFor(error)
+        break
+      }
+      continue
+    }
+    // The shows they follow, twice a day, so new episodes turn up with no browser open. A failure
+    // here is logged; the plays above are in either way.
+    const now = deps.now?.() ?? new Date()
+    const showsStale = !showsSyncedAt || now.getTime() - showsSyncedAt.getTime() > SHOWS_SYNC_STALE_MS
+    if (!showsStale || missingScopes(scope).includes('user-library-read')) continue
+    try {
+      await syncFollowedShows(deps, id)
+    } catch (error) {
+      console.error(`syncing followed shows failed for ${id}`, error)
+      if (error instanceof SpotifyApiError && error.status === 429) {
+        await pauseFor(error)
         break
       }
     }

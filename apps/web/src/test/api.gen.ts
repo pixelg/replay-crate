@@ -403,6 +403,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/shows/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync the shows you follow
+         * @description Reads the shows you saved on Spotify, and queues a look at the latest episodes of each not checked in the last 12 hours (they arrive in the background). The scheduled sync does this twice a day too. Needs the `user-library-read` scope.
+         */
+        post: operations["syncShows"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shows/new-episodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * New episodes of the shows you follow
+         * @description The latest episodes of the shows you follow that you haven't finished, newest release first: those released in the last `days` days.
+         */
+        get: operations["listNewEpisodes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/shows": {
         parameters: {
             query?: never;
@@ -411,8 +451,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Shows you listen to
-         * @description Every show with a listen, the most recently listened first.
+         * Shows you listen to or follow
+         * @description Every show with a listen, the most recently listened first, then the shows you follow on Spotify without one (A–Z). `followed` is as of the last `POST /shows/sync`.
          */
         get: operations["listShows"];
         put?: never;
@@ -1486,6 +1526,7 @@ export interface components {
         };
         LibraryShow: {
             show: components["schemas"]["ShowRef"];
+            followed: boolean;
             stats: {
                 /** @description Episodes listened to. */
                 episodes: number;
@@ -1503,6 +1544,7 @@ export interface components {
                 description: string | null;
                 imageUrl: string | null;
             };
+            followed: boolean;
             stats: {
                 /** @description Episodes listened to. */
                 episodes: number;
@@ -3189,6 +3231,142 @@ export interface operations {
             };
         };
     };
+    syncShows: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Synced. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Shows followed. */
+                        total: number;
+                        /** @description Shows whose latest episodes are being fetched. */
+                        queued: number;
+                    };
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+            /** @description reauth_required */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthRequiredError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+            /** @description rate_limited */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedError"];
+                };
+            };
+        };
+    };
+    listNewEpisodes: {
+        parameters: {
+            query?: {
+                days?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description New episodes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["EpisodeSummary"][];
+                        /**
+                         * Format: date-time
+                         * @example 2026-09-21T12:00:00.000Z
+                         */
+                        syncedAt: string | null;
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
     listShows: {
         parameters: {
             query?: never;
@@ -3198,7 +3376,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Listened shows. */
+            /** @description Shows. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3206,6 +3384,12 @@ export interface operations {
                 content: {
                     "application/json": {
                         items: components["schemas"]["LibraryShow"][];
+                        /**
+                         * Format: date-time
+                         * @description When the shows you follow were last read from Spotify.
+                         * @example 2026-09-21T12:00:00.000Z
+                         */
+                        syncedAt: string | null;
                     };
                 };
             };

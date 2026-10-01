@@ -1,11 +1,18 @@
-import { episodesInfiniteQueryOptions, episodesPageQueryOptions, showsQueryOptions, type EpisodeSort } from '@replay-crate/api-client'
-import { pageCount, type PageSize } from '@replay-crate/core'
+import {
+  episodesInfiniteQueryOptions,
+  episodesPageQueryOptions,
+  newEpisodesQueryOptions,
+  showsQueryOptions,
+  type EpisodeSort,
+} from '@replay-crate/api-client'
+import { formatRelative, pageCount, type PageSize } from '@replay-crate/core'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { Podcast } from 'lucide-react'
+import { Podcast, RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
 import { EmptyState } from '../../../components/empty-state.tsx'
+import { InlineError } from '../../../components/inline-error.tsx'
 import { ListPagination } from '../../../components/list-pagination.tsx'
 import { PageHeader } from '../../../components/page-header.tsx'
 import { EpisodeLibraryList, ShowList } from '../../../components/podcasts/episode-library.tsx'
@@ -14,9 +21,11 @@ import { Segmented } from '../../../components/ui/segmented.tsx'
 import { api } from '../../../lib/api.ts'
 import { pageSearch, resizedPage, storedPageSize, storePageSize } from '../../../lib/page-size.ts'
 import { usePlayingEpisodeId } from '../../../lib/use-player.ts'
+import { useShowsSync, useSyncWhenStale } from '../../../lib/use-shows-sync.ts'
 
 const views = [
   { value: 'episodes', label: 'Episodes' },
+  { value: 'new', label: 'New' },
   { value: 'shows', label: 'Shows' },
 ] as const
 type View = (typeof views)[number]['value']
@@ -34,11 +43,11 @@ const progressFilters = [
   { value: 'unfinished', label: 'Unfinished' },
 ] as const
 
-type EpisodesSearch = { view?: 'shows'; sort?: EpisodeSort; unfinished?: true; page?: number; size?: PageSize }
+type EpisodesSearch = { view?: 'shows' | 'new'; sort?: EpisodeSort; unfinished?: true; page?: number; size?: PageSize }
 
 export const Route = createFileRoute('/_app/episodes/')({
   validateSearch: (search: Record<string, unknown>): EpisodesSearch => ({
-    ...(search.view === 'shows' && { view: 'shows' as const }),
+    ...((search.view === 'shows' || search.view === 'new') && { view: search.view }),
     ...(isSort(search.sort) && search.sort !== 'recent' && { sort: search.sort }),
     ...((search.unfinished === true || search.unfinished === 'true') && { unfinished: true as const }),
     ...pageSearch(search),
@@ -53,7 +62,9 @@ export const Route = createFileRoute('/_app/episodes/')({
   loader: ({ context: { queryClient }, deps: { view, sort, unfinished, page, size } }) =>
     view === 'shows'
       ? queryClient.ensureQueryData(showsQueryOptions(api))
-      : size === 'all'
+      : view === 'new'
+        ? queryClient.ensureQueryData(newEpisodesQueryOptions(api))
+        : size === 'all'
         ? queryClient.ensureInfiniteQueryData(episodesInfiniteQueryOptions(api, { sort, unfinished }))
         : queryClient.ensureQueryData(episodesPageQueryOptions(api, { sort, unfinished, page, size })),
   component: EpisodesPage,
@@ -87,6 +98,8 @@ function EpisodesPage() {
   const size = search.size ?? storedPageSize('episodes')
   const { items, total, loadMore, isLoadingMore, isPlaceholder } = useEpisodes(sort, unfinished, page, size, view === 'episodes')
   const { data: shows } = useQuery({ ...showsQueryOptions(api), enabled: view === 'shows' })
+  const following = useShowsSync()
+  useSyncWhenStale(shows?.syncedAt, following.sync, view === 'shows')
   const playingEpisodeId = usePlayingEpisodeId()
 
   const lastPage = view === 'episodes' && size !== 'all' ? pageCount(total, size) : undefined
@@ -107,7 +120,9 @@ function EpisodesPage() {
         title="Episodes"
         description={
           view === 'shows'
-            ? 'The shows you listen to.'
+            ? 'The shows you listen to, and the ones you follow on Spotify.'
+            : view === 'new'
+              ? `The latest episodes of the shows you follow that you haven't finished.`
             : total
               ? `Every episode you've listened to: ${total.toLocaleString()}${unfinished ? ' not finished' : ' so far'}.`
               : "Every episode you've listened to."
@@ -117,7 +132,7 @@ function EpisodesPage() {
         <Segmented<View>
           label="View"
           value={view}
-          onChange={(next) => void navigate({ search: (prev) => ({ sort: prev.sort, size: prev.size, ...(next === 'shows' && { view: 'shows' as const }) }) })}
+          onChange={(next) => void navigate({ search: (prev) => ({ sort: prev.sort, size: prev.size, ...(next !== 'episodes' && { view: next }) }) })}
           options={views}
         />
         {view === 'episodes' && (items.length > 0 || unfinished) && (
@@ -140,12 +155,13 @@ function EpisodesPage() {
         )}
       </div>
 
-      {view === 'shows' ? (
-        shows?.items.length ? (
-          <ShowList items={shows.items} />
-        ) : (
-          shows && <NoEpisodes />
-        )
+      {view === 'new' ? (
+        <NewEpisodes playingEpisodeId={playingEpisodeId} />
+      ) : view === 'shows' ? (
+        <>
+          {following.error && <InlineError error={following.error} action="Syncing the shows you follow" />}
+          {shows?.items.length ? <ShowList items={shows.items} /> : shows && <NoEpisodes />}
+        </>
       ) : items.length ? (
         <>
           <div className={cn('transition-opacity', isPlaceholder && 'opacity-60')} aria-busy={isPlaceholder}>
@@ -172,6 +188,42 @@ function EpisodesPage() {
         </EmptyState>
       ) : (
         <NoEpisodes />
+      )}
+    </>
+  )
+}
+
+/** The latest unfinished episodes of followed shows, filling in as their shows are looked up. */
+function NewEpisodes({ playingEpisodeId }: { playingEpisodeId: string | null }) {
+  const following = useShowsSync()
+  // While shows' episodes are still arriving in the background, look again now and then.
+  const { data } = useQuery({ ...newEpisodesQueryOptions(api), refetchInterval: following.arriving ? 3_000 : false })
+  useSyncWhenStale(data?.syncedAt, following.sync)
+  if (!data) return null
+  const checking = following.isSyncing || following.arriving
+  return (
+    <>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          {checking ? 'Checking the shows you follow…' : data.syncedAt ? `Checked ${formatRelative(new Date(data.syncedAt))}` : null}
+        </p>
+        <Button variant="secondary" size="sm" onClick={() => following.sync()} disabled={following.isSyncing}>
+          <RefreshCw aria-hidden className={cn('size-4', checking && 'motion-safe:animate-spin')} />
+          Check for new episodes
+        </Button>
+      </div>
+      {following.error && <InlineError error={following.error} action="Syncing the shows you follow" />}
+      {data.items.length ? (
+        <EpisodeLibraryList
+          items={data.items.map((episode) => ({ episode, listens: 0, listenedMs: 0, lastListenedAt: null }))}
+          playingEpisodeId={playingEpisodeId}
+          detail="released"
+        />
+      ) : (
+        <EmptyState icon={Podcast} title="You're all caught up">
+          Nothing new and unfinished from the shows you follow on Spotify in the last month. Follow shows in Spotify to see
+          their new episodes here.
+        </EmptyState>
       )}
     </>
   )

@@ -166,6 +166,8 @@ export function createFakeLibrary() {
     const id = uri.replace('spotify:track:', '')
     return catalog.get(id) ?? track(id)
   }
+  /** Shows the user saved, newest first, as `GET /me/shows` lists them. */
+  const savedShows: Array<{ added_at: string; show: SpotifyEpisode['show'] }> = []
   /** Episodes the fake knows, and the user's place in each (Spotify's resume point). */
   const episodes = new Map<string, SpotifyEpisode>()
   const resumePoints = new Map<string, { fully_played: boolean; resume_position_ms: number }>()
@@ -190,6 +192,12 @@ export function createFakeLibrary() {
       resumePoints.set(id, point)
     },
     resumePoints,
+    savedShows,
+    /** The user saves a show on Spotify; its episodes become known too. */
+    followShow(show: SpotifyEpisode['show'], ...showEpisodes: SpotifyEpisode[]) {
+      savedShows.unshift({ added_at: '2026-09-01T00:00:00Z', show })
+      for (const e of showEpisodes) episodes.set(e.id, e)
+    },
     /** A playlist's tracks by `spotify:playlist:` URI, as the player plays them. */
     contextTracks: (uri: string) => store.get(uri.replace('spotify:playlist:', ''))?.entries,
     /** Seeds a playlist the user owns. */
@@ -328,6 +336,19 @@ export function createFakeSpotify(
     getTrack: async (_token, id) => library.catalog.get(id) ?? track(id),
     // Only episodes the fake was told about; the resume point is left out until one is set, as
     // without the user-read-playback-position scope.
+    getMyShows: async (_token, offset) => paged(library.savedShows)(offset),
+    // The episodes the fake knows of the show, newest release first, without the show (as Spotify lists them).
+    getShowEpisodes: async (_token, showId) => {
+      const ofShow = [...library.episodes.values()]
+        .filter((e) => e.show.id === showId)
+        .toSorted((a, b) => (b.release_date ?? '').localeCompare(a.release_date ?? ''))
+        .slice(0, 20)
+        .map(({ show: _show, ...rest }) => {
+          const point = library.resumePoints.get(rest.id)
+          return { ...rest, ...(point && { resume_point: point }) }
+        })
+      return paged(ofShow)(0)
+    },
     getEpisode: async (_token, id) => {
       const known = library.episodes.get(id)
       if (!known) throw new SpotifyApiError(404, `episode ${id} not in the fake`)
