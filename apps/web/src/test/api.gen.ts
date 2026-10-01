@@ -1155,6 +1155,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/search/spotify/podcasts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Spotify's podcasts
+         * @description Shows and episodes from all of Spotify, at most 10 of each, like `/search/spotify` for tracks: only the free text of `q` is sent.
+         */
+        get: operations["searchSpotifyPodcasts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/search": {
         parameters: {
             query?: never;
@@ -1977,7 +1997,7 @@ export interface components {
             rememberedId: number;
         };
         /** @enum {string} */
-        SearchType: "track" | "artist" | "album" | "playlist" | "play";
+        SearchType: "track" | "artist" | "album" | "playlist" | "play" | "show" | "episode";
         SpotifyTrackHit: {
             id: string;
             name: string;
@@ -1988,6 +2008,21 @@ export interface components {
             explicit: boolean;
             /** @description Your recorded plays; 0 for a track new to you. */
             playCount: number;
+        };
+        SpotifyShowHit: {
+            id: string;
+            name: string;
+            imageUrl: string | null;
+            listens: number;
+        };
+        SpotifyEpisodeHit: {
+            id: string;
+            name: string;
+            imageUrl: string | null;
+            releaseDate: string | null;
+            durationMs: number;
+            /** @description Your recorded listens; 0 for an episode new to you. */
+            listens: number;
         };
         SearchResponse: {
             query: {
@@ -6584,11 +6619,100 @@ export interface operations {
             };
         };
     };
+    searchSpotifyPodcasts: {
+        parameters: {
+            query: {
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Shows and episodes, best match first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        shows: components["schemas"]["SpotifyShowHit"][];
+                        episodes: components["schemas"]["SpotifyEpisodeHit"][];
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+            /** @description reauth_required */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthRequiredError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+            /** @description rate_limited */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedError"];
+                };
+            };
+        };
+    };
     search: {
         parameters: {
             query: {
                 q: string;
-                /** @description Comma-separated: track, artist, album, playlist, play. Default: all. */
+                /** @description Comma-separated: track, artist, album, playlist, play, show, episode. Default: all. */
                 types?: string;
                 /** @description Hits per group. */
                 limit?: number;

@@ -322,7 +322,7 @@ export const PodcastPlaylist = meta.story({
     const main = within(await canvas.findByRole('main'))
     await expect(await main.findByRole('heading', { level: 1, name: 'Commute' })).toBeVisible()
     await expect(main.getByText(/3 episodes/)).toBeVisible()
-    const episodesList = within(main.getByRole('region', { name: 'Episodes' }))
+    const episodesList = within(main.getByRole('region', { name: /^Episodes/ }))
     await expect(episodesList.getByRole('link', { name: 'Digging in Osaka' })).toBeVisible()
     // The first can't move up; the last can't move down.
     await userEvent.click(episodesList.getByRole('button', { name: 'Actions for Digging in Osaka' }))
@@ -368,5 +368,33 @@ export const AddsAnEpisodeToAPlaylist = meta.story({
     await expect(dialog.queryByRole('button', { name: /Late Night Crate/ })).toBeNull()
     await userEvent.click(dialog.getByRole('button', { name: /Commute/ }))
     await expect(await dialog.findByText('Added')).toBeVisible()
+  },
+})
+
+export const PaletteSearchesPodcasts = meta.story({
+  beforeEach: inPodcastMode,
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(within(await canvas.findByRole('complementary')).getByRole('button', { name: /^Search/ }))
+    const input = await screen.findByRole('combobox', { name: 'Search your library' })
+    await expect(input).toHaveAttribute('placeholder', 'Search shows and episodes…')
+    await userEvent.type(input, 'sample')
+    await expect(await screen.findByText(/^Episodes · 2/)).toBeVisible()
+    await expect(screen.getAllByText('The History of the Breakbeat')[0]).toBeVisible()
+    // Spotify's episodes new to you, after the library's.
+    await expect(await screen.findByText('Who Sampled Whom')).toBeVisible()
+  },
+})
+
+export const SearchPageInPodcastMode = meta.story({
+  args: { path: '/search?q=sample' },
+  beforeEach: inPodcastMode,
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByText('Every show and episode in your library.')).toBeVisible()
+    const shows = within(await main.findByRole('region', { name: /^Shows/ }))
+    await expect(shows.getByRole('link', { name: /Sample Science/ })).toHaveAttribute('href', '/shows/s1')
+    const episodeHits = within(main.getByRole('region', { name: /^Episodes/ }))
+    await expect(episodeHits.getByRole('link', { name: /The History of the Breakbeat/ })).toHaveAttribute('href', '/episodes/e1')
+    await expect(await main.findByRole('button', { name: 'Play Who Sampled Whom' })).toBeVisible()
   },
 })

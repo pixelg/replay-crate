@@ -153,6 +153,47 @@ const spotifySearchRoute = createRoute({
   },
 })
 
+const spotifyPodcastsRoute = createRoute({
+  method: 'get',
+  path: '/search/spotify/podcasts',
+  tags: ['Search'],
+  operationId: 'searchSpotifyPodcasts',
+  summary: "Search Spotify's podcasts",
+  description: `Shows and episodes from all of Spotify, at most ${SEARCH_LIMIT} of each, like \`/search/spotify\` for tracks: only the free text of \`q\` is sent.`,
+  security: signedIn,
+  request: {
+    query: z.object({
+      q: z.string().max(200),
+      limit: z.coerce.number().int().min(1).max(SEARCH_LIMIT).default(SEARCH_LIMIT),
+    }),
+  },
+  responses: {
+    200: jsonResponse(
+      z.object({
+        shows: z.array(
+          z
+            .object({ id: z.string(), name: z.string(), imageUrl: z.string().nullable(), listens: z.number().int() })
+            .openapi('SpotifyShowHit'),
+        ),
+        episodes: z.array(
+          z
+            .object({
+              id: z.string(),
+              name: z.string(),
+              imageUrl: z.string().nullable(),
+              releaseDate: z.string().nullable(),
+              durationMs: z.number().int(),
+              listens: z.number().int().openapi({ description: 'Your recorded listens; 0 for an episode new to you.' }),
+            })
+            .openapi('SpotifyEpisodeHit'),
+        ),
+      }),
+      'Shows and episodes, best match first.',
+    ),
+    ...errorResponses('invalid_request', 'unauthorized', 'forbidden', 'not_found', 'reauth_required', 'rate_limited'),
+  },
+})
+
 const searchEventRoute = createRoute({
   method: 'post',
   path: '/search/events',
@@ -234,6 +275,58 @@ export function searchRoutes(deps: AppDeps) {
               durationMs: t.duration_ms,
               explicit: t.explicit,
               playCount: plays.get(t.id) ?? 0,
+            })),
+          },
+          200,
+        )
+      } catch (error) {
+        const response = spotifyErrorResponse(c, error)
+        if (response) return response
+        throw error
+      }
+    })
+    .openapi({ ...spotifyPodcastsRoute, middleware: auth }, async (c) => {
+      const { q, limit } = c.req.valid('query')
+      const text = parseSearchQuery(q).text.trim()
+      if (!text) return c.json({ shows: [], episodes: [] }, 200)
+      try {
+        const found = await deps.spotify.searchPodcasts(await getAccessToken(deps, c.var.user.id), text, limit)
+        const shows = found.shows.items.filter((show) => show?.id)
+        const episodes = found.episodes.items.filter((episode) => episode?.id)
+        const userId = c.var.user.id
+        const { episodeListens, episodes: catalog } = schema
+        const byEpisode = episodes.length
+          ? await deps.db
+              .select({ id: episodeListens.episodeId, n: count() })
+              .from(episodeListens)
+              .where(and(eq(episodeListens.userId, userId), inArray(episodeListens.episodeId, episodes.map((episode) => episode.id))))
+              .groupBy(episodeListens.episodeId)
+          : []
+        const byShow = shows.length
+          ? await deps.db
+              .select({ id: catalog.showId, n: count() })
+              .from(episodeListens)
+              .innerJoin(catalog, eq(catalog.id, episodeListens.episodeId))
+              .where(and(eq(episodeListens.userId, userId), inArray(catalog.showId, shows.map((show) => show.id))))
+              .groupBy(catalog.showId)
+          : []
+        const episodeListenCounts = new Map(byEpisode.map((row) => [row.id, row.n]))
+        const showListenCounts = new Map(byShow.map((row) => [row.id, row.n]))
+        return c.json(
+          {
+            shows: shows.map((show) => ({
+              id: show.id,
+              name: show.name,
+              imageUrl: pickImage(show.images, 64),
+              listens: showListenCounts.get(show.id) ?? 0,
+            })),
+            episodes: episodes.map((episode) => ({
+              id: episode.id,
+              name: episode.name,
+              imageUrl: pickImage(episode.images, 64),
+              releaseDate: episode.release_date || null,
+              durationMs: episode.duration_ms,
+              listens: episodeListenCounts.get(episode.id) ?? 0,
             })),
           },
           200,

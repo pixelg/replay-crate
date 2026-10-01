@@ -99,6 +99,10 @@ export function describeSearchIndexContract(
         playTimes: ['2026-09-21T10:00:00.000Z'],
         trackId: 'troy',
       }),
+      // Podcasts: an episode's show stands where a track's artists do.
+      doc({ type: 'show', id: 'sci', name: 'Sample Science', playCount: 3 }),
+      doc({ type: 'episode', id: 'breakbeat', name: 'The History of the Breakbeat', artists: ['Sample Science'], year: 2026, playCount: 2, rating: 4 }),
+      doc({ type: 'episode', id: 'amen', name: 'Six Seconds of Amen', artists: ['Sample Science'], year: 2026, playCount: 1 }),
       // Someone else's library.
       doc({ userId: 'u2', type: 'track', id: 'secret', name: 'Brass Secret', playCount: 99 }),
     ]
@@ -228,6 +232,15 @@ export function describeSearchIndexContract(
         'track:crate-b',
         'track:smooth',
       ])
+    })
+
+    it('finds podcasts: shows, and episodes by name or by their show', async () => {
+      expect(await ids('breakbeat')).toEqual(['episode:breakbeat'])
+      expect(await ids('sample sci')).toEqual(['show:sci', 'episode:breakbeat', 'episode:amen'])
+      expect(await ids('show:"sample science" amen')).toEqual(['episode:amen'])
+      expect(await ids('show:science', { types: ['show'] })).toEqual(['show:sci'])
+      expect(await ids('sample', { types: ['track', 'artist', 'album', 'playlist', 'play'] })).toEqual([])
+      expect(await ids('type:episode rating:>=4')).toEqual(['episode:breakbeat'])
     })
 
     it('never returns play times in hits', async () => {

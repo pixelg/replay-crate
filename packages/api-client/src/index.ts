@@ -36,6 +36,9 @@ export type SearchResponse = InferResponseType<ApiClient['search']['$get'], 200>
 export type SearchHit = SearchResponse['groups'][number]['hits'][number]
 export type SearchType = SearchHit['type']
 export type SpotifyTrackHit = InferResponseType<ApiClient['search']['spotify']['$get'], 200>['tracks'][number]
+export type SpotifyPodcastHits = InferResponseType<ApiClient['search']['spotify']['podcasts']['$get'], 200>
+export type SpotifyShowHit = SpotifyPodcastHits['shows'][number]
+export type SpotifyEpisodeHit = SpotifyPodcastHits['episodes'][number]
 
 // Every call below either returns data or throws an ApiError.
 
@@ -515,6 +518,19 @@ export const spotifySearchQueryOptions = (api: ApiClient, q: string) =>
     placeholderData: keepPreviousData,
     staleTime: 60_000,
     // Spotify says no when it's busy (rate_limited); the library results stand on their own.
+    retry: false,
+  })
+/** Shows and episodes from Spotify's catalogue, like `spotifySearchQueryOptions` for tracks. */
+export const spotifyPodcastSearchQueryOptions = (api: ApiClient, q: string) =>
+  queryOptions({
+    queryKey: ['search', 'spotify-podcasts', q.trim()],
+    queryFn: async ({ signal }) => {
+      const endpoint = 'GET /api/v1/search/spotify/podcasts'
+      return expectOk(await send(endpoint, () => api.search.spotify.podcasts.$get({ query: { q } }, { init: { signal } })), endpoint)
+    },
+    enabled: q.trim().length >= SPOTIFY_SEARCH_MIN_LENGTH,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
     retry: false,
   })
 export type SearchEvent = { q: string; total: number; source: 'palette' | 'page'; picked?: { type: SearchType; id: string; rank: number } }

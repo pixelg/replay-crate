@@ -1,6 +1,6 @@
 import { SpotifyApiError } from '@replay-crate/spotify'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTestContext, play, track } from '../testing.ts'
+import { createTestContext, episode, play, track } from '../testing.ts'
 import type { Analytics } from './analytics.ts'
 
 describe('GET /api/v1/search', () => {
@@ -191,5 +191,35 @@ describe('POST /api/v1/search/events', () => {
 
   it('rejects a bad event', async () => {
     expect((await post({ q: 'x', total: -1, source: 'elsewhere' })).status).toBe(400)
+  })
+})
+
+describe('GET /api/v1/search/spotify/podcasts', () => {
+  let ctx: Awaited<ReturnType<typeof createTestContext>>
+  let cookie: string
+
+  beforeEach(async () => {
+    ctx = await createTestContext()
+    cookie = `rc_session=${(await ctx.login()).token}`
+  })
+  afterEach(() => ctx.close())
+
+  // oxlint-disable-next-line typescript/no-explicit-any
+  const get = async (q: string): Promise<any> =>
+    (await ctx.app.request(`/api/v1/search/spotify/podcasts?q=${encodeURIComponent(q)}`, { headers: { Cookie: cookie } })).json()
+
+  it("finds Spotify's shows and episodes, with your listens", async () => {
+    const talk = episode('talk', { name: 'Science of Sleep', show: ['sci', 'Science Hour'], durationMs: 30 * 60_000 })
+    ctx.library.addEpisodes(talk, episode('other', { name: 'Gardening Tips', show: ['garden', 'Garden Hour'] }))
+    ctx.player.nowPlaying(talk)
+    await ctx.app.request('/api/v1/player', { headers: { Cookie: cookie } })
+
+    const body = await get('science rating:5')
+    expect(ctx.spotify.searchPodcasts).toHaveBeenCalledWith(expect.any(String), 'science', 10)
+    expect(body.shows).toEqual([{ id: 'sci', name: 'Science Hour', imageUrl: 'https://i.scdn.co/sci-300', listens: 1 }])
+    expect(body.episodes).toEqual([
+      { id: 'talk', name: 'Science of Sleep', imageUrl: 'https://i.scdn.co/talk-64', releaseDate: '2026-09-01', durationMs: 30 * 60_000, listens: 1 },
+    ])
+    expect(await get('rating:5')).toEqual({ shows: [], episodes: [] })
   })
 })

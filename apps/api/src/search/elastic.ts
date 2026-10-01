@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { Client, errors, type estypes } from '@elastic/elasticsearch'
-import { addDays, foldText, highlightRanges, type EntityType, type SearchFilter, type SearchQuery } from '@replay-crate/core'
+import { ENTITY_TYPES, addDays, foldText, highlightRanges, type EntityType, type SearchFilter, type SearchQuery } from '@replay-crate/core'
 import { queryWords } from './postgres.ts'
 import type { DocKey, FacetBucket, SearchDoc, SearchFacets, SearchHit, SearchIndex, SearchOptions, SearchResult } from './types.ts'
 
@@ -261,6 +261,8 @@ function filterQuery(filter: SearchFilter, timeZone: string): estypes.QueryDslQu
       return onType('playlist', 'name.folded', 'playlists')
     case 'from':
       return contains('contexts.folded')
+    case 'show':
+      return onType('show', 'name.folded', 'artists.folded')
     case 'genre':
       // The words in order within one genre (array entries sit far apart, so never across two).
       return { match_phrase: { 'genres.text': filter.value } }
@@ -282,7 +284,7 @@ async function searchElastic(
   const typeFilters = query.filters.filter((filter) => filter.field === 'type')
   const wanted = typeFilters.filter((filter) => !filter.negate).map((filter) => filter.value as EntityType)
   const unwanted = new Set(typeFilters.filter((filter) => filter.negate).map((filter) => filter.value))
-  const types = (options.types ?? (['track', 'artist', 'album', 'playlist', 'play'] as EntityType[]))
+  const types = (options.types ?? ([...ENTITY_TYPES] as EntityType[]))
     .filter((type) => !wanted.length || wanted.includes(type))
     .filter((type) => !unwanted.has(type))
   if (!types.length) return { total: 0, groups: [], suggestion: null }

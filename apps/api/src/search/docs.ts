@@ -14,13 +14,22 @@ export type OutboxKind =
   | 'track-name'
   | 'artist-name'
   | 'album-name'
+  | 'show-name'
 
 export type Change = { userId: string | null; kind: string; ref: string }
 
 /** Document ids to rebuild for one user, by type. */
 export type Keys = Record<EntityType, Set<string>>
 
-const emptyKeys = (): Keys => ({ track: new Set(), artist: new Set(), album: new Set(), playlist: new Set(), play: new Set() })
+export const emptyKeys = (): Keys => ({
+  track: new Set(),
+  artist: new Set(),
+  album: new Set(),
+  playlist: new Set(),
+  play: new Set(),
+  show: new Set(),
+  episode: new Set(),
+})
 
 /** `(a, b, c)` for an `in` list. Callers skip empty lists. */
 const list = (values: Iterable<string>) =>
@@ -58,6 +67,7 @@ export async function expand(db: Db, changes: Change[]): Promise<Map<string, Key
   }
   const tracksOfArtists = new Set<string>()
   const tracksOfAlbums = new Set<string>()
+  const episodesOfShows = new Set<string>()
   for (const change of changes) {
     for (const userId of change.userId === null ? everyone : [change.userId]) {
       const keys = get(userId)
@@ -93,6 +103,16 @@ export async function expand(db: Db, changes: Change[]): Promise<Map<string, Key
         case 'context':
           keys.contexts.add(change.ref)
           break
+        case 'show':
+          keys.show.add(change.ref)
+          break
+        case 'show-name':
+          keys.show.add(change.ref)
+          episodesOfShows.add(change.ref)
+          break
+        case 'episode':
+          keys.episode.add(change.ref)
+          break
       }
     }
   }
@@ -113,7 +133,31 @@ export async function expand(db: Db, changes: Change[]): Promise<Map<string, Key
     }
   }
 
+  // A show's name is in its episodes' documents.
+  const renamedEpisodes = new Set<string>()
+  if (episodesOfShows.size) {
+    for (const row of await rows<{ id: string }>(db, sql`select id from episodes where show_id in ${list(episodesOfShows)}`)) {
+      renamedEpisodes.add(row.id)
+    }
+  }
+
   for (const [userId, keys] of pending) {
+    for (const id of renamedEpisodes) keys.episode.add(id)
+    // A playlist's name is in its episodes' documents too.
+    if (keys.tracksOfPlaylists.size) {
+      for (const row of await rows<{ episode_id: string }>(
+        db,
+        sql`select distinct episode_id from playlist_episodes where playlist_id in ${list(keys.tracksOfPlaylists)}`,
+      )) {
+        keys.episode.add(row.episode_id)
+      }
+    }
+    // An episode's listens count towards its show.
+    if (keys.episode.size) {
+      for (const row of await rows<{ show_id: string }>(db, sql`select distinct show_id from episodes where id in ${list(keys.episode)}`)) {
+        keys.show.add(row.show_id)
+      }
+    }
     for (const id of renamedTracks) {
       keys.track.add(id)
       keys.playsOfTracks.add(id)
@@ -164,7 +208,15 @@ export async function expand(db: Db, changes: Change[]): Promise<Map<string, Key
         if (row.artist_id) keys.artist.add(row.artist_id)
       }
     }
-    byUser.set(userId, { track: keys.track, artist: keys.artist, album: keys.album, playlist: keys.playlist, play: keys.play })
+    byUser.set(userId, {
+      track: keys.track,
+      artist: keys.artist,
+      album: keys.album,
+      playlist: keys.playlist,
+      play: keys.play,
+      show: keys.show,
+      episode: keys.episode,
+    })
   }
   return byUser
 }
@@ -176,6 +228,21 @@ const libraryTracks = (userId: string) => sql`(
   union select pi.track_id from playlist_items pi
     join user_playlists up on up.playlist_id = pi.playlist_id and up.user_id = ${userId}
 )`
+
+/** The user's podcast library: episodes they've listened to, rated, or have on a playlist. */
+const libraryEpisodes = (userId: string) => sql`(
+  select episode_id from episode_listens where user_id = ${userId}
+  union select episode_id from episode_ratings where user_id = ${userId}
+  union select pe.episode_id from playlist_episodes pe
+    join user_playlists up on up.playlist_id = pe.playlist_id and up.user_id = ${userId}
+)`
+/** Shows of those episodes, and the shows the user follows. */
+const libraryShows = (userId: string) => sql`(
+  select e.show_id from episodes e where e.id in ${libraryEpisodes(userId)}
+  union select show_id from user_shows where user_id = ${userId}
+)`
+const listenTimes = (from: SQL) =>
+  sql`coalesce((select array_agg(to_char(l.ended_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') order by l.ended_at) ${from}), '{}')`
 
 /** Play times as ISO strings, oldest first, from `plays p` joined as `from` says (and `where`). */
 const iso8601 = sql.raw(`to_char(p.played_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`)
@@ -313,6 +380,35 @@ const queries: Record<EntityType, (userId: string, ids: Set<string>) => SQL> = {
     from plays p join tracks t on t.id = p.track_id join albums al on al.id = t.album_id
     left join contexts c on c.uri = p.context_uri
     where p.user_id = ${userId} and p.id::text in ${list(ids)}`,
+
+  // A podcast's documents: listens count as plays, and an episode's show stands where a track's artists do.
+  show: (userId, ids) => sql`
+    select s.id, s.name, null as album, null::int as year, s.thumb_url as image_url,
+      '{}'::text[] as artists, '{}'::text[] as genres,
+      (select count(*) from episode_listens l join episodes e on e.id = l.episode_id
+        where l.user_id = ${userId} and e.show_id = s.id) as play_count,
+      (select max(l.ended_at) from episode_listens l join episodes e on e.id = l.episode_id
+        where l.user_id = ${userId} and e.show_id = s.id) as last_played_at,
+      ${listenTimes(sql`from episode_listens l join episodes e on e.id = l.episode_id where l.user_id = ${userId} and e.show_id = s.id`)}
+        as play_times,
+      null as played_at, null::smallint as rating, null::text[] as playlists, null::text[] as contexts, null as track_id
+    from shows s
+    where s.id in ${list(ids)} and s.id in ${libraryShows(userId)}`,
+
+  episode: (userId, ids) => sql`
+    select e.id, e.name, null as album, ${year(sql`e.release_date`)} as year, coalesce(e.thumb_url, s.thumb_url) as image_url,
+      array[s.name] as artists, '{}'::text[] as genres,
+      (select count(*) from episode_listens l where l.user_id = ${userId} and l.episode_id = e.id) as play_count,
+      (select max(l.ended_at) from episode_listens l where l.user_id = ${userId} and l.episode_id = e.id) as last_played_at,
+      ${listenTimes(sql`from episode_listens l where l.user_id = ${userId} and l.episode_id = e.id`)} as play_times,
+      (select r.rating from episode_ratings r where r.user_id = ${userId} and r.episode_id = e.id) as rating,
+      (select array_agg(distinct pl.name) from playlist_episodes pe
+        join user_playlists up on up.playlist_id = pe.playlist_id and up.user_id = ${userId}
+        join playlists pl on pl.id = pe.playlist_id
+        where pe.episode_id = e.id) as playlists,
+      null::text[] as contexts, null as played_at, null as track_id
+    from episodes e join shows s on s.id = e.show_id
+    where e.id in ${list(ids)} and e.id in ${libraryEpisodes(userId)}`,
 }
 
 /** The documents for `keys` as they are now, and the keys that no longer have one. */
@@ -343,5 +439,7 @@ export async function allKeys(db: Db, userId: string): Promise<Keys> {
   await collect('album', sql`select distinct t.album_id as id from tracks t where t.id in ${libraryTracks(userId)}`)
   await collect('playlist', sql`select playlist_id as id from user_playlists where user_id = ${userId}`)
   await collect('play', sql`select id::text as id from plays where user_id = ${userId}`)
+  await collect('show', sql`select show_id as id from ${libraryShows(userId)} as shows`)
+  await collect('episode', sql`select episode_id as id from ${libraryEpisodes(userId)} as episodes`)
   return keys
 }

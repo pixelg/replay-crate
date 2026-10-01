@@ -2,7 +2,7 @@ import { schema } from '@replay-crate/db'
 import type { SpotifyPlaylist, SpotifyPlaylistItem } from '@replay-crate/spotify'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTestContext, paged, play, playlist, playlistContext, playlistEntry, track } from '../testing.ts'
+import { createTestContext, episode, paged, play, playlist, playlistContext, playlistEntry, track } from '../testing.ts'
 import type { Analytics } from './analytics.ts'
 import { drainSearchOutbox, enqueueEverything } from './indexer.ts'
 
@@ -199,5 +199,29 @@ describe('search indexing', () => {
     expect(theirs.total).toBe(0)
     const docs = await ctx.db.select().from(schema.searchDocs).where(eq(schema.searchDocs.userId, 'someone-else'))
     expect(docs).toEqual([])
+  })
+
+  it('indexes podcasts as they are listened to, rated and followed', async () => {
+    const talk = episode('talk', { name: 'On Listening Well', show: ['pod', 'The Quiet Pod'], durationMs: 60 * 60_000 })
+    ctx.library.addEpisodes(talk)
+    ctx.player.nowPlaying(talk)
+    const look = () => ctx.app.request('/api/v1/player', { headers: { Cookie: cookie } })
+    await look()
+    ctx.advance(2 * 60_000)
+    await look()
+    await drainSearchOutbox(ctx.deps)
+    expect(await search('quiet', '&types=show,episode')).toEqual(['show:pod (1)', 'episode:talk (1)'])
+    // Music searches leave podcasts out.
+    expect(await search('quiet', '&types=track,artist,album,playlist,play')).toEqual([])
+
+    await post('/episodes/talk/rating', { rating: 5 })
+    await drainSearchOutbox(ctx.deps)
+    expect(await search('type:episode rating:5')).toEqual(['episode:talk (1)'])
+
+    // A followed show is in the library before any listen.
+    ctx.library.followShow(episode('x', { show: ['news', 'Morning Newsroom'] }).show)
+    await post('/shows/sync')
+    await drainSearchOutbox(ctx.deps)
+    expect(await search('newsroom')).toEqual(['show:news (0)'])
   })
 })

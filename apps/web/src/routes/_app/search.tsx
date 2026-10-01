@@ -1,16 +1,17 @@
 import {
   recordSearchEvent,
   searchQueryOptions,
+  spotifyPodcastSearchQueryOptions,
   spotifySearchQueryOptions,
   type SearchHit,
   type SearchResponse,
   type SearchType,
 } from '@replay-crate/api-client'
-import { addFilter, ENTITY_TYPES, pageCount, parsePage, type NewFilter } from '@replay-crate/core'
+import { addFilter, ENTITY_TYPES, MUSIC_TYPES, pageCount, PODCAST_TYPES, parsePage, type NewFilter } from '@replay-crate/core'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { ArrowRight, Search as SearchIcon, SearchX } from 'lucide-react'
+import { ArrowRight, ListEnd, Play, Search as SearchIcon, SearchX } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { EmptyState } from '../../components/empty-state.tsx'
 import { InlineError } from '../../components/inline-error.tsx'
@@ -18,9 +19,12 @@ import { ListPagination } from '../../components/list-pagination.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
 import { FilterChips } from '../../components/search/filter-chips.tsx'
 import { hitLink, TYPE_LABELS } from '../../components/search/hit-links.ts'
-import { HitSummary, SpotifyTrackSummary } from '../../components/search/hits.tsx'
+import { IconButton } from '../../components/player/icon-button.tsx'
+import { HitSummary, SpotifyEpisodeSummary, SpotifyTrackSummary } from '../../components/search/hits.tsx'
 import { TrackActions } from '../../components/track-actions.tsx'
 import { api } from '../../lib/api.ts'
+import { useMode } from '../../lib/mode.ts'
+import { useSearchActions } from '../../lib/use-search-actions.ts'
 import { timeZone } from '../../lib/months.ts'
 import { storedPageSize, storePageSize } from '../../lib/page-size.ts'
 import { useDebouncedValue } from '../../lib/use-debounced-value.ts'
@@ -52,10 +56,12 @@ function SearchPage() {
   const navigate = Route.useNavigate()
   const stored = storedPageSize('search')
   const size = search.size ?? SIZES.find((option) => option === stored) ?? 20
+  // Without a type picked, the half of the library the mode shows.
+  const mode = useMode()
   const results = useQuery(
     searchQueryOptions(api, {
       q,
-      types: type ? [type] : undefined,
+      types: type ? [type] : [...(mode === 'podcasts' ? PODCAST_TYPES : MUSIC_TYPES)],
       limit: type ? size : PREVIEW,
       offset: type ? (page - 1) * size : 0,
       facets: true,
@@ -75,7 +81,14 @@ function SearchPage() {
 
   return (
     <>
-      <PageHeader title="Search" description="Everything in your library: tracks, artists, albums, playlists and plays." />
+      <PageHeader
+        title="Search"
+        description={
+          mode === 'podcasts'
+            ? 'Every show and episode in your library.'
+            : 'Everything in your library: tracks, artists, albums, playlists and plays.'
+        }
+      />
       <SearchBox q={q} onChange={setQuery} />
       <FilterChips q={q} onChange={setQuery} className="mt-3 empty:hidden" />
 
@@ -106,7 +119,7 @@ function SearchPage() {
           )}
         </EmptyState>
       ) : null}
-      {q.trim() && data && !data.total && <FromSpotify q={q} />}
+      {q.trim() && data && !data.total && (mode === 'podcasts' ? <PodcastsFromSpotify q={q} /> : <FromSpotify q={q} />)}
       {!q.trim() || (data && !data.total) ? null : data ? (
         <div aria-busy={results.isPlaceholderData || undefined} className="mt-6 gap-8 md:grid md:grid-cols-[13rem_minmax(0,1fr)]">
           <Facets data={data} type={type} onRefine={refine} />
@@ -134,7 +147,7 @@ function SearchPage() {
                 </section>
               ))
             )}
-            {!type && <FromSpotify q={q} />}
+            {!type && (mode === 'podcasts' ? <PodcastsFromSpotify q={q} /> : <FromSpotify q={q} />)}
             <p className="mt-6 text-xs text-muted-foreground">
               {data.total.toLocaleString()} results in {data.tookMs} ms, from{' '}
               {data.engine === 'elasticsearch' ? 'Elasticsearch' : 'Postgres full-text search'}.
@@ -170,6 +183,47 @@ function TypeResults({ data, type, page, size }: { data: SearchResponse; type: S
         }}
         linkTo={(to) => <Link from={Route.fullPath} to="." search={(prev) => ({ ...prev, page: to > 1 ? to : undefined })} />}
       />
+    </section>
+  )
+}
+
+/** Spotify's shows and episodes for the same words, in podcast mode. */
+function PodcastsFromSpotify({ q }: { q: string }) {
+  const { data, error } = useQuery(spotifyPodcastSearchQueryOptions(api, q))
+  const actions = useSearchActions()
+  if (error) {
+    return (
+      <div className="mt-6">
+        <InlineError error={error} action="Searching Spotify" />
+      </div>
+    )
+  }
+  const episodes = data?.episodes ?? []
+  if (!episodes.length) return null
+  return (
+    <section aria-labelledby="from-spotify" className="mt-8">
+      <h2 id="from-spotify" className="mb-2 font-semibold">
+        From Spotify
+      </h2>
+      <ol className="flex flex-col divide-y divide-border">
+        {episodes.map((episode) => (
+          <li key={episode.id} className="flex items-center gap-2 py-2">
+            {episode.listens > 0 ? (
+              <Link to="/episodes/$episodeId" params={{ episodeId: episode.id }} className="flex min-w-0 flex-1 rounded-lg hover:bg-muted/60">
+                <SpotifyEpisodeSummary episode={episode} />
+              </Link>
+            ) : (
+              <SpotifyEpisodeSummary episode={episode} />
+            )}
+            <IconButton label={`Play ${episode.name}`} onClick={() => actions.playEpisode(episode)} className="shrink-0 text-muted-foreground hover:enabled:text-foreground">
+              <Play aria-hidden className="size-4" />
+            </IconButton>
+            <IconButton label={`Add ${episode.name} to the queue`} onClick={() => actions.queueEpisode(episode)} className="shrink-0 text-muted-foreground hover:enabled:text-foreground">
+              <ListEnd aria-hidden className="size-4" />
+            </IconButton>
+          </li>
+        ))}
+      </ol>
     </section>
   )
 }

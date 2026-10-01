@@ -1,4 +1,4 @@
-import { addDays, foldText, highlightRanges, type EntityType, type SearchFilter, type SearchQuery } from '@replay-crate/core'
+import { addDays, ENTITY_TYPES, foldText, highlightRanges, type EntityType, type SearchFilter, type SearchQuery } from '@replay-crate/core'
 import { schema, type Db } from '@replay-crate/db'
 import { sql, type SQL } from 'drizzle-orm'
 import type { DocKey, FacetBucket, SearchDoc, SearchFacets, SearchHit, SearchIndex, SearchOptions, SearchResult } from './types.ts'
@@ -56,6 +56,8 @@ function filterCondition(filter: SearchFilter, timeZone: string): SQL {
       const genreWords = sql`' ' || regexp_replace(${folded(sql`g.x`)}, '[^[:alnum:]]+', ' ', 'g') || ' '`
       return sql`exists (select 1 from unnest(d.genres) as g(x) where ${genreWords} like ${`% ${words} %`})`
     }
+    case 'show':
+      return sql`case when d.type = 'show' then ${like(sql`d.name`)} else ${anyLike(sql`d.artists`)} end`
     case 'type':
       return sql`d.type = ${filter.value}`
   }
@@ -144,7 +146,7 @@ async function searchPostgres(db: Db, userId: string, query: SearchQuery, option
   const typeFilters = query.filters.filter((filter) => filter.field === 'type')
   const wanted = typeFilters.filter((filter) => !filter.negate).map((filter) => filter.value as EntityType)
   const unwanted = new Set(typeFilters.filter((filter) => filter.negate).map((filter) => filter.value))
-  const types = (options.types ?? ['track', 'artist', 'album', 'playlist', 'play'])
+  const types = (options.types ?? [...ENTITY_TYPES])
     .filter((type) => !wanted.length || wanted.includes(type))
     .filter((type) => !unwanted.has(type))
   if (!types.length) return { total: 0, groups: [], suggestion: null }

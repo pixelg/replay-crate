@@ -7,6 +7,7 @@ import type {
   SpotifyEpisode,
   SavedShow,
   SpotifyShowEpisode,
+  SpotifySimplifiedShow,
   SpotifyPlaybackState,
   SpotifyQueue,
   SpotifyTrack,
@@ -253,6 +254,17 @@ export async function searchTracks(
 ): Promise<Paging<SpotifyTrack>> {
   const path = `/search${query({ q, type: 'track', limit: Math.min(limit, SEARCH_LIMIT) })}`
   return (await spotifyGet<{ tracks: Paging<SpotifyTrack> }>(path, accessToken, options)).tracks
+}
+
+/** Spotify's shows and episodes for `q`, at most 10 of each. Episodes come without their show. */
+export async function searchPodcasts(
+  accessToken: string,
+  q: string,
+  limit = SEARCH_LIMIT,
+  options?: RequestOptions,
+): Promise<{ shows: Paging<SpotifySimplifiedShow>; episodes: Paging<SpotifyShowEpisode> }> {
+  const path = `/search${query({ q, type: 'show,episode', limit: Math.min(limit, SEARCH_LIMIT) })}`
+  return spotifyGet(path, accessToken, options)
 }
 
 /** One track by id. (The batch `GET /tracks?ids=` was removed in Feb 2026.) */
