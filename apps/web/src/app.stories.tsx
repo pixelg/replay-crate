@@ -59,7 +59,8 @@ const meta = preview.meta({
 
 export const History = meta.story({
   play: async ({ canvas }) => {
-    await expect(await canvas.findByRole('heading', { level: 1, name: 'History' })).toBeVisible()
+    // The file's first story also loads the app cold, which a busy CI runner can take a while over.
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'History' }, { timeout: 15_000 })).toBeVisible()
     await expect(await canvas.findByRole('heading', { name: 'Today' })).toBeVisible()
     // The automatic sync on open may still be running ("Syncing…"); wait for it to settle.
     await expect(await canvas.findByRole('button', { name: 'Sync now' })).toBeEnabled()
