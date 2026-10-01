@@ -8,6 +8,7 @@ import { safeBudget } from './jobs/budget.ts'
 import { startJobRunners } from './jobs/runner.ts'
 import { createLastfmGateway, createMusicBrainzGateway } from './genres/gateway.ts'
 import { startSyncScheduler } from './sync/scheduler.ts'
+import { startPlayerWatch } from './podcasts/watch.ts'
 import { enqueueEverything, startSearchIndexer } from './search/indexer.ts'
 import { createAnalytics, createSearchIndex, isElastic } from './search/engine.ts'
 
@@ -34,6 +35,13 @@ serve({ fetch: server.fetch, hostname: '127.0.0.1', port: ENV.API_PORT }, (info)
 if (ENV.SYNC_INTERVAL_MINUTES > 0) {
   startSyncScheduler(deps, { intervalMs: ENV.SYNC_INTERVAL_MINUTES * 60_000 })
   console.log(`Syncing recently played every ${ENV.SYNC_INTERVAL_MINUTES} minutes`)
+}
+// Podcast episodes never show up in recently played: watch the players for them. A `pnpm dev`
+// that reloaded after the schema gained the setting has none, so it falls back to the default.
+const watchSeconds = ENV.PLAYER_WATCH_SECONDS ?? 120
+if (watchSeconds > 0) {
+  startPlayerWatch(deps, { intervalMs: watchSeconds * 1000 })
+  console.log(`Watching players for podcast episodes every ${watchSeconds} seconds`)
 }
 
 // Background lookups, one at a time per API: Spotify (e.g. tracks named in an import) within a
