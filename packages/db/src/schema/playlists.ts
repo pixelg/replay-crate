@@ -46,8 +46,8 @@ export const userPlaylists = pgTable(
 )
 
 /**
- * Tracks in a playlist. `position` is the index in Spotify's list (local files and
- * episodes are skipped but keep their slot), so positions line up for reorders.
+ * Tracks in a playlist. `position` is the index in Spotify's list (local files are skipped
+ * but keep their slot, and episodes are in `playlist_episodes`), so positions line up for reorders.
  */
 export const playlistItems = pgTable(
   'playlist_items',

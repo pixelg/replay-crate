@@ -2,6 +2,8 @@ import { createOpenApiHttp } from 'openapi-msw'
 import type { paths } from './api.gen.ts'
 import {
   devices,
+  episodes,
+  podcastPlaylistDetail,
   newEpisodes,
   listensTimeline,
   podcastStatsCalendar,
@@ -148,9 +150,24 @@ export const handlers = {
   ],
   genres: [http.get('/api/v1/genres', ({ response }) => response(200).json({ genres }))],
   playlists: [
-    http.get('/api/v1/playlists', ({ response }) => response(200).json(playlistsList)),
-    http.get('/api/v1/playlists/{id}', ({ response }) => response(200).json(playlistDetail)),
+    // With `contains`, as the API filters: playlists holding that kind, and empty ones.
+    http.get('/api/v1/playlists', ({ query, response }) => {
+      const contains = query.get('contains')
+      const kept = playlistsList.playlists.filter((playlist) => {
+        if (contains === 'tracks') return playlist.trackCount > 0 || playlist.episodeCount === 0
+        if (contains === 'episodes') return playlist.episodeCount > 0 || playlist.trackCount === 0
+        return true
+      })
+      return response(200).json({ ...playlistsList, playlists: kept })
+    }),
+    http.get('/api/v1/playlists/{id}', ({ params, response }) => response(200).json(params.id === 'p5' ? podcastPlaylistDetail : playlistDetail)),
     http.post('/api/v1/playlists/sync', ({ response }) => response(200).json({ total: 3, synced: 0, remaining: 0 })),
+    http.post('/api/v1/playlists/{id}/episodes', ({ response }) => response(200).json({ ok: true })),
+    http.delete('/api/v1/playlists/{id}/episodes', ({ response }) => response(200).json({ ok: true })),
+    http.put('/api/v1/playlists/{id}/items/move', ({ response }) => response(200).json({ ok: true })),
+    http.post('/api/v1/playlists/episode-preview', ({ response }) =>
+      response(200).json({ suggestedName: 'Unfinished episodes', episodes: [episodes.digging, episodes.breakbeat] }),
+    ),
   ],
   // The same numbers for any range or period, echoing which one was asked for.
   stats: [

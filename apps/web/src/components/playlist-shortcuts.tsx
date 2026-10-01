@@ -43,7 +43,7 @@ function AddToRecentPlaylist({ track }: { track: Track }) {
   const [open, setOpen] = useState(false)
   const [browsing, setBrowsing] = useState(false)
   const queryClient = useQueryClient()
-  const { data, isPending } = useQuery({ ...playlistsQueryOptions(api), enabled: open })
+  const { data, isPending } = useQuery({ ...playlistsQueryOptions(api, 'tracks'), enabled: open })
   // Which playlists already have it; a track Replay Crate hasn't recorded yet has none.
   const { data: detail } = useQuery({ ...trackQueryOptions(api, track.id), enabled: open, retry: false })
   const onPlaylists = new Set(detail?.playlists.map((playlist) => playlist.id))

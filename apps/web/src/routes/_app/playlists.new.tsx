@@ -1,7 +1,7 @@
-import { previewRule, type PlaylistRule, type RulePreview } from '@replay-crate/api-client'
+import { previewEpisodeRule, previewRule, type EpisodePlaylistRule, type EpisodeRulePreview, type PlaylistRule, type RulePreview } from '@replay-crate/api-client'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { ArrowLeft, ListMusic } from 'lucide-react'
+import { ArrowLeft, ListMusic, Podcast } from 'lucide-react'
 import { useState } from 'react'
 import { AlbumArt } from '../../components/album-art.tsx'
 import { EmptyState } from '../../components/empty-state.tsx'
@@ -11,11 +11,18 @@ import { Button } from '../../components/ui/button.tsx'
 import { Segmented } from '../../components/ui/segmented.tsx'
 import { TextField } from '../../components/ui/text-field.tsx'
 import { api } from '../../lib/api.ts'
+import { useMode } from '../../lib/mode.ts'
+import { formatRelease } from '../../lib/podcast-format.ts'
 import { useCreatePlaylist } from '../../lib/use-create-playlist.ts'
 
 export const Route = createFileRoute('/_app/playlists/new')({
-  component: NewPlaylistPage,
+  component: NewPlaylistRoute,
 })
+
+/** A playlist of tracks or of episodes, as the mode says. */
+function NewPlaylistRoute() {
+  return useMode() === 'podcasts' ? <NewEpisodePlaylistPage /> : <NewPlaylistPage />
+}
 
 type Kind = PlaylistRule['kind'] | 'empty'
 type Range = '7d' | '30d' | '90d' | '1y' | 'all'
@@ -149,6 +156,154 @@ function NewPlaylistPage() {
 
       {rule && <Preview tracks={tracks} isLoading={preview.isPending} error={preview.error} />}
     </div>
+  )
+}
+
+type EpisodeKind = EpisodePlaylistRule['kind'] | 'empty'
+
+const episodeKinds = [
+  { value: 'unfinished', label: 'Unfinished' },
+  { value: 'newest_from_shows', label: 'New from your shows' },
+  { value: 'recently_played', label: 'Recently played' },
+  { value: 'top_rated', label: 'Top rated' },
+  { value: 'empty', label: 'Empty' },
+] as const satisfies ReadonlyArray<{ value: EpisodeKind; label: string }>
+
+const episodeHints: Record<EpisodeKind, string> = {
+  unfinished: "Episodes you started and haven't finished, the most recently listened first.",
+  newest_from_shows: "The latest episodes of the shows you follow on Spotify that you haven't finished, newest first.",
+  recently_played: 'Every episode you listened to in a time range, the latest first.',
+  top_rated: 'Episodes you rated, best first.',
+  empty: 'Start from nothing and add episodes from their rows or pages.',
+}
+
+const newWithin = [
+  { value: '7', label: 'This week' },
+  { value: '14', label: 'Two weeks' },
+  { value: '30', label: 'A month' },
+] as const
+
+function toEpisodeRule(kind: EpisodeKind, range: Range, limit: number, minRating: number, days: number): EpisodePlaylistRule | null {
+  switch (kind) {
+    case 'unfinished':
+      return { kind, limit }
+    case 'newest_from_shows':
+      return { kind, days, limit }
+    case 'recently_played':
+      return { kind, range, limit }
+    case 'top_rated':
+      return { kind, minRating, limit }
+    case 'empty':
+      return null
+  }
+}
+
+/** Podcast mode: a playlist of episodes, from where you are in them, your shows, or your ratings. */
+function NewEpisodePlaylistPage() {
+  const [kind, setKind] = useState<EpisodeKind>('unfinished')
+  const [range, setRange] = useState<Range>('7d')
+  const [minRating, setMinRating] = useState<MinRating>('4')
+  const [days, setDays] = useState<(typeof newWithin)[number]['value']>('14')
+  const [size, setSize] = useState<(typeof sizes)[number]['value']>('25')
+  const [name, setName] = useState<string | null>(null)
+
+  const rule = toEpisodeRule(kind, range, Number(size), Number(minRating), Number(days))
+  const preview = useQuery({
+    queryKey: ['episode-rule-preview', rule],
+    queryFn: () => previewEpisodeRule(api, rule!),
+    enabled: rule !== null,
+    placeholderData: keepPreviousData,
+  })
+  const episodes = rule ? (preview.data?.episodes ?? []) : []
+  const suggestedName = rule ? (preview.data?.suggestedName ?? '') : 'New playlist'
+  const finalName = (name ?? suggestedName).trim()
+  const create = useCreatePlaylist()
+  const canCreate = finalName.length > 0 && (kind === 'empty' || episodes.length > 0) && !create.isPending
+
+  return (
+    <div className="flex flex-col gap-6">
+      <Link to="/playlists" className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft aria-hidden className="size-4" /> Playlists
+      </Link>
+      <PageHeader title="New playlist" description="Line up episodes from your podcast listening, then save the playlist to Spotify." />
+
+      <section className="flex flex-col gap-4" aria-label="What goes in it">
+        <div className="overflow-x-auto">
+          <Segmented label="Playlist type" value={kind} onChange={setKind} options={episodeKinds} />
+        </div>
+        <p className="text-sm text-muted-foreground">{episodeHints[kind]}</p>
+        {kind === 'top_rated' && (
+          <div className="overflow-x-auto">
+            <Segmented label="Minimum rating" value={minRating} onChange={setMinRating} options={minRatings} />
+          </div>
+        )}
+        {kind === 'recently_played' && (
+          <div className="overflow-x-auto">
+            <Segmented label="Time range" value={range} onChange={setRange} options={ranges} />
+          </div>
+        )}
+        {kind === 'newest_from_shows' && (
+          <div className="overflow-x-auto">
+            <Segmented label="Released within" value={days} onChange={setDays} options={newWithin} />
+          </div>
+        )}
+        {kind !== 'empty' && (
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-muted-foreground">Up to</span>
+            <Segmented label="Number of episodes" value={size} onChange={setSize} options={sizes} />
+            <span className="text-muted-foreground">episodes</span>
+          </div>
+        )}
+      </section>
+
+      <section className="flex max-w-md flex-col gap-4" aria-label="Details">
+        <TextField label="Name" value={name ?? suggestedName} onChange={(event) => setName(event.target.value)} maxLength={100} />
+        <p className="text-xs text-muted-foreground">
+          Spotify makes playlists created by apps public. You can make it private in the Spotify app afterwards.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            onClick={() => create.mutate({ name: finalName, trackIds: [], episodeIds: episodes.map((episode) => episode.id) })}
+            disabled={!canCreate}
+          >
+            {create.isPending ? 'Creating…' : kind === 'empty' ? 'Create playlist' : `Create with ${episodes.length} episodes`}
+          </Button>
+          {create.error && <InlineError error={create.error} action="Creating the playlist" />}
+        </div>
+      </section>
+
+      {rule && <EpisodePreview episodes={episodes} isLoading={preview.isPending} error={preview.error} />}
+    </div>
+  )
+}
+
+function EpisodePreview({ episodes, isLoading, error }: { episodes: EpisodeRulePreview['episodes']; isLoading: boolean; error: unknown }) {
+  if (error) return <InlineError error={error} action="Loading the preview" />
+  if (isLoading) return <p className="text-sm text-muted-foreground">Finding episodes…</p>
+  if (!episodes.length) {
+    return (
+      <EmptyState icon={Podcast} title="Nothing matches yet">
+        No episodes for this one yet. Try another kind or a longer time range, or come back after more listening.
+      </EmptyState>
+    )
+  }
+  return (
+    <section aria-label="Preview">
+      <h2 className="mb-2 font-semibold">Preview</h2>
+      <ol className="flex flex-col divide-y divide-border">
+        {episodes.map((episode, index) => (
+          <li key={episode.id} className="flex items-center gap-3 py-2">
+            <span className="w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums">{index + 1}</span>
+            <AlbumArt src={episode.thumbUrl} className="size-10" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{episode.name}</p>
+              <p className="truncate text-xs text-muted-foreground">{episode.show.name}</p>
+            </div>
+            <span className="shrink-0 text-xs text-muted-foreground">{formatRelease(episode.releaseDate)}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
   )
 }
 

@@ -54,7 +54,7 @@ function SettingsPage() {
           <h2 className="font-medium">Library</h2>
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <p className="min-w-0 flex-1 text-sm text-muted-foreground">
-              Music or podcasts: what History, the library and Stats show on this device. The player plays either.
+              Music or podcasts: what History, the library, Playlists and Stats show on this device. The player plays either.
             </p>
             <ModeToggle className="w-auto" />
           </div>

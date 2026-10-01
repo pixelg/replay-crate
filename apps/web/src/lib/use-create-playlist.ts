@@ -5,14 +5,15 @@ import { toast } from 'sonner'
 import { api } from './api.ts'
 
 /**
- * Creates a playlist on Spotify with `trackIds`, then opens it; with `open: false` it stays put
+ * Creates a playlist on Spotify with `trackIds` (and `episodeIds`), then opens it; with `open: false` it stays put
  * and says so in a toast (with a link), for creating one while listening.
  */
 export function useCreatePlaylist({ open = true }: { open?: boolean } = {}) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ name, trackIds }: { name: string; trackIds: string[] }) => createPlaylist(api, { name, trackIds }),
+    mutationFn: ({ name, trackIds, episodeIds }: { name: string; trackIds: string[]; episodeIds?: string[] }) =>
+      createPlaylist(api, { name, trackIds, ...(episodeIds?.length && { episodeIds }) }),
     onSuccess: async ({ id }, { name }) => {
       await queryClient.invalidateQueries({ queryKey: ['playlists'] })
       await queryClient.invalidateQueries({ queryKey: ['tracks'] })

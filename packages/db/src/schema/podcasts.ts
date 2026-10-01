@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { bigint, boolean, check, index, integer, pgTable, primaryKey, smallint, text, timestamp, unique } from 'drizzle-orm/pg-core'
 import { users } from './auth.ts'
+import { playlists } from './playlists.ts'
 import { playSource } from './plays.ts'
 
 // Podcasts, apart from the music catalog and plays so nothing about music changes. Spotify's
@@ -151,6 +152,26 @@ export const userShows = pgTable(
     addedAt: timestamp('added_at', { withTimezone: true }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.showId] })],
+)
+
+/**
+ * Episodes in a playlist, beside its tracks in `playlist_items`: `position` is the index in
+ * Spotify's list, so the two together are the playlist in order.
+ */
+export const playlistEpisodes = pgTable(
+  'playlist_episodes',
+  {
+    playlistId: text('playlist_id')
+      .notNull()
+      .references(() => playlists.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    episodeId: text('episode_id')
+      .notNull()
+      .references(() => episodes.id),
+    addedAt: timestamp('added_at', { withTimezone: true }),
+    addedBy: text('added_by'),
+  },
+  (t) => [primaryKey({ columns: [t.playlistId, t.position] }), index('playlist_episodes_episode_idx').on(t.episodeId)],
 )
 
 export type Show = typeof shows.$inferSelect

@@ -27,6 +27,9 @@ export type PlaylistsList = InferResponseType<ApiClient['playlists']['$get'], 20
 export type PlaylistSummary = PlaylistsList['playlists'][number]
 export type PlaylistDetail = InferResponseType<ApiClient['playlists'][':id']['$get'], 200>
 export type PlaylistTrack = PlaylistDetail['items'][number]
+export type PlaylistEpisode = PlaylistDetail['episodes'][number]
+export type EpisodeRulePreview = InferResponseType<ApiClient['playlists']['episode-preview']['$post'], 200>
+export type EpisodePlaylistRule = Parameters<ApiClient['playlists']['episode-preview']['$post']>[0]['json']['rule']
 export type PlaylistSyncResult = InferResponseType<ApiClient['playlists']['sync']['$post'], 200>
 export type RulePreview = InferResponseType<ApiClient['playlists']['preview']['$post'], 200>
 export type SearchResponse = InferResponseType<ApiClient['search']['$get'], 200>
@@ -230,12 +233,13 @@ export async function syncNow(api: ApiClient): Promise<SyncResult> {
   return expectOk(await send(endpoint, () => api.history.sync.$post()), endpoint)
 }
 
-export const playlistsQueryOptions = (api: ApiClient) =>
+/** The user's playlists; with `contains`, only those holding tracks (or episodes), and empty ones. */
+export const playlistsQueryOptions = (api: ApiClient, contains?: 'tracks' | 'episodes') =>
   queryOptions({
-    queryKey: ['playlists'],
+    queryKey: ['playlists', 'list', contains ?? null],
     queryFn: async (): Promise<PlaylistsList> => {
       const endpoint = 'GET /api/v1/playlists'
-      return expectOk(await send(endpoint, () => api.playlists.$get()), endpoint)
+      return expectOk(await send(endpoint, () => api.playlists.$get({ query: contains ? { contains } : {} })), endpoint)
     },
   })
 
@@ -274,7 +278,7 @@ export async function previewRule(api: ApiClient, rule: PlaylistRule): Promise<R
 
 export async function createPlaylist(
   api: ApiClient,
-  input: { name: string; description?: string; trackIds: string[] },
+  input: { name: string; description?: string; trackIds: string[]; episodeIds?: string[] },
 ): Promise<{ id: string }> {
   const endpoint = 'POST /api/v1/playlists'
   return expectOk(await send(endpoint, () => api.playlists.$post({ json: input })), endpoint)
@@ -294,7 +298,25 @@ export async function removeFromPlaylist(api: ApiClient, playlistId: string, tra
   await expectOk(res, endpoint)
 }
 
-/** Moves the track at position `from` so it ends up at position `to`. */
+/** Podcast episodes a rule would put in a new playlist, plus a suggested name. */
+export async function previewEpisodeRule(api: ApiClient, rule: EpisodePlaylistRule): Promise<EpisodeRulePreview> {
+  const endpoint = 'POST /api/v1/playlists/episode-preview'
+  return expectOk(await send(endpoint, () => api.playlists['episode-preview'].$post({ json: { rule } })), endpoint)
+}
+
+export async function addEpisodesToPlaylist(api: ApiClient, playlistId: string, episodeIds: string[], position?: number) {
+  const endpoint = `POST /api/v1/playlists/${playlistId}/episodes`
+  const res = await send(endpoint, () => api.playlists[':id'].episodes.$post({ param: { id: playlistId }, json: { episodeIds, position } }))
+  await expectOk(res, endpoint)
+}
+
+export async function removeEpisodesFromPlaylist(api: ApiClient, playlistId: string, episodeIds: string[]) {
+  const endpoint = `DELETE /api/v1/playlists/${playlistId}/episodes`
+  const res = await send(endpoint, () => api.playlists[':id'].episodes.$delete({ param: { id: playlistId }, json: { episodeIds } }))
+  await expectOk(res, endpoint)
+}
+
+/** Moves the track (or episode) at position `from` so it ends up at position `to`. */
 export async function moveInPlaylist(api: ApiClient, playlistId: string, from: number, to: number) {
   const endpoint = `PUT /api/v1/playlists/${playlistId}/items/move`
   const res = await send(endpoint, () =>

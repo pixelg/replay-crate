@@ -1422,6 +1422,113 @@
           "episodes"
         ]
       },
+      "EpisodePlaylistRule": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "unfinished"
+                ]
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 200,
+                "default": 50
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "newest_from_shows"
+                ]
+              },
+              "days": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 365,
+                "default": 14
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 200,
+                "default": 50
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "recently_played"
+                ]
+              },
+              "range": {
+                "type": "string",
+                "enum": [
+                  "7d",
+                  "30d",
+                  "90d",
+                  "1y",
+                  "all"
+                ],
+                "default": "7d"
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 200,
+                "default": 50
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "top_rated"
+                ]
+              },
+              "minRating": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5,
+                "default": 4
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 200,
+                "default": 50
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        ]
+      },
       "PlaylistSummary": {
         "type": "object",
         "properties": {
@@ -1458,6 +1565,14 @@
           "itemCount": {
             "type": "integer"
           },
+          "trackCount": {
+            "type": "integer",
+            "description": "Tracks in it, as of the last sync."
+          },
+          "episodeCount": {
+            "type": "integer",
+            "description": "Podcast episodes in it, as of the last sync."
+          },
           "playsFrom": {
             "type": "integer",
             "description": "Plays with this playlist as their context."
@@ -1477,7 +1592,7 @@
             ],
             "format": "date-time",
             "example": "2026-09-21T12:00:00.000Z",
-            "description": "When a track was last added to it (by anyone, here or in Spotify), as of the last sync."
+            "description": "When a track or episode was last added to it (by anyone, here or in Spotify), as of the last sync."
           }
         },
         "required": [
@@ -1489,6 +1604,8 @@
           "collaborative",
           "isPublic",
           "itemCount",
+          "trackCount",
+          "episodeCount",
           "playsFrom",
           "lastPlayedFrom",
           "lastAddedAt"
@@ -1615,6 +1732,47 @@
           "playsHere",
           "lastPlayedAt",
           "alsoOn"
+        ]
+      },
+      "PlaylistEpisode": {
+        "type": "object",
+        "properties": {
+          "position": {
+            "type": "integer"
+          },
+          "addedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          },
+          "episode": {
+            "$ref": "#/components/schemas/EpisodeSummary"
+          },
+          "listens": {
+            "type": "integer"
+          },
+          "listenedMs": {
+            "type": "integer"
+          },
+          "lastListenedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          }
+        },
+        "required": [
+          "position",
+          "addedAt",
+          "episode",
+          "listens",
+          "listenedMs",
+          "lastListenedAt"
         ]
       },
       "StatsRange": {
@@ -5654,6 +5812,99 @@
         }
       }
     },
+    "/api/v1/playlists/episode-preview": {
+      "post": {
+        "tags": [
+          "Playlists"
+        ],
+        "operationId": "previewEpisodePlaylistRule",
+        "summary": "Episodes a rule would pick",
+        "description": "The podcast counterpart of `/playlists/preview`: check the episodes before creating anything. Nothing is written.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rule": {
+                    "$ref": "#/components/schemas/EpisodePlaylistRule"
+                  }
+                },
+                "required": [
+                  "rule"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The picked episodes and a suggested name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "suggestedName": {
+                      "type": "string"
+                    },
+                    "episodes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/EpisodeSummary"
+                      }
+                    }
+                  },
+                  "required": [
+                    "suggestedName",
+                    "episodes"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/playlists": {
       "post": {
         "tags": [
@@ -5661,7 +5912,7 @@
         ],
         "operationId": "createPlaylist",
         "summary": "Create a playlist",
-        "description": "Creates it on Spotify with the given tracks, then records it here.",
+        "description": "Creates it on Spotify with the given tracks, then episodes, and records it here.",
         "security": [
           {
             "session": []
@@ -5693,6 +5944,17 @@
                       "minLength": 1,
                       "maxLength": 64,
                       "description": "Spotify track id."
+                    },
+                    "maxItems": 500,
+                    "default": []
+                  },
+                  "episodeIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Spotify episode id."
                     },
                     "maxItems": 500,
                     "default": []
@@ -5802,13 +6064,29 @@
         ],
         "operationId": "listPlaylists",
         "summary": "Your playlists",
-        "description": "In your Spotify order, with how often you play from each.",
+        "description": "In your Spotify order, with how often you play from each. `contains=tracks` leaves out playlists that hold only podcast episodes, `contains=episodes` keeps only those with an episode; empty playlists are in both.",
         "security": [
           {
             "session": []
           },
           {
             "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "tracks",
+                "episodes"
+              ],
+              "description": "What the playlists should hold."
+            },
+            "required": false,
+            "description": "What the playlists should hold.",
+            "name": "contains",
+            "in": "query"
           }
         ],
         "responses": {
@@ -5838,6 +6116,16 @@
                     "playlists",
                     "syncedAt"
                   ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
                 }
               }
             }
@@ -6167,14 +6455,316 @@
         }
       }
     },
+    "/api/v1/playlists/{id}/episodes": {
+      "post": {
+        "tags": [
+          "Playlists"
+        ],
+        "operationId": "addPlaylistEpisodes",
+        "summary": "Add episodes",
+        "description": "Appends podcast episodes, or inserts them at `position` (a Spotify position, among tracks and episodes alike).",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify playlist id."
+            },
+            "required": true,
+            "description": "Spotify playlist id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "episodeIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Spotify episode id."
+                    },
+                    "minItems": 1,
+                    "maxItems": 500
+                  },
+                  "position": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "episodeIds"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Added.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthRequiredError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Playlists"
+        ],
+        "operationId": "removePlaylistEpisodes",
+        "summary": "Remove episodes",
+        "description": "Removes every occurrence of each episode.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify playlist id."
+            },
+            "required": true,
+            "description": "Spotify playlist id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "episodeIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Spotify episode id."
+                    },
+                    "minItems": 1,
+                    "maxItems": 500
+                  }
+                },
+                "required": [
+                  "episodeIds"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthRequiredError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/playlists/{id}/items/move": {
       "put": {
         "tags": [
           "Playlists"
         ],
         "operationId": "movePlaylistItem",
-        "summary": "Move a track",
-        "description": "Moves the track at `from` so it ends up at `to` (0-based positions).",
+        "summary": "Move a track or episode",
+        "description": "Moves the item at `from` so it ends up at `to` (0-based Spotify positions, counting tracks and episodes).",
         "security": [
           {
             "session": []
@@ -6430,8 +7020,8 @@
           "Playlists"
         ],
         "operationId": "getPlaylist",
-        "summary": "A playlist and its tracks",
-        "description": "Each track with your play counts and the other playlists that hold it.",
+        "summary": "A playlist and its tracks and episodes",
+        "description": "Each track with your play counts and the other playlists that hold it, and each podcast episode with your listens. Positions are Spotify's, counting both, so `items` and `episodes` together are the playlist in order.",
         "security": [
           {
             "session": []
@@ -6530,11 +7120,19 @@
                       "items": {
                         "$ref": "#/components/schemas/PlaylistTrack"
                       }
+                    },
+                    "episodes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlaylistEpisode"
+                      },
+                      "description": "Its podcast episodes, in order."
                     }
                   },
                   "required": [
                     "playlist",
-                    "items"
+                    "items",
+                    "episodes"
                   ]
                 }
               }

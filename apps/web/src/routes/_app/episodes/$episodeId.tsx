@@ -4,6 +4,7 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { ArrowLeft, ListEnd, Play, RotateCcw } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { AddEpisodeToPlaylist } from '../../../components/add-to-playlist.tsx'
 import { AlbumArt } from '../../../components/album-art.tsx'
 import { ErrorPage } from '../../../components/error-page.tsx'
 import { EpisodeProgress, ShowLink } from '../../../components/podcasts/episode-parts.tsx'
@@ -125,6 +126,7 @@ function EpisodeButtons({ episode }: { episode: EpisodeDetail['episode'] }) {
       <Button size="sm" variant="secondary" onClick={commands.queue}>
         <ListEnd aria-hidden className="size-4" /> Add to queue
       </Button>
+      <AddEpisodeToPlaylist episode={episode} />
     </div>
   )
 }

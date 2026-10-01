@@ -12,21 +12,27 @@ import { PageHeader } from '../../components/page-header.tsx'
 import { buttonClasses } from '../../components/ui/button-classes.ts'
 import { Button } from '../../components/ui/button.tsx'
 import { api } from '../../lib/api.ts'
+import { getMode, useMode, type Mode } from '../../lib/mode.ts'
 import { cn } from 'cn'
 import { pageOfItems, pageSearch, resizedPage, storedPageSize, storePageSize } from '../../lib/page-size.ts'
 import { usePlaylistSync } from '../../lib/use-playlist-sync.ts'
 
 export const Route = createFileRoute('/_app/playlists/')({
   validateSearch: pageSearch,
-  loader: ({ context }) => context.queryClient.ensureQueryData(playlistsQueryOptions(api)),
+  loaderDeps: () => ({ mode: getMode() }),
+  loader: ({ context, deps: { mode } }) => context.queryClient.ensureQueryData(playlistsQueryOptions(api, containsOf(mode))),
   component: PlaylistsPage,
 })
+
+/** Music mode lists playlists with tracks, podcast mode those with episodes (empty ones in both). */
+const containsOf = (mode: Mode) => (mode === 'podcasts' ? 'episodes' : 'tracks')
 
 /** Re-sync automatically when the last full sync is older than this. */
 const STALE_AFTER_MS = 60 * 60 * 1000
 
 function PlaylistsPage() {
-  const { data } = useSuspenseQuery(playlistsQueryOptions(api))
+  const mode = useMode()
+  const { data } = useSuspenseQuery(playlistsQueryOptions(api, containsOf(mode)))
   const { sync, isSyncing, progress, error: syncError } = usePlaylistSync()
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
@@ -50,7 +56,14 @@ function PlaylistsPage() {
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <PageHeader title="Playlists" description="Your playlists with play counts, and where else each track lives." />
+        <PageHeader
+          title="Playlists"
+          description={
+            mode === 'podcasts'
+              ? 'Your playlists with podcast episodes in them, and how far you are through each episode.'
+              : 'Your playlists with play counts, and where else each track lives.'
+          }
+        />
         <div className="flex flex-wrap items-center justify-end gap-3">
           {syncError && !isSyncing && <InlineError error={syncError} action="Playlist sync" />}
           <p className="text-xs text-muted-foreground" aria-live="polite">
@@ -75,7 +88,7 @@ function PlaylistsPage() {
           <ul className="grid gap-x-6 sm:grid-cols-2">
             {pageOfItems(data.playlists, page, size).map((playlist) => (
               <li key={playlist.id}>
-                <PlaylistRow playlist={playlist} />
+                <PlaylistRow playlist={playlist} mode={mode} />
               </li>
             ))}
           </ul>
@@ -88,15 +101,22 @@ function PlaylistsPage() {
           />
         </>
       ) : (
-        <EmptyState icon={ListMusic} title={isSyncing ? 'Fetching your playlists…' : 'No playlists yet'}>
-          Playlists you own or collaborate on show up here.
+        <EmptyState icon={ListMusic} title={isSyncing ? 'Fetching your playlists…' : mode === 'podcasts' ? 'No podcast playlists yet' : 'No playlists yet'}>
+          {mode === 'podcasts'
+            ? 'Playlists you own or collaborate on that hold podcast episodes show up here. Make one from your listening with New playlist.'
+            : 'Playlists you own or collaborate on show up here.'}
         </EmptyState>
       )}
     </>
   )
 }
 
-function PlaylistRow({ playlist }: { playlist: PlaylistSummary }) {
+function PlaylistRow({ playlist, mode }: { playlist: PlaylistSummary; mode: Mode }) {
+  // What the playlist holds, as the mode counts it; the other kind joins in when there's both.
+  const counted =
+    mode === 'podcasts'
+      ? [count(playlist.episodeCount, 'episode'), playlist.trackCount > 0 && count(playlist.trackCount, 'track')]
+      : [count(playlist.trackCount, 'track'), playlist.episodeCount > 0 && count(playlist.episodeCount, 'episode')]
   return (
     <Link
       to="/playlists/$playlistId"
@@ -107,7 +127,7 @@ function PlaylistRow({ playlist }: { playlist: PlaylistSummary }) {
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium group-hover:underline">{playlist.name}</p>
         <p className="flex items-center gap-1 truncate text-sm text-muted-foreground">
-          {playlist.itemCount} {playlist.itemCount === 1 ? 'track' : 'tracks'}
+          {counted.filter(Boolean).join(' and ')}
           {playlist.collaborative && (
             <>
               {' · '}
@@ -124,3 +144,6 @@ function PlaylistRow({ playlist }: { playlist: PlaylistSummary }) {
     </Link>
   )
 }
+
+/** "1 track", "42 episodes". */
+const count = (n: number, one: string) => `${n.toLocaleString()} ${n === 1 ? one : `${one}s`}`

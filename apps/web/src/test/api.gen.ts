@@ -503,6 +503,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/playlists/episode-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Episodes a rule would pick
+         * @description The podcast counterpart of `/playlists/preview`: check the episodes before creating anything. Nothing is written.
+         */
+        post: operations["previewEpisodePlaylistRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/playlists": {
         parameters: {
             query?: never;
@@ -512,13 +532,13 @@ export interface paths {
         };
         /**
          * Your playlists
-         * @description In your Spotify order, with how often you play from each.
+         * @description In your Spotify order, with how often you play from each. `contains=tracks` leaves out playlists that hold only podcast episodes, `contains=episodes` keeps only those with an episode; empty playlists are in both.
          */
         get: operations["listPlaylists"];
         put?: never;
         /**
          * Create a playlist
-         * @description Creates it on Spotify with the given tracks, then records it here.
+         * @description Creates it on Spotify with the given tracks, then episodes, and records it here.
          */
         post: operations["createPlaylist"];
         delete?: never;
@@ -551,6 +571,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/playlists/{id}/episodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add episodes
+         * @description Appends podcast episodes, or inserts them at `position` (a Spotify position, among tracks and episodes alike).
+         */
+        post: operations["addPlaylistEpisodes"];
+        /**
+         * Remove episodes
+         * @description Removes every occurrence of each episode.
+         */
+        delete: operations["removePlaylistEpisodes"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/playlists/{id}/items/move": {
         parameters: {
             query?: never;
@@ -560,8 +604,8 @@ export interface paths {
         };
         get?: never;
         /**
-         * Move a track
-         * @description Moves the track at `from` so it ends up at `to` (0-based positions).
+         * Move a track or episode
+         * @description Moves the item at `from` so it ends up at `to` (0-based Spotify positions, counting tracks and episodes).
          */
         put: operations["movePlaylistItem"];
         post?: never;
@@ -599,8 +643,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * A playlist and its tracks
-         * @description Each track with your play counts and the other playlists that hold it.
+         * A playlist and its tracks and episodes
+         * @description Each track with your play counts and the other playlists that hold it, and each podcast episode with your listens. Positions are Spotify's, counting both, so `items` and `episodes` together are the playlist in order.
          */
         get: operations["getPlaylist"];
         put?: never;
@@ -1567,6 +1611,36 @@ export interface components {
                 lastListenedAt: string | null;
             }[];
         };
+        EpisodePlaylistRule: {
+            /** @enum {string} */
+            kind: "unfinished";
+            /** @default 50 */
+            limit: number;
+        } | {
+            /** @enum {string} */
+            kind: "newest_from_shows";
+            /** @default 14 */
+            days: number;
+            /** @default 50 */
+            limit: number;
+        } | {
+            /** @enum {string} */
+            kind: "recently_played";
+            /**
+             * @default 7d
+             * @enum {string}
+             */
+            range: "7d" | "30d" | "90d" | "1y" | "all";
+            /** @default 50 */
+            limit: number;
+        } | {
+            /** @enum {string} */
+            kind: "top_rated";
+            /** @default 4 */
+            minRating: number;
+            /** @default 50 */
+            limit: number;
+        };
         PlaylistSummary: {
             id: string;
             name: string;
@@ -1576,6 +1650,10 @@ export interface components {
             collaborative: boolean;
             isPublic: boolean | null;
             itemCount: number;
+            /** @description Tracks in it, as of the last sync. */
+            trackCount: number;
+            /** @description Podcast episodes in it, as of the last sync. */
+            episodeCount: number;
             /** @description Plays with this playlist as their context. */
             playsFrom: number;
             /**
@@ -1585,7 +1663,7 @@ export interface components {
             lastPlayedFrom: string | null;
             /**
              * Format: date-time
-             * @description When a track was last added to it (by anyone, here or in Spotify), as of the last sync.
+             * @description When a track or episode was last added to it (by anyone, here or in Spotify), as of the last sync.
              * @example 2026-09-21T12:00:00.000Z
              */
             lastAddedAt: string | null;
@@ -1624,6 +1702,22 @@ export interface components {
                 id: string;
                 name: string;
             }[];
+        };
+        PlaylistEpisode: {
+            position: number;
+            /**
+             * Format: date-time
+             * @example 2026-09-21T12:00:00.000Z
+             */
+            addedAt: string | null;
+            episode: components["schemas"]["EpisodeSummary"];
+            listens: number;
+            listenedMs: number;
+            /**
+             * Format: date-time
+             * @example 2026-09-21T12:00:00.000Z
+             */
+            lastListenedAt: string | null;
         };
         /**
          * @description A rolling window ending now. `30d` unless `period` is given.
@@ -3575,9 +3669,68 @@ export interface operations {
             };
         };
     };
-    listPlaylists: {
+    previewEpisodePlaylistRule: {
         parameters: {
             query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    rule: components["schemas"]["EpisodePlaylistRule"];
+                };
+            };
+        };
+        responses: {
+            /** @description The picked episodes and a suggested name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        suggestedName: string;
+                        episodes: components["schemas"]["EpisodeSummary"][];
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    listPlaylists: {
+        parameters: {
+            query?: {
+                /** @description What the playlists should hold. */
+                contains?: "tracks" | "episodes";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3598,6 +3751,15 @@ export interface operations {
                          */
                         syncedAt: string | null;
                     };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
                 };
             };
             /** @description unauthorized */
@@ -3634,6 +3796,8 @@ export interface operations {
                     description?: string;
                     /** @default [] */
                     trackIds?: string[];
+                    /** @default [] */
+                    episodeIds?: string[];
                 };
             };
         };
@@ -3824,6 +3988,197 @@ export interface operations {
             content: {
                 "application/json": {
                     trackIds: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Removed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        ok: true;
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+            /** @description reauth_required */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthRequiredError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+            /** @description rate_limited */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedError"];
+                };
+            };
+        };
+    };
+    addPlaylistEpisodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Spotify playlist id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    episodeIds: string[];
+                    position?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Added. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        ok: true;
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+            /** @description reauth_required */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthRequiredError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+            /** @description rate_limited */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedError"];
+                };
+            };
+        };
+    };
+    removePlaylistEpisodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Spotify playlist id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    episodeIds: string[];
                 };
             };
         };
@@ -4116,6 +4471,8 @@ export interface operations {
                             itemsSynced: boolean;
                         };
                         items: components["schemas"]["PlaylistTrack"][];
+                        /** @description Its podcast episodes, in order. */
+                        episodes: components["schemas"]["PlaylistEpisode"][];
                     };
                 };
             };

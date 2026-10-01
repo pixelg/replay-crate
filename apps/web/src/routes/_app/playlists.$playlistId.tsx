@@ -1,8 +1,8 @@
-import { isApiError, playlistQueryOptions, type PlaylistTrack } from '@replay-crate/api-client'
+import { isApiError, playlistQueryOptions, type PlaylistDetail, type PlaylistEpisode, type PlaylistTrack } from '@replay-crate/api-client'
 import { pageCount, type PageSize } from '@replay-crate/core'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
-import { ArrowLeft, ListMusic, Play } from 'lucide-react'
+import { ArrowLeft, ListMusic, Play, Podcast } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { AlbumArt } from '../../components/album-art.tsx'
 import { EmptyState } from '../../components/empty-state.tsx'
@@ -10,13 +10,17 @@ import { ErrorPage } from '../../components/error-page.tsx'
 import { InlineError } from '../../components/inline-error.tsx'
 import { ListPagination } from '../../components/list-pagination.tsx'
 import { PlayTrackButton } from '../../components/play-track-button.tsx'
-import { PlaylistTrackActions } from '../../components/playlist-track-actions.tsx'
-import { TrackRating } from '../../components/star-rating.tsx'
+import { PlaylistEpisodeActions, PlaylistTrackActions } from '../../components/playlist-track-actions.tsx'
+import { EpisodeNameLink, EpisodeProgress, PlayEpisodeButton, QueueEpisodeButton, ShowLink } from '../../components/podcasts/episode-parts.tsx'
+import { EpisodeRating, TrackRating } from '../../components/star-rating.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { Segmented } from '../../components/ui/segmented.tsx'
 import { api } from '../../lib/api.ts'
+import { useMode } from '../../lib/mode.ts'
+import { moveTargets } from '../../lib/playlist-moves.ts'
+import { formatListened } from '../../lib/podcast-format.ts'
 import { pageOfItems, pageSearch, resizedPage, storedPageSize, storePageSize } from '../../lib/page-size.ts'
-import { usePlayingTrackId } from '../../lib/use-player.ts'
+import { usePlayingEpisodeId, usePlayingTrackId } from '../../lib/use-player.ts'
 import { usePlaylistEdit } from '../../lib/use-playlist-edits.ts'
 import { usePlayContext } from '../../lib/use-track-commands.ts'
 import { TrackNameLink } from '../../components/track-name-link.tsx'
@@ -71,8 +75,11 @@ function PlaylistPage() {
   }
   const edit = usePlaylistEdit()
   const playingTrackId = usePlayingTrackId()
-  const lastPosition = items.at(-1)?.position ?? 0
+  const mode = useMode()
   const playlistUri = `spotify:playlist:${playlist.id}`
+  // Moves step between the tracks on screen (the playlist's own order), past any episodes.
+  const trackPositions = items.map((item) => item.position)
+  const counts = (mode === 'podcasts' ? [count(data.episodes.length, 'episode'), items.length > 0 && count(items.length, 'track')] : [count(items.length, 'track'), data.episodes.length > 0 && count(data.episodes.length, 'episode')]).filter(Boolean).join(' and ')
 
   const sorted = useMemo(() => {
     if (sort === 'order') return items
@@ -93,8 +100,13 @@ function PlaylistPage() {
           {playlist.description && <p className="mt-1 text-sm text-muted-foreground">{playlist.description}</p>}
           <p className="mt-1 text-sm text-muted-foreground">
             {playlist.owned ? 'Yours' : `By ${playlist.ownerName ?? 'someone else'}`}
-            {playlist.collaborative && ' · Collaborative'} · {playlist.itemCount} tracks · {playlist.playsFrom}{' '}
-            {playlist.playsFrom === 1 ? 'play' : 'plays'} from here
+            {playlist.collaborative && ' · Collaborative'} · {counts}
+            {mode === 'music' && (
+              <>
+                {' '}
+                · {playlist.playsFrom} {playlist.playsFrom === 1 ? 'play' : 'plays'} from here
+              </>
+            )}
           </p>
           {playlist.itemCount > 0 && <PlayPlaylistButton playlist={{ uri: playlistUri, name: playlist.name }} />}
         </div>
@@ -104,6 +116,8 @@ function PlaylistPage() {
         <EmptyState icon={ListMusic} title="Tracks not synced yet">
           Run Sync playlists on the Playlists page to fetch them.
         </EmptyState>
+      ) : mode === 'podcasts' ? (
+        <PlaylistEpisodes data={data} />
       ) : (
         <section aria-label="Tracks">
           <div className="mb-3 flex flex-wrap items-center gap-3 overflow-x-auto">
@@ -123,8 +137,7 @@ function PlaylistPage() {
                       trackId={item.track.id}
                       trackName={item.track.name}
                       playlistName={playlist.name}
-                      position={item.position}
-                      lastPosition={lastPosition}
+                      moves={moveTargets(trackPositions, trackPositions.indexOf(item.position))}
                       canReorder={sort === 'order'}
                       disabled={edit.isPending}
                       onMove={(to) => edit.mutate({ kind: 'move', playlistId, from: item.position, to })}
@@ -147,6 +160,83 @@ function PlaylistPage() {
     </article>
   )
 }
+
+/** Podcast mode: the playlist's episodes, in order, with where you are in each. */
+function PlaylistEpisodes({ data }: { data: PlaylistDetail }) {
+  const { playlist, episodes } = data
+  const edit = usePlaylistEdit()
+  const playingEpisodeId = usePlayingEpisodeId()
+  const positions = episodes.map((item) => item.position)
+  if (!episodes.length) {
+    return (
+      <EmptyState icon={Podcast} title="No episodes in this playlist">
+        {data.items.length ? 'It holds only tracks: switch to Music to see them. ' : ''}Add episodes from their rows or pages, or
+        make a new playlist from your listening.
+      </EmptyState>
+    )
+  }
+  return (
+    <section aria-label="Episodes">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        {edit.isPending && <p className="text-xs text-muted-foreground">Saving to Spotify…</p>}
+        {edit.error && !edit.isPending && <InlineError error={edit.error} action="Updating the playlist" />}
+      </div>
+      <ol className="flex flex-col divide-y divide-border" aria-busy={edit.isPending}>
+        {episodes.map((item, index) => (
+          <li key={`${item.position}-${item.episode.id}`}>
+            <PlaylistEpisodeRow
+              item={item}
+              playing={item.episode.id === playingEpisodeId}
+              actions={
+                <PlaylistEpisodeActions
+                  episode={item.episode}
+                  playlistName={playlist.name}
+                  moves={moveTargets(positions, index)}
+                  canReorder
+                  disabled={edit.isPending}
+                  onMove={(to) => edit.mutate({ kind: 'move', playlistId: playlist.id, from: item.position, to })}
+                  onRemove={() => edit.mutate({ kind: 'remove-episodes', playlistId: playlist.id, episodeIds: [item.episode.id] })}
+                />
+              }
+            />
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
+function PlaylistEpisodeRow({ item, playing, actions }: { item: PlaylistEpisode; playing: boolean; actions: ReactNode }) {
+  const { episode } = item
+  return (
+    <TrackRow
+      playing={playing}
+      lead={<span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums sm:block">{item.position + 1}</span>}
+      art={<AlbumArt src={episode.thumbUrl} className="size-11" />}
+      title={<EpisodeNameLink episode={episode} playing={playing} />}
+      subtitle={<ShowLink show={episode.show} />}
+      chips={<EpisodeProgress episode={episode} />}
+      actions={
+        <>
+          <PlayEpisodeButton episode={episode} />
+          <QueueEpisodeButton episode={episode} />
+        </>
+      }
+      side={
+        <>
+          <EpisodeRating episode={episode} compactOnPhones />
+          <div className="shrink-0 text-right text-xs text-muted-foreground md:min-w-24">
+            {item.listens > 0 ? <p className="font-medium text-foreground">{formatListened(item.listenedMs)}</p> : <p>Not played</p>}
+          </div>
+        </>
+      }
+      menu={actions}
+    />
+  )
+}
+
+/** "1 track", "12 episodes". */
+const count = (n: number, one: string) => `${n.toLocaleString()} ${n === 1 ? one : `${one}s`}`
 
 /** Starts the playlist from its first track. */
 function PlayPlaylistButton({ playlist }: { playlist: { uri: string; name: string } }) {

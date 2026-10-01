@@ -203,6 +203,8 @@ export const playlistsList: PlaylistsList = {
       collaborative: false,
       isPublic: true,
       itemCount: 42,
+      trackCount: 42,
+      episodeCount: 0,
       playsFrom: 318,
       lastPlayedFrom: hoursAgo(0.2),
       lastAddedAt: hoursAgo(48),
@@ -216,6 +218,8 @@ export const playlistsList: PlaylistsList = {
       collaborative: false,
       isPublic: false,
       itemCount: 120,
+      trackCount: 118,
+      episodeCount: 2,
       playsFrom: 57,
       lastPlayedFrom: hoursAgo(30),
       // The one being built: added to a few minutes ago.
@@ -230,9 +234,27 @@ export const playlistsList: PlaylistsList = {
       collaborative: true,
       isPublic: false,
       itemCount: 18,
+      trackCount: 18,
+      episodeCount: 0,
       playsFrom: 0,
       lastPlayedFrom: null,
       lastAddedAt: null,
+    },
+    // Podcasts only: music mode leaves it out.
+    {
+      id: 'p5',
+      name: 'Commute',
+      thumbUrl: null,
+      ownerName: 'Pixel G',
+      owned: true,
+      collaborative: false,
+      isPublic: false,
+      itemCount: 3,
+      trackCount: 0,
+      episodeCount: 3,
+      playsFrom: 0,
+      lastPlayedFrom: null,
+      lastAddedAt: hoursAgo(5),
     },
   ],
 }
@@ -277,6 +299,7 @@ export const playlistDetail: PlaylistDetail = {
     playlistTrack(2, plays[2]!.track, 0, 0, [{ id: 'p2', name: 'Boom Bap Essentials' }]),
     playlistTrack(3, plays[4]!.track, 27, 20),
   ],
+  episodes: [],
 }
 
 export const rulePreview: RulePreview = {
@@ -958,4 +981,26 @@ export const listensTimeline: ListensTimeline = {
     { month: localDayKey(new Date()).slice(0, 7), listens: 5 },
     { month: '2025-08', listens: 1 },
   ],
+}
+
+/** The podcast-only playlist: three episodes, in Spotify's order. */
+export const podcastPlaylistDetail: PlaylistDetail = {
+  playlist: {
+    id: 'p5',
+    name: 'Commute',
+    description: null,
+    imageUrl: null,
+    ownerName: 'Pixel G',
+    owned: true,
+    collaborative: false,
+    isPublic: false,
+    itemCount: 3,
+    playsFrom: 0,
+    itemsSynced: true,
+  },
+  items: [],
+  episodes: [episodes.digging, episodes.breakbeat, episodes.amen].map((episode, position) => {
+    const listened = episodesPage.items.find((item) => item.episode.id === episode.id)!
+    return { position, addedAt: hoursAgo(5 + position), episode, listens: listened.listens, listenedMs: listened.listenedMs, lastListenedAt: listened.lastListenedAt }
+  }),
 }

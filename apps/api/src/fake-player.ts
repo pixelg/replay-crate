@@ -41,7 +41,7 @@ export type FakePlayerOptions = {
   resolveTrack: (uri: string) => SpotifyTrack
   /** Looks up episodes for `spotify:episode:` URIs. */
   resolveEpisode?: (uri: string) => SpotifyEpisode
-  resolveContext?: (uri: string) => SpotifyTrack[] | undefined
+  resolveContext?: (uri: string) => Array<SpotifyTrack | SpotifyEpisode> | undefined
   now?: () => number
 }
 

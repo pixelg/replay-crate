@@ -292,3 +292,81 @@ export const FollowedShows = meta.story({
     await expect(main.getByRole('link', { name: /Crate Talk/ })).not.toHaveTextContent(/Following/)
   },
 })
+
+export const PodcastPlaylists = meta.story({
+  args: { path: '/playlists' },
+  beforeEach: inPodcastMode,
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    const commute = await main.findByRole('link', { name: /Commute/ })
+    await expect(commute).toHaveTextContent('3 episodes')
+    // A mixed playlist counts its episodes first; tracks-only playlists are music's.
+    await expect(main.getByRole('link', { name: /Boom Bap Essentials/ })).toHaveTextContent('2 episodes and 118 tracks')
+    await expect(main.queryByRole('link', { name: /Late Night Crate/ })).toBeNull()
+  },
+})
+
+export const MusicPlaylistsLeaveOutPodcastOnes = meta.story({
+  args: { path: '/playlists' },
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('link', { name: /Late Night Crate/ })).toHaveTextContent('42 tracks')
+    await expect(main.queryByRole('link', { name: /Commute/ })).toBeNull()
+  },
+})
+
+export const PodcastPlaylist = meta.story({
+  args: { path: '/playlists/p5' },
+  beforeEach: inPodcastMode,
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('heading', { level: 1, name: 'Commute' })).toBeVisible()
+    await expect(main.getByText(/3 episodes/)).toBeVisible()
+    const episodesList = within(main.getByRole('region', { name: 'Episodes' }))
+    await expect(episodesList.getByRole('link', { name: 'Digging in Osaka' })).toBeVisible()
+    // The first can't move up; the last can't move down.
+    await userEvent.click(episodesList.getByRole('button', { name: 'Actions for Digging in Osaka' }))
+    await expect(await screen.findByRole('menuitem', { name: 'Move up' })).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Move down' }))
+    await waitFor(() => expect(main.queryByText('Saving to Spotify…')).toBeNull())
+  },
+})
+
+export const MusicPlaylistShowsItsTracksNotEpisodes = meta.story({
+  args: { path: '/playlists/p5' },
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('heading', { level: 1, name: 'Commute' })).toBeVisible()
+    await expect(main.queryByRole('region', { name: 'Episodes' })).toBeNull()
+  },
+})
+
+export const NewPodcastPlaylist = meta.story({
+  args: { path: '/playlists/new' },
+  beforeEach: inPodcastMode,
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('heading', { level: 1, name: 'New playlist' })).toBeVisible()
+    const preview = within(await main.findByRole('region', { name: 'Preview' }))
+    await expect(preview.getByText('Digging in Osaka')).toBeVisible()
+    await expect(main.getByRole('textbox', { name: 'Name' })).toHaveValue('Unfinished episodes')
+    await expect(main.getByRole('button', { name: 'Create with 2 episodes' })).toBeEnabled()
+    await userEvent.click(main.getByRole('button', { name: 'New from your shows' }))
+    await expect(main.getByRole('group', { name: 'Released within' })).toBeVisible()
+  },
+})
+
+export const AddsAnEpisodeToAPlaylist = meta.story({
+  args: { path: '/episodes/e1' },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await userEvent.click(await main.findByRole('button', { name: 'Add to playlist' }))
+    const dialog = within(await screen.findByRole('dialog', { name: 'Add to playlist' }))
+    // Playlists of episodes (and none of tracks only).
+    const commute = await dialog.findByRole('button', { name: /Commute/ })
+    await waitFor(() => expect(commute).toBeVisible())
+    await expect(dialog.queryByRole('button', { name: /Late Night Crate/ })).toBeNull()
+    await userEvent.click(dialog.getByRole('button', { name: /Commute/ }))
+    await expect(await dialog.findByText('Added')).toBeVisible()
+  },
+})
