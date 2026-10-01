@@ -6,13 +6,14 @@ import type { AppDeps } from '../deps.ts'
 import { loadTrackGenres } from '../genres/queries.ts'
 import { loadTrackArtists } from '../history/queries.ts'
 import { latestAddedFirst } from './queries.ts'
+import { EpisodeSummary, loadEpisodeSummaries } from '../podcasts/present.ts'
 import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
 import { ArtistRef, GenreRef, IsoDateTime, jsonResponse, Rating } from '../lib/schemas.ts'
 import { loadRatings } from '../tracks/ratings.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { syncPlaylists } from '../sync/playlists.ts'
 
-const { albums, playlistItems, playlists, plays, tracks, userPlaylists } = schema
+const { albums, episodeListens, playlistEpisodes, playlistItems, playlists, plays, tracks, userPlaylists } = schema
 
 const playlistUri = (id: string) => `spotify:playlist:${id}`
 
@@ -45,8 +46,13 @@ const list = createRoute({
   tags: ['Playlists'],
   operationId: 'listPlaylists',
   summary: 'Your playlists',
-  description: 'In your Spotify order, with how often you play from each.',
+  description:
+    'In your Spotify order, with how often you play from each. `contains=tracks` leaves out playlists that hold only ' +
+    'podcast episodes, `contains=episodes` keeps only those with an episode; empty playlists are in both.',
   security: signedIn,
+  request: {
+    query: z.object({ contains: z.enum(['tracks', 'episodes']).optional().openapi({ description: 'What the playlists should hold.' }) }),
+  },
   responses: {
     200: jsonResponse(
       z.object({
@@ -61,10 +67,12 @@ const list = createRoute({
               collaborative: z.boolean(),
               isPublic: z.boolean().nullable(),
               itemCount: z.number().int(),
+              trackCount: z.number().int().openapi({ description: 'Tracks in it, as of the last sync.' }),
+              episodeCount: z.number().int().openapi({ description: 'Podcast episodes in it, as of the last sync.' }),
               playsFrom: z.number().int().openapi({ description: 'Plays with this playlist as their context.' }),
               lastPlayedFrom: IsoDateTime.nullable(),
               lastAddedAt: IsoDateTime.nullable().openapi({
-                description: 'When a track was last added to it (by anyone, here or in Spotify), as of the last sync.',
+                description: 'When a track or episode was last added to it (by anyone, here or in Spotify), as of the last sync.',
               }),
             })
             .openapi('PlaylistSummary'),
@@ -73,17 +81,30 @@ const list = createRoute({
       }),
       'Your playlists.',
     ),
-    ...errorResponses('unauthorized'),
+    ...errorResponses('invalid_request', 'unauthorized'),
   },
 })
+
+const PlaylistEpisode = z
+  .object({
+    position: z.number().int(),
+    addedAt: IsoDateTime.nullable(),
+    episode: EpisodeSummary,
+    listens: z.number().int(),
+    listenedMs: z.number().int(),
+    lastListenedAt: IsoDateTime.nullable(),
+  })
+  .openapi('PlaylistEpisode')
 
 const get = createRoute({
   method: 'get',
   path: '/playlists/{id}',
   tags: ['Playlists'],
   operationId: 'getPlaylist',
-  summary: 'A playlist and its tracks',
-  description: 'Each track with your play counts and the other playlists that hold it.',
+  summary: 'A playlist and its tracks and episodes',
+  description:
+    'Each track with your play counts and the other playlists that hold it, and each podcast episode with your listens. ' +
+    "Positions are Spotify's, counting both, so `items` and `episodes` together are the playlist in order.",
   security: signedIn,
   request: { params: z.object({ id: z.string().min(1).openapi({ description: 'Spotify playlist id.' }) }) },
   responses: {
@@ -124,6 +145,7 @@ const get = createRoute({
             })
             .openapi('PlaylistTrack'),
         ),
+        episodes: z.array(PlaylistEpisode).openapi({ description: 'Its podcast episodes, in order.' }),
       }),
       'The playlist.',
     ),
@@ -161,10 +183,24 @@ export function playlistRoutes(deps: AppDeps) {
           .groupBy(plays.contextUri)
           .as('played_from')
         const added = db
-          .select({ playlistId: playlistItems.playlistId, lastAddedAt: max(playlistItems.addedAt).as('last_added_at') })
+          .select({
+            playlistId: playlistItems.playlistId,
+            lastAddedAt: max(playlistItems.addedAt).as('last_added_at'),
+            tracks: count().as('track_count'),
+          })
           .from(playlistItems)
           .groupBy(playlistItems.playlistId)
           .as('added')
+        const addedEpisodes = db
+          .select({
+            playlistId: playlistEpisodes.playlistId,
+            lastAddedAt: max(playlistEpisodes.addedAt).as('last_episode_added_at'),
+            episodes: count().as('episode_count'),
+          })
+          .from(playlistEpisodes)
+          .groupBy(playlistEpisodes.playlistId)
+          .as('added_episodes')
+        const { contains } = c.req.valid('query')
 
         const rows = await db
           .select({
@@ -179,17 +215,32 @@ export function playlistRoutes(deps: AppDeps) {
             playsFrom: playedFrom.playCount,
             lastPlayedFrom: playedFrom.lastPlayedAt,
             lastAddedAt: added.lastAddedAt,
+            lastEpisodeAddedAt: addedEpisodes.lastAddedAt,
+            trackCount: added.tracks,
+            episodeCount: addedEpisodes.episodes,
           })
           .from(userPlaylists)
           .innerJoin(playlists, eq(playlists.id, userPlaylists.playlistId))
           .leftJoin(playedFrom, eq(playedFrom.contextUri, sql`'spotify:playlist:' || ${playlists.id}`))
           .leftJoin(added, eq(added.playlistId, playlists.id))
+          .leftJoin(addedEpisodes, eq(addedEpisodes.playlistId, playlists.id))
           .where(eq(userPlaylists.userId, user.id))
           .orderBy(asc(userPlaylists.position))
 
+        const kept = rows.filter((row) => {
+          const tracksIn = Number(row.trackCount ?? 0)
+          const episodesIn = Number(row.episodeCount ?? 0)
+          if (contains === 'tracks') return tracksIn > 0 || episodesIn === 0
+          if (contains === 'episodes') return episodesIn > 0 || tracksIn === 0
+          return true
+        })
+        const latest = (a: Date | string | null, b: Date | string | null) => {
+          const [x, y] = [toIso(a), toIso(b)]
+          return x && y ? (x > y ? x : y) : (x ?? y)
+        }
         return c.json(
           {
-            playlists: rows.map((row) => ({
+            playlists: kept.map((row) => ({
               id: row.id,
               name: row.name,
               thumbUrl: row.thumbUrl,
@@ -198,9 +249,11 @@ export function playlistRoutes(deps: AppDeps) {
               collaborative: row.collaborative,
               isPublic: row.isPublic,
               itemCount: row.itemCount,
+              trackCount: Number(row.trackCount ?? 0),
+              episodeCount: Number(row.episodeCount ?? 0),
               playsFrom: Number(row.playsFrom ?? 0),
               lastPlayedFrom: toIso(row.lastPlayedFrom),
-              lastAddedAt: toIso(row.lastAddedAt),
+              lastAddedAt: latest(row.lastAddedAt, row.lastEpisodeAddedAt),
             })),
             syncedAt: user.playlistsSyncedAt?.toISOString() ?? null,
           },
@@ -295,6 +348,29 @@ export function playlistRoutes(deps: AppDeps) {
           .from(plays)
           .where(and(eq(plays.userId, user.id), eq(plays.contextUri, playlistUri(playlistId))))
 
+        const episodeRows = await db
+          .select({
+            position: playlistEpisodes.position,
+            addedAt: playlistEpisodes.addedAt,
+            episodeId: playlistEpisodes.episodeId,
+            listens: sql<number>`count(${episodeListens.id})::int`.mapWith(Number),
+            listenedMs: sql<number>`coalesce(sum(${episodeListens.listenedMs}), 0)::int`.mapWith(Number),
+            lastListenedAt: max(episodeListens.endedAt),
+          })
+          .from(playlistEpisodes)
+          .leftJoin(
+            episodeListens,
+            and(eq(episodeListens.episodeId, playlistEpisodes.episodeId), eq(episodeListens.userId, user.id)),
+          )
+          .where(eq(playlistEpisodes.playlistId, playlistId))
+          .groupBy(playlistEpisodes.position, playlistEpisodes.addedAt, playlistEpisodes.episodeId)
+          .orderBy(asc(playlistEpisodes.position))
+        const episodeSummaries = await loadEpisodeSummaries(
+          db,
+          user.id,
+          episodeRows.map((row) => row.episodeId),
+        )
+
         return c.json(
           {
             playlist: {
@@ -331,6 +407,15 @@ export function playlistRoutes(deps: AppDeps) {
                 alsoOn: alsoOnByTrack.get(item.trackId) ?? [],
               }
             }),
+            episodes: episodeRows.map((row) => ({
+              position: row.position,
+              addedAt: row.addedAt?.toISOString() ?? null,
+              // episode_id is a foreign key, so every one is there.
+              episode: episodeSummaries.get(row.episodeId)!,
+              listens: row.listens,
+              listenedMs: row.listenedMs,
+              lastListenedAt: toIso(row.lastListenedAt),
+            })),
           },
           200,
         )

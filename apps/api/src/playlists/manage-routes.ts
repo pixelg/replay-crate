@@ -4,10 +4,22 @@ import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
 import { ArtistRef, IsoDateTime, jsonBody, jsonResponse } from '../lib/schemas.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
-import { addTracks, createPlaylistFor, moveTrack, PlaylistNotEditableError, removeTracks } from './manage.ts'
+import { EpisodeSummary } from '../podcasts/present.ts'
+import { episodeRule, evaluateEpisodeRule } from './episode-rules.ts'
+import {
+  addItems as addPlaylistUris,
+  addTracks,
+  createPlaylistFor,
+  episodeUri,
+  moveTrack,
+  PlaylistNotEditableError,
+  removeItems as removePlaylistUris,
+  removeTracks,
+} from './manage.ts'
 import { evaluateRule, playlistRule } from './rules.ts'
 
 const trackIds = z.array(z.string().min(1).max(64).openapi({ description: 'Spotify track id.' })).max(500)
+const episodeIds = z.array(z.string().min(1).max(64).openapi({ description: 'Spotify episode id.' })).max(500)
 const PlaylistParams = z.object({ id: z.string().min(1).openapi({ description: 'Spotify playlist id.' }) })
 const Ok = z.object({ ok: z.literal(true) })
 
@@ -52,13 +64,28 @@ const preview = createRoute({
   },
 })
 
+const previewEpisodes = createRoute({
+  method: 'post',
+  path: '/playlists/episode-preview',
+  tags: ['Playlists'],
+  operationId: 'previewEpisodePlaylistRule',
+  summary: 'Episodes a rule would pick',
+  description: 'The podcast counterpart of `/playlists/preview`: check the episodes before creating anything. Nothing is written.',
+  security: signedIn,
+  request: { body: jsonBody(z.object({ rule: episodeRule })) },
+  responses: {
+    200: jsonResponse(z.object({ suggestedName: z.string(), episodes: z.array(EpisodeSummary) }), 'The picked episodes and a suggested name.'),
+    ...errorResponses('invalid_request', 'unauthorized'),
+  },
+})
+
 const create = createRoute({
   method: 'post',
   path: '/playlists',
   tags: ['Playlists'],
   operationId: 'createPlaylist',
   summary: 'Create a playlist',
-  description: 'Creates it on Spotify with the given tracks, then records it here.',
+  description: 'Creates it on Spotify with the given tracks, then episodes, and records it here.',
   security: signedIn,
   request: {
     body: jsonBody(
@@ -66,6 +93,7 @@ const create = createRoute({
         name: z.string().trim().min(1).max(100),
         description: z.string().trim().max(300).optional(),
         trackIds: trackIds.default([]),
+        episodeIds: episodeIds.default([]),
       }),
     ),
   },
@@ -99,13 +127,40 @@ const removeItems = createRoute({
   responses: { 200: jsonResponse(Ok, 'Removed.'), ...writeErrors },
 })
 
+const addEpisodes = createRoute({
+  method: 'post',
+  path: '/playlists/{id}/episodes',
+  tags: ['Playlists'],
+  operationId: 'addPlaylistEpisodes',
+  summary: 'Add episodes',
+  description: 'Appends podcast episodes, or inserts them at `position` (a Spotify position, among tracks and episodes alike).',
+  security: signedIn,
+  request: {
+    params: PlaylistParams,
+    body: jsonBody(z.object({ episodeIds: episodeIds.min(1), position: z.number().int().min(0).optional() })),
+  },
+  responses: { 200: jsonResponse(Ok, 'Added.'), ...writeErrors },
+})
+
+const removeEpisodes = createRoute({
+  method: 'delete',
+  path: '/playlists/{id}/episodes',
+  tags: ['Playlists'],
+  operationId: 'removePlaylistEpisodes',
+  summary: 'Remove episodes',
+  description: 'Removes every occurrence of each episode.',
+  security: signedIn,
+  request: { params: PlaylistParams, body: jsonBody(z.object({ episodeIds: episodeIds.min(1) })) },
+  responses: { 200: jsonResponse(Ok, 'Removed.'), ...writeErrors },
+})
+
 const moveItem = createRoute({
   method: 'put',
   path: '/playlists/{id}/items/move',
   tags: ['Playlists'],
   operationId: 'movePlaylistItem',
-  summary: 'Move a track',
-  description: 'Moves the track at `from` so it ends up at `to` (0-based positions).',
+  summary: 'Move a track or episode',
+  description: 'Moves the item at `from` so it ends up at `to` (0-based Spotify positions, counting tracks and episodes).',
   security: signedIn,
   request: {
     params: PlaylistParams,
@@ -142,6 +197,11 @@ export function playlistManageRoutes(deps: AppDeps) {
       return c.json(await evaluateRule(deps.db, c.var.user.id, rule, now()), 200)
     })
 
+    .openapi({ ...previewEpisodes, middleware: auth }, async (c) => {
+      const { rule } = c.req.valid('json')
+      return c.json(await evaluateEpisodeRule(deps.db, c.var.user.id, rule, now()), 200)
+    })
+
     .openapi({ ...create, middleware: auth }, async (c) => {
       const result = await change(c, () => createPlaylistFor(deps, c.var.user.id, c.req.valid('json')))
       return result.response ?? c.json({ id: result.value!.id }, 201)
@@ -156,6 +216,18 @@ export function playlistManageRoutes(deps: AppDeps) {
     .openapi({ ...removeItems, middleware: auth }, async (c) => {
       const { trackIds: ids } = c.req.valid('json')
       const result = await change(c, () => removeTracks(deps, c.var.user.id, c.req.valid('param').id, ids))
+      return result.response ?? c.json({ ok: true as const }, 200)
+    })
+
+    .openapi({ ...addEpisodes, middleware: auth }, async (c) => {
+      const { episodeIds: ids, position } = c.req.valid('json')
+      const result = await change(c, () => addPlaylistUris(deps, c.var.user.id, c.req.valid('param').id, ids.map(episodeUri), position))
+      return result.response ?? c.json({ ok: true as const }, 200)
+    })
+
+    .openapi({ ...removeEpisodes, middleware: auth }, async (c) => {
+      const { episodeIds: ids } = c.req.valid('json')
+      const result = await change(c, () => removePlaylistUris(deps, c.var.user.id, c.req.valid('param').id, ids.map(episodeUri)))
       return result.response ?? c.json({ ok: true as const }, 200)
     })
 

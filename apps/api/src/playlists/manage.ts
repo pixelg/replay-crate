@@ -18,7 +18,8 @@ export class PlaylistNotEditableError extends Error {
   }
 }
 
-const toUri = (trackId: string) => `spotify:track:${trackId}`
+export const trackUri = (trackId: string) => `spotify:track:${trackId}`
+export const episodeUri = (episodeId: string) => `spotify:episode:${episodeId}`
 
 // Every change goes to Spotify first, then the playlist is re-read from Spotify so the
 // stored copy (positions, snapshot) always matches what Spotify actually holds.
@@ -26,7 +27,7 @@ const toUri = (trackId: string) => `spotify:track:${trackId}`
 export async function createPlaylistFor(
   deps: AppDeps,
   userId: string,
-  input: { name: string; description?: string; trackIds: string[] },
+  input: { name: string; description?: string; trackIds: string[]; episodeIds?: string[] },
 ): Promise<{ id: string }> {
   const { db, spotify } = deps
   const accessToken = await getAccessToken(deps, userId)
@@ -58,27 +59,28 @@ export async function createPlaylistFor(
   await db.insert(userPlaylists).values({ userId, playlistId: created.id, position: -1 }).onConflictDoNothing()
 
   let snapshotId = created.snapshot_id
-  for (let i = 0; i < input.trackIds.length; i += BATCH) {
-    const uris = input.trackIds.slice(i, i + BATCH).map(toUri)
-    snapshotId = (await spotify.addPlaylistItems(accessToken, created.id, uris)).snapshot_id
+  const all = [...input.trackIds.map(trackUri), ...(input.episodeIds ?? []).map(episodeUri)]
+  for (let i = 0; i < all.length; i += BATCH) {
+    snapshotId = (await spotify.addPlaylistItems(accessToken, created.id, all.slice(i, i + BATCH))).snapshot_id
   }
   await syncPlaylistItems(deps, accessToken, created.id, snapshotId)
   return { id: created.id }
 }
 
-export async function addTracks(
+/** Adds tracks or episodes (by Spotify URI), appended or at `position`. */
+export async function addItems(
   deps: AppDeps,
   userId: string,
   playlistId: string,
-  trackIds: string[],
+  itemUris: string[],
   position?: number,
 ): Promise<void> {
   await requireInLibrary(deps, userId, playlistId)
   const accessToken = await getAccessToken(deps, userId)
 
   let snapshotId = ''
-  for (let i = 0; i < trackIds.length; i += BATCH) {
-    const uris = trackIds.slice(i, i + BATCH).map(toUri)
+  for (let i = 0; i < itemUris.length; i += BATCH) {
+    const uris = itemUris.slice(i, i + BATCH)
     // Keep a batch insert contiguous when inserting at a position.
     const at = position === undefined ? undefined : position + i
     snapshotId = (await deps.spotify.addPlaylistItems(accessToken, playlistId, uris, at)).snapshot_id
@@ -86,18 +88,24 @@ export async function addTracks(
   await syncPlaylistItems(deps, accessToken, playlistId, snapshotId)
 }
 
-/** Removes every occurrence of each track (Spotify's remove works by URI, not position). */
-export async function removeTracks(deps: AppDeps, userId: string, playlistId: string, trackIds: string[]): Promise<void> {
+export const addTracks = (deps: AppDeps, userId: string, playlistId: string, trackIds: string[], position?: number) =>
+  addItems(deps, userId, playlistId, trackIds.map(trackUri), position)
+
+/** Removes every occurrence of each track or episode (Spotify's remove works by URI, not position). */
+export async function removeItems(deps: AppDeps, userId: string, playlistId: string, itemUris: string[]): Promise<void> {
   await requireInLibrary(deps, userId, playlistId)
   const accessToken = await getAccessToken(deps, userId)
 
   let snapshotId = ''
-  for (let i = 0; i < trackIds.length; i += BATCH) {
-    const uris = trackIds.slice(i, i + BATCH).map(toUri)
+  for (let i = 0; i < itemUris.length; i += BATCH) {
+    const uris = itemUris.slice(i, i + BATCH)
     snapshotId = (await deps.spotify.removePlaylistItems(accessToken, playlistId, uris)).snapshot_id
   }
   await syncPlaylistItems(deps, accessToken, playlistId, snapshotId)
 }
+
+export const removeTracks = (deps: AppDeps, userId: string, playlistId: string, trackIds: string[]) =>
+  removeItems(deps, userId, playlistId, trackIds.map(trackUri))
 
 /** Moves the item at `from` so it ends up at index `to` (both are Spotify positions). */
 export async function moveTrack(deps: AppDeps, userId: string, playlistId: string, from: number, to: number): Promise<void> {

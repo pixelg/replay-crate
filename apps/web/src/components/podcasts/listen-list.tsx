@@ -3,6 +3,7 @@ import { formatDayLabel, groupByDay } from '@replay-crate/core'
 import { AudioLines, Pause } from 'lucide-react'
 import type { Ref } from 'react'
 import { cn } from 'cn'
+import { AddEpisodeToPlaylist } from '../add-to-playlist.tsx'
 import { AlbumArt } from '../album-art.tsx'
 import { EpisodeRating } from '../star-rating.tsx'
 import { TrackRow } from '../track-row.tsx'
@@ -63,6 +64,7 @@ function ListenRow({ listen, playing }: { listen: ListenItem; playing: boolean }
         <>
           <PlayEpisodeButton episode={episode} />
           <QueueEpisodeButton episode={episode} />
+          <AddEpisodeToPlaylist episode={episode} compact />
         </>
       }
       side={

@@ -117,7 +117,7 @@ export function playlist(
   }
 }
 
-export const playlistEntry = (t: SpotifyTrack, addedAt = '2026-01-01T00:00:00Z'): SpotifyPlaylistItem => ({
+export const playlistEntry = (t: SpotifyTrack | SpotifyEpisode, addedAt = '2026-01-01T00:00:00Z'): SpotifyPlaylistItem => ({
   added_at: addedAt,
   added_by: { id: 'pixelg' },
   is_local: false,
@@ -140,7 +140,7 @@ export function paged<T>(items: T[], pageSize = 50) {
  * followed by a re-read exactly like against the real API.
  */
 export function createFakeLibrary() {
-  const store = new Map<string, { meta: SpotifyPlaylist; entries: SpotifyTrack[]; version: number }>()
+  const store = new Map<string, { meta: SpotifyPlaylist; entries: Array<SpotifyTrack | SpotifyEpisode>; version: number }>()
   let nextId = 1
   /** When set, `GET /me/playlists` keeps returning these copies, like Spotify's lagging listing. */
   let frozenListing: SpotifyPlaylist[] | null = null
@@ -198,11 +198,14 @@ export function createFakeLibrary() {
       savedShows.unshift({ added_at: '2026-09-01T00:00:00Z', show })
       for (const e of showEpisodes) episodes.set(e.id, e)
     },
-    /** A playlist's tracks by `spotify:playlist:` URI, as the player plays them. */
+    /** A playlist's tracks (and episodes) by `spotify:playlist:` URI, as the player plays them. */
     contextTracks: (uri: string) => store.get(uri.replace('spotify:playlist:', ''))?.entries,
-    /** Seeds a playlist the user owns. */
-    add(id: string, tracks: SpotifyTrack[], name = `Playlist ${id}`) {
-      remember(tracks)
+    /** Seeds a playlist the user owns; episodes in it become known too. */
+    add(id: string, tracks: Array<SpotifyTrack | SpotifyEpisode>, name = `Playlist ${id}`) {
+      for (const item of tracks) {
+        if ('type' in item && item.type === 'episode') episodes.set(item.id, item)
+        else remember([item as SpotifyTrack])
+      }
       store.set(id, { meta: playlist(id, { name, total: tracks.length }), entries: [...tracks], version: 1 })
     },
     trackIds: (id: string) => get(id).entries.map((entry) => entry.id),
@@ -228,7 +231,7 @@ export function createFakeLibrary() {
       },
       addPlaylistItems: async (_token: string, id: string, uris: string[], position?: number) => {
         const entries = get(id).entries
-        entries.splice(position ?? entries.length, 0, ...uris.map(trackFromUri))
+        entries.splice(position ?? entries.length, 0, ...uris.map((uri) => (uri.startsWith('spotify:episode:') ? episodeFromUri(uri) : trackFromUri(uri))))
         return snapshot(id)
       },
       removePlaylistItems: async (_token: string, id: string, uris: string[]) => {

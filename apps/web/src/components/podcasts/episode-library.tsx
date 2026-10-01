@@ -2,6 +2,7 @@ import type { LibraryEpisode, LibraryShow } from '@replay-crate/api-client'
 import { formatRelative } from '@replay-crate/core'
 import { Link } from '@tanstack/react-router'
 import { AudioLines } from 'lucide-react'
+import { AddEpisodeToPlaylist } from '../add-to-playlist.tsx'
 import { AlbumArt } from '../album-art.tsx'
 import { EpisodeRating } from '../star-rating.tsx'
 import { TrackRow } from '../track-row.tsx'
@@ -41,6 +42,7 @@ export function EpisodeLibraryList({
                 <>
                   <PlayEpisodeButton episode={episode} />
                   <QueueEpisodeButton episode={episode} />
+                  <AddEpisodeToPlaylist episode={episode} compact />
                 </>
               }
               side={

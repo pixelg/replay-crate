@@ -84,7 +84,7 @@ export type SpotifyPlaylistItem = {
   added_at: string | null
   added_by: { id: string } | null
   is_local: boolean
-  item: (SpotifyTrack & { type?: 'track' }) | { type: 'episode'; id: string } | null
+  item: (SpotifyTrack & { type?: 'track' }) | SpotifyEpisode | null
 }
 
 export type TopTimeRange = 'short_term' | 'medium_term' | 'long_term'

@@ -1,11 +1,12 @@
 import { schema } from '@replay-crate/db'
-import { pickImage, SpotifyApiError, type Paging, type SpotifyPlaylist, type SpotifyTrack } from '@replay-crate/spotify'
+import { pickImage, SpotifyApiError, type Paging, type SpotifyEpisode, type SpotifyPlaylist, type SpotifyTrack } from '@replay-crate/spotify'
 import { and, eq, isNull, ne, notInArray, or, sql } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
 import { getAccessToken } from '../spotify/access-token.ts'
+import { upsertEpisodes } from '../podcasts/catalog.ts'
 import { upsertCatalog } from './catalog.ts'
 
-const { playlistItems, playlists, userPlaylists, users } = schema
+const { playlistEpisodes, playlistItems, playlists, userPlaylists, users } = schema
 
 export type PlaylistSyncResult = {
   /** Playlists the user owns or collaborates on. */
@@ -135,12 +136,17 @@ export async function syncPlaylistItems(
   const snapshotId = knownSnapshotId ?? (await spotify.getPlaylistMeta(accessToken, playlistId)).snapshot_id
   const entries = await fetchAll((offset) => spotify.getPlaylistItems(accessToken, playlistId, offset))
 
-  // Keep each entry's index so positions match Spotify's, even with skipped local files/episodes.
+  // Keep each entry's index so positions match Spotify's, even with skipped local files. Tracks
+  // and episodes go to their own tables, each at its own index.
   const trackEntries = entries.flatMap((entry, position) => {
     const item = entry.item
     if (!item || item.type === 'episode' || entry.is_local) return []
     const track = item as SpotifyTrack
     return track.id ? [{ entry, track, position }] : []
+  })
+  const episodeEntries = entries.flatMap((entry, position) => {
+    const item = entry.item
+    return item?.type === 'episode' && item.id && item.show?.id ? [{ entry, episode: item as SpotifyEpisode, position }] : []
   })
 
   for (let i = 0; i < trackEntries.length; i += CHUNK) {
@@ -150,9 +156,28 @@ export async function syncPlaylistItems(
     )
   }
 
+  for (let i = 0; i < episodeEntries.length; i += CHUNK) {
+    await upsertEpisodes(
+      db,
+      episodeEntries.slice(i, i + CHUNK).map(({ episode }) => episode),
+    )
+  }
+
   // Replace the stored items. Not atomic (Neon HTTP has no transactions), but the snapshot
   // marker is only written last, so an interrupted sync is simply redone next time.
   await db.delete(playlistItems).where(eq(playlistItems.playlistId, playlistId))
+  await db.delete(playlistEpisodes).where(eq(playlistEpisodes.playlistId, playlistId))
+  for (let i = 0; i < episodeEntries.length; i += CHUNK) {
+    await db.insert(playlistEpisodes).values(
+      episodeEntries.slice(i, i + CHUNK).map(({ entry, episode, position }) => ({
+        playlistId,
+        position,
+        episodeId: episode.id,
+        addedAt: entry.added_at ? new Date(entry.added_at) : null,
+        addedBy: entry.added_by?.id ?? null,
+      })),
+    )
+  }
   for (let i = 0; i < trackEntries.length; i += CHUNK) {
     await db.insert(playlistItems).values(
       trackEntries.slice(i, i + CHUNK).map(({ entry, track, position }) => ({

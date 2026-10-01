@@ -134,6 +134,8 @@ describe('playlists', () => {
           collaborative: false,
           isPublic: true,
           itemCount: 2,
+          trackCount: 2,
+          episodeCount: 0,
           playsFrom: 3,
           lastPlayedFrom: '2026-09-21T11:50:00.000Z',
           // The newest of its items.

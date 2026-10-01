@@ -1,16 +1,17 @@
-import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { ArrowDown, ArrowDownToLine, ArrowUp, ArrowUpToLine, ListEnd, MoreHorizontal, Play, Trash2 } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import type { MoveTargets } from '../lib/playlist-moves.ts'
+import { useEpisodeCommands } from '../lib/use-track-commands.ts'
 import { TrackActions } from './track-actions.tsx'
 import { ConfirmDialog } from './ui/dialog.tsx'
-import { MenuItem, MenuSeparator } from './ui/menu.tsx'
+import { MenuContent, MenuItem, MenuRoot, MenuSeparator, MenuTrigger } from './ui/menu.tsx'
 
 /** The "⋯" menu on a playlist track: the usual track actions, then reorder (in playlist order only) and remove. */
 export function PlaylistTrackActions({
   trackId,
   trackName,
   playlistName,
-  position,
-  lastPosition,
+  moves,
   canReorder,
   disabled,
   onMove,
@@ -19,8 +20,7 @@ export function PlaylistTrackActions({
   trackId: string
   trackName: string
   playlistName: string
-  position: number
-  lastPosition: number
+  moves: MoveTargets
   /** Moving only makes sense while the list shows the playlist's own order. */
   canReorder: boolean
   disabled?: boolean
@@ -28,47 +28,117 @@ export function PlaylistTrackActions({
   onRemove: () => void
 }) {
   const [confirming, setConfirming] = useState(false)
-  const isFirst = position === 0
-  const isLast = position === lastPosition
-
   return (
     <>
       <TrackActions track={{ id: trackId, name: trackName }} disabled={disabled}>
-        {canReorder && (
-          <>
-            <MenuItem disabled={isFirst} onClick={() => onMove(0)}>
-              <ArrowUpToLine aria-hidden className="size-4 text-muted-foreground" /> Move to top
-            </MenuItem>
-            <MenuItem disabled={isFirst} onClick={() => onMove(position - 1)}>
-              <ArrowUp aria-hidden className="size-4 text-muted-foreground" /> Move up
-            </MenuItem>
-            <MenuItem disabled={isLast} onClick={() => onMove(position + 1)}>
-              <ArrowDown aria-hidden className="size-4 text-muted-foreground" /> Move down
-            </MenuItem>
-            <MenuItem disabled={isLast} onClick={() => onMove(lastPosition)}>
-              <ArrowDownToLine aria-hidden className="size-4 text-muted-foreground" /> Move to bottom
-            </MenuItem>
-            <MenuSeparator />
-          </>
-        )}
-        <MenuItem onClick={() => setConfirming(true)}>
-          <Trash2 aria-hidden className="size-4 text-muted-foreground" /> Remove from playlist…
-        </MenuItem>
+        <PlaylistItems moves={moves} canReorder={canReorder} onMove={onMove} onRemove={() => setConfirming(true)} />
       </TrackActions>
-
-      <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title="Remove from playlist?"
-        description={
-          <>
-            “{trackName}” will be removed from “{playlistName}” on Spotify, including any duplicates of it in the
-            playlist.
-          </>
-        }
-        confirmLabel="Remove"
-        onConfirm={onRemove}
-      />
+      <RemoveDialog open={confirming} onOpenChange={setConfirming} name={trackName} playlistName={playlistName} onRemove={onRemove} />
     </>
+  )
+}
+
+/** The same for an episode: play or resume it, queue it, then reorder and remove. */
+export function PlaylistEpisodeActions({
+  episode,
+  playlistName,
+  moves,
+  canReorder,
+  disabled,
+  onMove,
+  onRemove,
+}: {
+  episode: { id: string; name: string; progress: { resumePositionMs: number; fullyPlayed: boolean } | null }
+  playlistName: string
+  moves: MoveTargets
+  canReorder: boolean
+  disabled?: boolean
+  onMove: (to: number) => void
+  onRemove: () => void
+}) {
+  const [confirming, setConfirming] = useState(false)
+  const commands = useEpisodeCommands(episode)
+  return (
+    <>
+      <MenuRoot>
+        <MenuTrigger aria-label={`Actions for ${episode.name}`} disabled={disabled} className="size-9">
+          <MoreHorizontal aria-hidden className="size-5" />
+        </MenuTrigger>
+        <MenuContent>
+          <MenuItem onClick={commands.play}>
+            <Play aria-hidden className="size-4 text-muted-foreground" /> {commands.resumeAt > 0 ? 'Resume' : 'Play'}
+          </MenuItem>
+          <MenuItem onClick={commands.queue}>
+            <ListEnd aria-hidden className="size-4 text-muted-foreground" /> Add to queue
+          </MenuItem>
+          <MenuSeparator />
+          <PlaylistItems moves={moves} canReorder={canReorder} onMove={onMove} onRemove={() => setConfirming(true)} />
+        </MenuContent>
+      </MenuRoot>
+      <RemoveDialog open={confirming} onOpenChange={setConfirming} name={episode.name} playlistName={playlistName} onRemove={onRemove} />
+    </>
+  )
+}
+
+function PlaylistItems({
+  moves,
+  canReorder,
+  onMove,
+  onRemove,
+}: {
+  moves: MoveTargets
+  canReorder: boolean
+  onMove: (to: number) => void
+  onRemove: () => void
+}): ReactNode {
+  const item = (to: number | undefined, icon: ReactNode, label: string) => (
+    <MenuItem disabled={to === undefined} onClick={() => to !== undefined && onMove(to)}>
+      {icon} {label}
+    </MenuItem>
+  )
+  return (
+    <>
+      {canReorder && (
+        <>
+          {item(moves.top, <ArrowUpToLine aria-hidden className="size-4 text-muted-foreground" />, 'Move to top')}
+          {item(moves.up, <ArrowUp aria-hidden className="size-4 text-muted-foreground" />, 'Move up')}
+          {item(moves.down, <ArrowDown aria-hidden className="size-4 text-muted-foreground" />, 'Move down')}
+          {item(moves.bottom, <ArrowDownToLine aria-hidden className="size-4 text-muted-foreground" />, 'Move to bottom')}
+          <MenuSeparator />
+        </>
+      )}
+      <MenuItem onClick={onRemove}>
+        <Trash2 aria-hidden className="size-4 text-muted-foreground" /> Remove from playlist…
+      </MenuItem>
+    </>
+  )
+}
+
+function RemoveDialog({
+  open,
+  onOpenChange,
+  name,
+  playlistName,
+  onRemove,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  name: string
+  playlistName: string
+  onRemove: () => void
+}) {
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Remove from playlist?"
+      description={
+        <>
+          “{name}” will be removed from “{playlistName}” on Spotify, including any duplicates of it in the playlist.
+        </>
+      }
+      confirmLabel="Remove"
+      onConfirm={onRemove}
+    />
   )
 }

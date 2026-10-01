@@ -145,7 +145,9 @@ export function getMyPlaylists(
 const PLAYLIST_ITEM_FIELDS = [
   'items(added_at,added_by(id),is_local,item(type,id,name,uri,duration_ms,explicit,is_local,external_ids(isrc),',
   'album(id,name,uri,album_type,release_date,release_date_precision,images,artists(id,name,uri)),',
-  'artists(id,name,uri))),next,total,offset,limit',
+  'artists(id,name,uri),',
+  // Episodes: their own art and dates, and their show.
+  'images,release_date,release_date_precision,description,show(id,name,uri,images))),next,total,offset,limit',
 ].join('')
 
 /**
@@ -158,7 +160,7 @@ export function getPlaylistItems(
   offset = 0,
   options?: RequestOptions,
 ): Promise<Paging<SpotifyPlaylistItem>> {
-  const query = new URLSearchParams({ limit: '50', offset: String(offset), fields: PLAYLIST_ITEM_FIELDS })
+  const query = new URLSearchParams({ limit: '50', offset: String(offset), additional_types: 'track,episode', fields: PLAYLIST_ITEM_FIELDS })
   return spotifyGet(`/playlists/${encodeURIComponent(playlistId)}/items?${query}`, accessToken, options)
 }
 
