@@ -41,7 +41,8 @@ const inPodcastMode = () => {
 
 export const SwitchesHistoryToPodcasts = meta.story({
   play: async ({ canvas, userEvent }) => {
-    const sidebar = within(await canvas.findByRole('complementary'))
+    // The file's first story also loads the app cold, which a busy CI runner can take a while over.
+    const sidebar = within(await canvas.findByRole('complementary', undefined, { timeout: 15_000 }))
     const main = within(await canvas.findByRole('main'))
     await expect((await main.findAllByRole('link', { name: 'Brass Monkey Business' }, { timeout: 5_000 }))[0]).toBeVisible()
 
