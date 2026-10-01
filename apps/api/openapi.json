@@ -1281,6 +1281,9 @@
           "show": {
             "$ref": "#/components/schemas/ShowRef"
           },
+          "followed": {
+            "type": "boolean"
+          },
           "stats": {
             "type": "object",
             "properties": {
@@ -1313,6 +1316,7 @@
         },
         "required": [
           "show",
+          "followed",
           "stats"
         ]
       },
@@ -1346,6 +1350,9 @@
                 ]
               }
             ]
+          },
+          "followed": {
+            "type": "boolean"
           },
           "stats": {
             "type": "object",
@@ -1410,6 +1417,7 @@
         },
         "required": [
           "show",
+          "followed",
           "stats",
           "episodes"
         ]
@@ -5005,14 +5013,14 @@
         }
       }
     },
-    "/api/v1/shows": {
-      "get": {
+    "/api/v1/shows/sync": {
+      "post": {
         "tags": [
           "Shows"
         ],
-        "operationId": "listShows",
-        "summary": "Shows you listen to",
-        "description": "Every show with a listen, the most recently listened first.",
+        "operationId": "syncShows",
+        "summary": "Sync the shows you follow",
+        "description": "Reads the shows you saved on Spotify, and queues a look at the latest episodes of each not checked in the last 12 hours (they arrive in the background). The scheduled sync does this twice a day too. Needs the `user-library-read` scope.",
         "security": [
           {
             "session": []
@@ -5023,7 +5031,215 @@
         ],
         "responses": {
           "200": {
-            "description": "Listened shows.",
+            "description": "Synced.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer",
+                      "description": "Shows followed."
+                    },
+                    "queued": {
+                      "type": "integer",
+                      "description": "Shows whose latest episodes are being fetched."
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "queued"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthRequiredError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shows/new-episodes": {
+      "get": {
+        "tags": [
+          "Shows"
+        ],
+        "operationId": "listNewEpisodes",
+        "summary": "New episodes of the shows you follow",
+        "description": "The latest episodes of the shows you follow that you haven't finished, newest release first: those released in the last `days` days.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "default": 30
+            },
+            "required": false,
+            "name": "days",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "New episodes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/EpisodeSummary"
+                      }
+                    },
+                    "syncedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "example": "2026-09-21T12:00:00.000Z"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "syncedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shows": {
+      "get": {
+        "tags": [
+          "Shows"
+        ],
+        "operationId": "listShows",
+        "summary": "Shows you listen to or follow",
+        "description": "Every show with a listen, the most recently listened first, then the shows you follow on Spotify without one (A–Z). `followed` is as of the last `POST /shows/sync`.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Shows.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5034,10 +5250,20 @@
                       "items": {
                         "$ref": "#/components/schemas/LibraryShow"
                       }
+                    },
+                    "syncedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "example": "2026-09-21T12:00:00.000Z",
+                      "description": "When the shows you follow were last read from Spotify."
                     }
                   },
                   "required": [
-                    "items"
+                    "items",
+                    "syncedAt"
                   ]
                 }
               }

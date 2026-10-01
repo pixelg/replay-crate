@@ -6,6 +6,8 @@ import type {
   RepeatState,
   SpotifyDevice,
   SpotifyEpisode,
+  SavedShow,
+  SpotifyShowEpisode,
   SpotifyPlaybackState,
   SpotifyQueue,
   SpotifyArtist,
@@ -49,6 +51,10 @@ export type SpotifyGateway = {
   getTrack(accessToken: string, id: string): Promise<SpotifyTrack>
   /** One episode, with the user's resume point. */
   getEpisode(accessToken: string, id: string): Promise<SpotifyEpisode>
+  /** The shows the user saved, 50 from `offset`. */
+  getMyShows(accessToken: string, offset: number): Promise<Paging<SavedShow>>
+  /** A show's latest 20 episodes, newest first. */
+  getShowEpisodes(accessToken: string, showId: string): Promise<Paging<SpotifyShowEpisode>>
 
   // Player. Commands go to `deviceId`, or the active device.
   getPlaybackState(accessToken: string): Promise<SpotifyPlaybackState | null>

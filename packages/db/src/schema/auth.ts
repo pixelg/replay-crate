@@ -24,6 +24,8 @@ export const users = pgTable('users', {
   needsReauth: boolean('needs_reauth').notNull().default(false),
   lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
   playlistsSyncedAt: timestamp('playlists_synced_at', { withTimezone: true }),
+  /** When the shows the user saved on Spotify were last read. */
+  showsSyncedAt: timestamp('shows_synced_at', { withTimezone: true }),
   ...timestamps,
 })
 

@@ -8,6 +8,8 @@ export {
   getCurrentUser,
   getDevices,
   getEpisode,
+  getMyShows,
+  getShowEpisodes,
   getMyPlaylists,
   getPlaybackState,
   getPlaylistItems,

@@ -5,6 +5,8 @@ import type {
   RepeatState,
   SpotifyDevice,
   SpotifyEpisode,
+  SavedShow,
+  SpotifyShowEpisode,
   SpotifyPlaybackState,
   SpotifyQueue,
   SpotifyTrack,
@@ -259,6 +261,16 @@ export function getTrack(accessToken: string, id: string, options?: RequestOptio
 /** One podcast episode by id, with the user's resume point. (The batch `GET /episodes?ids=` was removed in Feb 2026.) */
 export function getEpisode(accessToken: string, id: string, options?: RequestOptions): Promise<SpotifyEpisode> {
   return spotifyGet(`/episodes/${encodeURIComponent(id)}`, accessToken, options)
+}
+
+/** The shows the user saved, 50 at a time (needs user-library-read). */
+export function getMyShows(accessToken: string, offset = 0, options?: RequestOptions): Promise<Paging<SavedShow>> {
+  return spotifyGet(`/me/shows?limit=50&offset=${offset}`, accessToken, options)
+}
+
+/** A show's latest episodes, newest first, with the user's resume points. */
+export function getShowEpisodes(accessToken: string, showId: string, limit = 20, options?: RequestOptions): Promise<Paging<SpotifyShowEpisode>> {
+  return spotifyGet(`/shows/${encodeURIComponent(showId)}/episodes?limit=${limit}`, accessToken, options)
 }
 
 // Player API. Every call needs Premium; commands go to `deviceId`, or to the active device when

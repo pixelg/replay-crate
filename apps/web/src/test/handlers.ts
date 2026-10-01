@@ -2,6 +2,7 @@ import { createOpenApiHttp } from 'openapi-msw'
 import type { paths } from './api.gen.ts'
 import {
   devices,
+  newEpisodes,
   listensTimeline,
   podcastStatsCalendar,
   podcastStatsOverview,
@@ -111,6 +112,8 @@ export const handlers = {
     http.put('/api/v1/episodes/{id}/rating', async ({ request, response }) => response(200).json(await request.json())),
     http.delete('/api/v1/episodes/{id}/rating', ({ response }) => response(204).empty()),
     http.get('/api/v1/shows', ({ response }) => response(200).json(showsList)),
+    http.post('/api/v1/shows/sync', ({ response }) => response(200).json({ total: 2, queued: 0 })),
+    http.get('/api/v1/shows/new-episodes', ({ response }) => response(200).json(newEpisodes)),
     http.get('/api/v1/history/listens/timeline', ({ response }) => response(200).json(listensTimeline)),
     // The same numbers for any range or period, echoing which one was asked for.
     http.get('/api/v1/stats/podcasts/overview', ({ query, response }) => {

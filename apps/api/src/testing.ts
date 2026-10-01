@@ -52,6 +52,8 @@ export async function createTestContext() {
     getTopArtists: vi.fn<SpotifyGateway['getTopArtists']>(fake.getTopArtists),
     getTrack: vi.fn<SpotifyGateway['getTrack']>(fake.getTrack),
     getEpisode: vi.fn<SpotifyGateway['getEpisode']>(fake.getEpisode),
+    getMyShows: vi.fn<SpotifyGateway['getMyShows']>(fake.getMyShows),
+    getShowEpisodes: vi.fn<SpotifyGateway['getShowEpisodes']>(fake.getShowEpisodes),
     getPlaybackState: vi.fn<SpotifyGateway['getPlaybackState']>(fake.getPlaybackState),
     getQueue: vi.fn<SpotifyGateway['getQueue']>(fake.getQueue),
     getDevices: vi.fn<SpotifyGateway['getDevices']>(fake.getDevices),

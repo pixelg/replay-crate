@@ -1,5 +1,6 @@
 import type {
   Device,
+  NewEpisodes,
   ListensTimeline,
   PodcastStatsCalendar,
   PodcastStatsOverview,
@@ -827,9 +828,24 @@ export const episodesPage: EpisodesPage = {
 
 export const showsList: ShowsList = {
   items: [
-    { show: crateTalk, stats: { episodes: 1, listens: 1, listenedMs: 4 * MIN, lastListenedAt: listens[0]!.endedAt } },
-    { show: sampleScience, stats: { episodes: 2, listens: 4, listenedMs: 68 * MIN, lastListenedAt: listens[1]!.endedAt } },
+    { show: crateTalk, followed: false, stats: { episodes: 1, listens: 1, listenedMs: 4 * MIN, lastListenedAt: listens[0]!.endedAt } },
+    { show: sampleScience, followed: true, stats: { episodes: 2, listens: 4, listenedMs: 68 * MIN, lastListenedAt: listens[1]!.endedAt } },
+    // Followed on Spotify, never listened to here.
+    { show: { id: 's3', name: 'Liner Notes', thumbUrl: null }, followed: true, stats: { episodes: 0, listens: 0, listenedMs: 0, lastListenedAt: null } },
   ],
+  syncedAt: hoursAgo(0.2),
+}
+
+/** New from the shows the user follows: one untouched, one started. */
+export const newEpisodes: NewEpisodes = {
+  items: [
+    episodeSummary('e4', 'Chopping Soul', sampleScience, { releaseDate: localDayKey(new Date()) }),
+    episodeSummary('e5', 'The Gatefold Issue', { id: 's3', name: 'Liner Notes', thumbUrl: null }, {
+      releaseDate: '2026-09-25',
+      progress: { resumePositionMs: 9 * MIN, fullyPlayed: false },
+    }),
+  ],
+  syncedAt: hoursAgo(0.2),
 }
 
 export const episodeDetail: EpisodeDetail = {
@@ -852,6 +868,7 @@ export const episodeDetail: EpisodeDetail = {
 
 export const showDetail: ShowDetail = {
   show: { ...sampleScience, description: 'Where the samples in your favourite records came from.', imageUrl: null },
+  followed: true,
   stats: { episodes: 2, listens: 4, listenedMs: 68 * MIN, lastListenedAt: listens[1]!.endedAt },
   episodes: [
     { episode: episodeSummary('e4', 'Chopping Soul', sampleScience, { releaseDate: '2026-09-30' }), listens: 0, listenedMs: 0, lastListenedAt: null },

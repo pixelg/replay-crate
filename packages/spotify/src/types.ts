@@ -122,6 +122,12 @@ export type SpotifyEpisode = {
   resume_point?: { fully_played: boolean; resume_position_ms: number }
 }
 
+/** A show the user saved ("followed"), from `GET /me/shows`. */
+export type SavedShow = { added_at: string; show: SpotifySimplifiedShow & { total_episodes?: number } }
+
+/** An episode as a show's episode list has it: without the show. */
+export type SpotifyShowEpisode = Omit<SpotifyEpisode, 'show'>
+
 /** What the player can hold: a track or an episode, told apart by `type`. */
 export type SpotifyPlayable = (SpotifyTrack & { type: 'track' }) | SpotifyEpisode
 
