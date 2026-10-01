@@ -13,7 +13,35 @@ permissions:
   contents: read
 
 jobs:
+  # Whether anything but docs changed. A change to only Markdown files (README, CLAUDE.md…) or the
+  # licence can't break what the jobs below test, so they're skipped for it. Skipped, not left out
+  # (as `paths-ignore` would), so the required `check` still reports: a skipped job counts as passing.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # No usable base (a new branch, a force push): test everything.
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$BASE...$HEAD")
+          echo "$changed"
+          if echo "$changed" | grep -qvE '(\.md|^LICENSE)$'; then echo "code=true"; else echo "code=false"; fi >> "$GITHUB_OUTPUT"
+
   check:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -73,6 +101,8 @@ jobs:
   # the engine the app uses when ELASTICSEARCH_URL is set. The check job runs it on Postgres.
   search:
     name: search (Elasticsearch)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:
