@@ -228,9 +228,13 @@ export const HistoryDark = meta.story({
 export const SettingsDarkOnPhone = meta.story({
   args: { path: '/settings' },
   globals: { theme: 'dark', viewport: { value: 'mobile2', isRotated: false } },
-  play: async ({ canvas }) => {
-    // Phones have no sidebar; the toggle sits in the top bar.
-    await expect(within(await canvas.findByRole('banner')).getByRole('button', { name: 'Switch to light theme' })).toBeVisible()
+  play: async ({ canvas, userEvent }) => {
+    // Phones have no sidebar; the theme is in the account menu (the top bar holds the mode).
+    const header = within(await canvas.findByRole('banner'))
+    await expect(header.getByRole('group', { name: 'Library' })).toBeVisible()
+    await userEvent.click(header.getByRole('button', { name: 'Account: Pixel G' }))
+    const item = await screen.findByRole('menuitem', { name: 'Switch to light theme' })
+    await waitFor(() => expect(item).toBeVisible())
   },
 })
 

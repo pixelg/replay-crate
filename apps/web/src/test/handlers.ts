@@ -2,6 +2,12 @@ import { createOpenApiHttp } from 'openapi-msw'
 import type { paths } from './api.gen.ts'
 import {
   devices,
+  episodeDetail,
+  episodesPage,
+  listenedShows,
+  listensPage,
+  showDetail,
+  showsList,
   genres,
   topGenres,
   libraryPage,
@@ -73,6 +79,34 @@ export const handlers = {
     http.get('/api/v1/history/gaps', ({ response }) => response(200).json({ gaps: [] })),
     http.get('/api/v1/history/timeline', ({ response }) => response(200).json(timeline)),
     http.get('/api/v1/history/on-this-day', ({ response }) => response(200).json(onThisDay)),
+  ],
+  // Podcasts: with `show`, only that show's listens; with `since` / `until`, only those ending in between.
+  podcasts: [
+    http.get('/api/v1/history/listens', ({ query, response }) => {
+      const show = query.get('show')
+      const since = query.get('since')
+      const until = query.get('until')
+      const matching = listensPage.items.filter(
+        (listen) =>
+          (!show || listen.episode.show.id === show) &&
+          (!since || Date.parse(listen.endedAt) >= Date.parse(since)) &&
+          (!until || Date.parse(listen.endedAt) < Date.parse(until)),
+      )
+      const { items, rest } = pageBy(matching, query)
+      return response(200).json({ ...listensPage, items, ...rest })
+    }),
+    http.get('/api/v1/history/listens/shows', ({ response }) => response(200).json({ shows: listenedShows })),
+    http.get('/api/v1/episodes', ({ query, response }) => {
+      const unfinished = query.get('unfinished') === 'true'
+      const matching = episodesPage.items.filter((item) => !unfinished || !item.episode.progress?.fullyPlayed)
+      const { items } = pageBy(matching, query)
+      return response(200).json({ items, total: matching.length })
+    }),
+    http.get('/api/v1/episodes/{id}', ({ response }) => response(200).json(episodeDetail)),
+    http.put('/api/v1/episodes/{id}/rating', async ({ request, response }) => response(200).json(await request.json())),
+    http.delete('/api/v1/episodes/{id}/rating', ({ response }) => response(204).empty()),
+    http.get('/api/v1/shows', ({ response }) => response(200).json(showsList)),
+    http.get('/api/v1/shows/{id}', ({ response }) => response(200).json(showDetail)),
   ],
   tracks: [
     http.get('/api/v1/tracks', ({ query, response }) => {

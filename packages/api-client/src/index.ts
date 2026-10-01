@@ -6,6 +6,7 @@ import { ApiError, expectOk, send } from './errors.ts'
 export { ApiError, isApiError } from './errors.ts'
 export * from './auto-sync.ts'
 export * from './player.ts'
+export * from './podcasts.ts'
 export type { Me, PlaylistRule }
 /** The typed client, rooted at /api/v1: `api.history.plays.$get()` fetches /api/v1/history/plays. */
 export type ApiClient = ReturnType<typeof hc<AppType>>['api']['v1']

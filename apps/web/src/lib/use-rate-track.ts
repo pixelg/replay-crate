@@ -1,11 +1,11 @@
-import { setTrackRating } from '@replay-crate/api-client'
+import { setEpisodeRating, setTrackRating, type ApiClient } from '@replay-crate/api-client'
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from './api.ts'
 import { describeError } from './describe-error.ts'
 
 /**
- * `data` with `rating` set on every object that is this track: anything with its `id` and a
+ * `data` with `rating` set on every object that is this track (or episode; Spotify's ids never clash): anything with its `id` and a
  * `rating` field, wherever it sits in a response (plays, the library, a playlist, stats, the
  * player). Unchanged parts keep their identity, so only what changed re-renders.
  */
@@ -52,10 +52,19 @@ function rewriteCache(queryClient: QueryClient, rewrite: (queryHash: string, dat
  * once; if the API says no, they all go back and a toast says why.
  */
 export function useRateTrack() {
+  return useRate('rate-track', setTrackRating)
+}
+
+/** Rates an episode, like `useRateTrack`. */
+export function useRateEpisode() {
+  return useRate('rate-episode', setEpisodeRating)
+}
+
+function useRate(name: string, save: (api: ApiClient, id: string, rating: number | null) => Promise<void>) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationKey: ['rate-track'],
-    mutationFn: ({ trackId, rating }: { trackId: string; rating: number | null }) => setTrackRating(api, trackId, rating),
+    mutationKey: [name],
+    mutationFn: ({ trackId, rating }: { trackId: string; rating: number | null }) => save(api, trackId, rating),
     onMutate: async ({ trackId, rating }) => {
       // Polls in flight would bring the old rating back.
       await queryClient.cancelQueries({ queryKey: ['player'] })
