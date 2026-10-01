@@ -19,9 +19,12 @@ import { Route as AppPlayerRouteImport } from './routes/_app/player'
 import { Route as AppSearchRouteImport } from './routes/_app/search'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppStatsRouteImport } from './routes/_app/stats'
+import { Route as AppEpisodesIndexRouteImport } from './routes/_app/episodes/index'
+import { Route as AppEpisodesEpisodeIdRouteImport } from './routes/_app/episodes/$episodeId'
 import { Route as AppPlaylistsIndexRouteImport } from './routes/_app/playlists.index'
 import { Route as AppPlaylistsPlaylistIdRouteImport } from './routes/_app/playlists.$playlistId'
 import { Route as AppPlaylistsNewRouteImport } from './routes/_app/playlists.new'
+import { Route as AppShowsShowIdRouteImport } from './routes/_app/shows/$showId'
 import { Route as AppTracksIndexRouteImport } from './routes/_app/tracks/index'
 import { Route as AppTracksTrackIdRouteImport } from './routes/_app/tracks/$trackId'
 
@@ -74,6 +77,16 @@ const AppStatsRoute = AppStatsRouteImport.update({
   path: '/stats',
   getParentRoute: () => AppRoute,
 } as any)
+const AppEpisodesIndexRoute = AppEpisodesIndexRouteImport.update({
+  id: '/episodes/',
+  path: '/episodes/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEpisodesEpisodeIdRoute = AppEpisodesEpisodeIdRouteImport.update({
+  id: '/episodes/$episodeId',
+  path: '/episodes/$episodeId',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppPlaylistsIndexRoute = AppPlaylistsIndexRouteImport.update({
   id: '/playlists/',
   path: '/playlists/',
@@ -87,6 +100,11 @@ const AppPlaylistsPlaylistIdRoute = AppPlaylistsPlaylistIdRouteImport.update({
 const AppPlaylistsNewRoute = AppPlaylistsNewRouteImport.update({
   id: '/playlists/new',
   path: '/playlists/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppShowsShowIdRoute = AppShowsShowIdRouteImport.update({
+  id: '/shows/$showId',
+  path: '/shows/$showId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTracksIndexRoute = AppTracksIndexRouteImport.update({
@@ -110,9 +128,12 @@ export interface FileRoutesByFullPath {
   '/search': typeof AppSearchRoute
   '/settings': typeof AppSettingsRoute
   '/stats': typeof AppStatsRoute
+  '/episodes/$episodeId': typeof AppEpisodesEpisodeIdRoute
   '/playlists/$playlistId': typeof AppPlaylistsPlaylistIdRoute
   '/playlists/new': typeof AppPlaylistsNewRoute
+  '/shows/$showId': typeof AppShowsShowIdRoute
   '/tracks/$trackId': typeof AppTracksTrackIdRoute
+  '/episodes/': typeof AppEpisodesIndexRoute
   '/playlists/': typeof AppPlaylistsIndexRoute
   '/tracks/': typeof AppTracksIndexRoute
 }
@@ -126,9 +147,12 @@ export interface FileRoutesByTo {
   '/search': typeof AppSearchRoute
   '/settings': typeof AppSettingsRoute
   '/stats': typeof AppStatsRoute
+  '/episodes/$episodeId': typeof AppEpisodesEpisodeIdRoute
   '/playlists/$playlistId': typeof AppPlaylistsPlaylistIdRoute
   '/playlists/new': typeof AppPlaylistsNewRoute
+  '/shows/$showId': typeof AppShowsShowIdRoute
   '/tracks/$trackId': typeof AppTracksTrackIdRoute
+  '/episodes': typeof AppEpisodesIndexRoute
   '/playlists': typeof AppPlaylistsIndexRoute
   '/tracks': typeof AppTracksIndexRoute
 }
@@ -144,9 +168,12 @@ export interface FileRoutesById {
   '/_app/search': typeof AppSearchRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/stats': typeof AppStatsRoute
+  '/_app/episodes/$episodeId': typeof AppEpisodesEpisodeIdRoute
   '/_app/playlists/$playlistId': typeof AppPlaylistsPlaylistIdRoute
   '/_app/playlists/new': typeof AppPlaylistsNewRoute
+  '/_app/shows/$showId': typeof AppShowsShowIdRoute
   '/_app/tracks/$trackId': typeof AppTracksTrackIdRoute
+  '/_app/episodes/': typeof AppEpisodesIndexRoute
   '/_app/playlists/': typeof AppPlaylistsIndexRoute
   '/_app/tracks/': typeof AppTracksIndexRoute
 }
@@ -162,9 +189,12 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/stats'
+    | '/episodes/$episodeId'
     | '/playlists/$playlistId'
     | '/playlists/new'
+    | '/shows/$showId'
     | '/tracks/$trackId'
+    | '/episodes/'
     | '/playlists/'
     | '/tracks/'
   fileRoutesByTo: FileRoutesByTo
@@ -178,9 +208,12 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/stats'
+    | '/episodes/$episodeId'
     | '/playlists/$playlistId'
     | '/playlists/new'
+    | '/shows/$showId'
     | '/tracks/$trackId'
+    | '/episodes'
     | '/playlists'
     | '/tracks'
   id:
@@ -195,9 +228,12 @@ export interface FileRouteTypes {
     | '/_app/search'
     | '/_app/settings'
     | '/_app/stats'
+    | '/_app/episodes/$episodeId'
     | '/_app/playlists/$playlistId'
     | '/_app/playlists/new'
+    | '/_app/shows/$showId'
     | '/_app/tracks/$trackId'
+    | '/_app/episodes/'
     | '/_app/playlists/'
     | '/_app/tracks/'
   fileRoutesById: FileRoutesById
@@ -281,6 +317,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppStatsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/episodes/': {
+      id: '/_app/episodes/'
+      path: '/episodes'
+      fullPath: '/episodes/'
+      preLoaderRoute: typeof AppEpisodesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/episodes/$episodeId': {
+      id: '/_app/episodes/$episodeId'
+      path: '/episodes/$episodeId'
+      fullPath: '/episodes/$episodeId'
+      preLoaderRoute: typeof AppEpisodesEpisodeIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/playlists/': {
       id: '/_app/playlists/'
       path: '/playlists'
@@ -300,6 +350,13 @@ declare module '@tanstack/react-router' {
       path: '/playlists/new'
       fullPath: '/playlists/new'
       preLoaderRoute: typeof AppPlaylistsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/shows/$showId': {
+      id: '/_app/shows/$showId'
+      path: '/shows/$showId'
+      fullPath: '/shows/$showId'
+      preLoaderRoute: typeof AppShowsShowIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/tracks/': {
@@ -326,9 +383,12 @@ interface AppRouteChildren {
   AppSearchRoute: typeof AppSearchRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppStatsRoute: typeof AppStatsRoute
+  AppEpisodesEpisodeIdRoute: typeof AppEpisodesEpisodeIdRoute
   AppPlaylistsPlaylistIdRoute: typeof AppPlaylistsPlaylistIdRoute
   AppPlaylistsNewRoute: typeof AppPlaylistsNewRoute
+  AppShowsShowIdRoute: typeof AppShowsShowIdRoute
   AppTracksTrackIdRoute: typeof AppTracksTrackIdRoute
+  AppEpisodesIndexRoute: typeof AppEpisodesIndexRoute
   AppPlaylistsIndexRoute: typeof AppPlaylistsIndexRoute
   AppTracksIndexRoute: typeof AppTracksIndexRoute
 }
@@ -340,9 +400,12 @@ const AppRouteChildren: AppRouteChildren = {
   AppSearchRoute: AppSearchRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppStatsRoute: AppStatsRoute,
+  AppEpisodesEpisodeIdRoute: AppEpisodesEpisodeIdRoute,
   AppPlaylistsPlaylistIdRoute: AppPlaylistsPlaylistIdRoute,
   AppPlaylistsNewRoute: AppPlaylistsNewRoute,
+  AppShowsShowIdRoute: AppShowsShowIdRoute,
   AppTracksTrackIdRoute: AppTracksTrackIdRoute,
+  AppEpisodesIndexRoute: AppEpisodesIndexRoute,
   AppPlaylistsIndexRoute: AppPlaylistsIndexRoute,
   AppTracksIndexRoute: AppTracksIndexRoute,
 }

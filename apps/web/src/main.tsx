@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { ENV } from 'varlock/env'
 import { AppErrorBoundary } from './components/app-error-boundary.tsx'
 import { urlOnAppOrigin } from './lib/app-origin.ts'
+import { startModeSync } from './lib/mode.ts'
 import { startThemeSync } from './lib/theme.ts'
 import { createAppRouter } from './router.ts'
 import './styles.css'
@@ -18,6 +19,8 @@ function render() {
   startThemeSync()
   const queryClient = new QueryClient()
   const router = createAppRouter({ queryClient })
+  // Another tab switched between music and podcasts: load what this one now shows.
+  startModeSync(() => void router.invalidate())
 
   createRoot(document.getElementById('root')!, {
     // One place to see every error React handles. Swap in an error reporter here later.

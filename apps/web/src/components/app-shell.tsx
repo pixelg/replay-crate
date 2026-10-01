@@ -1,16 +1,19 @@
 import type { Me } from '@replay-crate/api-client'
 import { Link } from '@tanstack/react-router'
-import { ChevronsUpDown, Disc3, ExternalLink, LogOut, Radio, Search } from 'lucide-react'
+import { ChevronsUpDown, Disc3, ExternalLink, LogOut, Moon, Radio, Search, Sun } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from 'cn'
 import { modKey, useSearchPalette } from '../lib/search-palette.ts'
 import { SearchPaletteProvider } from './search/search-palette-provider.tsx'
+import { useMode } from '../lib/mode.ts'
+import { useTheme } from '../lib/theme.ts'
 import { useIsPlaying } from '../lib/use-player.ts'
 import { SearchPalette } from './search/search-palette.tsx'
 import { ThemeToggle } from './theme-toggle.tsx'
 import { MiniPlayer, MiniPlayerBar } from './mini-player.tsx'
+import { ModeToggle } from './mode-toggle.tsx'
 import { Toaster } from './ui/sonner.tsx'
-import { navItems, navSections } from './nav-items.ts'
+import { navSectionsFor } from './nav-items.ts'
 import { MenuContent, MenuItem, MenuLinkItem, MenuRoot, MenuSeparator, MenuTrigger } from './ui/menu.tsx'
 import { UserAvatar } from './user-avatar.tsx'
 
@@ -39,6 +42,7 @@ export function AppShell({
         <aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-r border-border bg-muted p-4 md:flex">
           <Brand />
           <SearchButton />
+          <ModeToggle className="-mt-2" />
           <SidebarNav />
           <div className="mt-auto flex items-center gap-1 border-t border-border pt-4">
             <div className="min-w-0 flex-1">
@@ -62,9 +66,10 @@ export function AppShell({
               >
                 <Radio aria-hidden className="size-5" />
               </Link>
-              {/* The sidebar holds these from `md` up. */}
+              {/* The sidebar holds these from `md` up. On phones the theme is in the account menu, making
+                  room for the mode. */}
               <SearchIconButton />
-              <ThemeToggle className="hover:bg-muted md:hidden" />
+              <ModeToggle compact className="md:hidden" />
               <div className="md:hidden">
                 <AccountMenu user={user} onLogout={onLogout} placement="header" />
               </div>
@@ -137,9 +142,10 @@ function Brand({ className }: { className?: string }) {
 }
 
 function SidebarNav() {
+  const mode = useMode()
   return (
     <nav aria-label="Main" className="flex flex-col gap-6">
-      {navSections.map((section) => (
+      {navSectionsFor(mode).map((section) => (
         <ul key={section[0]!.to} className="flex flex-col gap-1">
           {section.map(({ to, label, icon: Icon }) => (
             <li key={to}>
@@ -158,9 +164,10 @@ function SidebarNav() {
   )
 }
 
-const tabs = navItems.filter((item) => item.tab)
-
 function BottomTabs() {
+  const tabs = navSectionsFor(useMode())
+    .flat()
+    .filter((item) => item.tab)
   return (
     <div className="fixed inset-x-0 bottom-0 z-10 md:hidden">
       <MiniPlayerBar />
@@ -224,6 +231,7 @@ function AccountMenu({
             <MenuSeparator />
           </>
         )}
+        {placement === 'header' && <ThemeMenuItem />}
         <MenuLinkItem render={<Link to="/settings" />}>Settings</MenuLinkItem>
         <MenuLinkItem href="https://github.com/pixelg/replay-crate" target="_blank" rel="noreferrer">
           Source on GitHub <ExternalLink aria-hidden className="ml-auto size-4 text-muted-foreground" />
@@ -234,5 +242,16 @@ function AccountMenu({
         </MenuItem>
       </MenuContent>
     </MenuRoot>
+  )
+}
+
+/** The phone's way to flip the theme (the sidebar has its own button). */
+function ThemeMenuItem() {
+  const { theme, toggle } = useTheme()
+  const Icon = theme === 'dark' ? Sun : Moon
+  return (
+    <MenuItem onClick={toggle} closeOnClick={false}>
+      <Icon aria-hidden className="size-4 text-muted-foreground" /> {theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+    </MenuItem>
   )
 }

@@ -3,7 +3,7 @@ import { RadioGroup } from '@base-ui/react/radio-group'
 import { Star } from 'lucide-react'
 import { cn } from 'cn'
 import { useState } from 'react'
-import { useRateTrack } from '../lib/use-rate-track.ts'
+import { useRateEpisode, useRateTrack } from '../lib/use-rate-track.ts'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover.tsx'
 
 const STARS = [1, 2, 3, 4, 5] as const
@@ -68,6 +68,7 @@ export function StarRating({
 }
 
 type RatedTrack = { id: string; name: string; rating: number | null }
+type Rate = ReturnType<typeof useRateTrack>
 
 /**
  * The signed-in user's rating of a track, saved as it changes. With `compactOnPhones`, rows too
@@ -84,7 +85,33 @@ export function TrackRating({
   compactOnPhones?: boolean
   className?: string
 }) {
-  const rate = useRateTrack()
+  return <ItemRating item={track} rate={useRateTrack()} size={size} compactOnPhones={compactOnPhones} className={className} />
+}
+
+/** The signed-in user's rating of an episode, like `TrackRating`. */
+export function EpisodeRating(props: {
+  episode: RatedTrack
+  size?: 'sm' | 'md'
+  compactOnPhones?: boolean
+  className?: string
+}) {
+  const { episode, ...rest } = props
+  return <ItemRating item={episode} rate={useRateEpisode()} {...rest} />
+}
+
+function ItemRating({
+  item: track,
+  rate,
+  size,
+  compactOnPhones,
+  className,
+}: {
+  item: RatedTrack
+  rate: Rate
+  size?: 'sm' | 'md'
+  compactOnPhones?: boolean
+  className?: string
+}) {
   const stars = (
     <StarRating
       label={`Rating for ${track.name}`}
@@ -97,7 +124,7 @@ export function TrackRating({
   if (!compactOnPhones) return stars
   return (
     <>
-      <CompactTrackRating track={track} className={cn('md:hidden', className)} />
+      <CompactRating track={track} rate={rate} className={cn('md:hidden', className)} />
       {stars}
     </>
   )
@@ -109,7 +136,10 @@ export function TrackRating({
  * outside. Arrow keys move the rating without closing, like the inline stars.
  */
 export function CompactTrackRating({ track, className }: { track: RatedTrack; className?: string }) {
-  const rate = useRateTrack()
+  return <CompactRating track={track} rate={useRateTrack()} className={className} />
+}
+
+function CompactRating({ track, rate, className }: { track: RatedTrack; rate: Rate; className?: string }) {
   const [open, setOpen] = useState(false)
   const { rating } = track
   const label = `Rating for ${track.name}`

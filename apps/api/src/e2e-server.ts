@@ -4,7 +4,7 @@
 //   E2E_PORT      defaults to 4174
 import { serve } from '@hono/node-server'
 import { createTestDb } from '@replay-crate/db/testing'
-import { createFakeLibrary, createFakeMetadata, createFakeSpotify, play, playlistContext, track } from './fakes.ts'
+import { createFakeLibrary, createFakeMetadata, createFakeSpotify, episode, play, playlistContext, track } from './fakes.ts'
 import { startJobRunners } from './jobs/runner.ts'
 import { createTokenCipher } from './lib/crypto.ts'
 import { createServer } from './server.ts'
@@ -29,6 +29,9 @@ library.remember([
   track('warmup', { name: 'Needle Warm-Up', album: ['tests', 'Test Pressings'], artists: [['lathe', 'The Lathe']] }),
   track('encore', { name: 'Last Call Encore', album: ['tests', 'Test Pressings'], artists: [['lathe', 'The Lathe']] }),
 ])
+
+// A podcast episode, played only by the podcasts spec.
+library.addEpisodes(episode('e2etalk', { name: 'Testing Out Loud', show: ['e2epod', 'The Test Pod'], durationMs: 30 * 60_000 }))
 
 // Plays pinned to calendar days from server start, so "Today" / "Yesterday" headings hold at any
 // time of day (hour offsets cross midnight early in the morning).

@@ -209,11 +209,16 @@ test('rates a track, and the rating stays', async ({ page }) => {
   await expect(rating.getByRole('radio', { name: '4 stars' })).toHaveAttribute('aria-checked', 'false')
 })
 
-test('keeps the chosen theme across reloads, applied before the app renders', async ({ page }) => {
+test('keeps the chosen theme across reloads, applied before the app renders', async ({ page, isMobile }) => {
   await signIn(page)
-  const toggle = page.getByRole('button', { name: /^Switch to (dark|light) theme$/ }).filter({ visible: true })
   const before = await page.locator('html').getAttribute('data-theme')
-  await toggle.click()
+  // Wide screens have a button in the sidebar; phones keep it in the account menu.
+  if (isMobile) {
+    await page.getByRole('banner').getByRole('button', { name: /^Account/ }).click()
+    await page.getByRole('menuitem', { name: /^Switch to (dark|light) theme$/ }).click()
+  } else {
+    await page.getByRole('button', { name: /^Switch to (dark|light) theme$/ }).filter({ visible: true }).click()
+  }
   const after = before === 'dark' ? 'light' : 'dark'
   await expect(page.locator('html')).toHaveAttribute('data-theme', after)
 

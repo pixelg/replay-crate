@@ -6,6 +6,7 @@ import { PageHeader } from '../../components/page-header.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { buttonClasses } from '../../components/ui/button-classes.ts'
 import { Segmented } from '../../components/ui/segmented.tsx'
+import { ModeToggle } from '../../components/mode-toggle.tsx'
 import { UserAvatar } from '../../components/user-avatar.tsx'
 import { api } from '../../lib/api.ts'
 import { useLogout } from '../../lib/use-logout.ts'
@@ -49,6 +50,15 @@ function SettingsPage() {
             </div>
           </section>
         )}
+        <section className="rounded-lg border border-border bg-card p-4">
+          <h2 className="font-medium">Library</h2>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+              Music or podcasts: what History and the library show on this device. The player plays either.
+            </p>
+            <ModeToggle className="w-auto" />
+          </div>
+        </section>
         <section className="rounded-lg border border-border bg-card p-4">
           <h2 className="font-medium">Appearance</h2>
           <div className="mt-2 flex flex-wrap items-center gap-3">

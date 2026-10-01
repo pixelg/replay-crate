@@ -1,5 +1,14 @@
 import type {
   Device,
+  EpisodeDetail,
+  EpisodesPage,
+  EpisodeSummary,
+  ListenedShow,
+  ListenItem,
+  ListensPage,
+  ShowDetail,
+  ShowRef,
+  ShowsList,
   GenrePlays,
   GenreRef,
   HistoryGap,
@@ -740,3 +749,120 @@ export const spotifyTracks: SpotifyTrackHit[] = [
   { id: 'lots', name: 'Lots of Lovin', artists: ['Pete Rock', 'C.L. Smooth'], album: 'All Souled Out', imageUrl: null, durationMs: 250_000, explicit: false, playCount: 0 },
   { id: 'rock-box', name: 'Rock Box', artists: ['Run-DMC'], album: 'Run-D.M.C.', imageUrl: null, durationMs: 330_000, explicit: false, playCount: 0 },
 ]
+
+// Podcasts: two shows, a few episodes, and listens to them over the last days.
+
+const sampleScience = { id: 's1', name: 'Sample Science', thumbUrl: null }
+const crateTalk = { id: 's2', name: 'Crate Talk', thumbUrl: null }
+const MIN = 60_000
+
+const episodeSummary = (
+  id: string,
+  name: string,
+  show: ShowRef,
+  { durationMs = 45 * MIN, releaseDate = '2026-09-01', progress = null as EpisodeSummary['progress'], rating = null as number | null } = {},
+): EpisodeSummary => ({ id, name, durationMs, explicit: false, releaseDate, thumbUrl: null, show, progress, rating })
+
+export const episodes = {
+  breakbeat: episodeSummary('e1', 'The History of the Breakbeat', sampleScience, {
+    durationMs: 45 * MIN,
+    releaseDate: '2026-09-24',
+    progress: { resumePositionMs: 18 * MIN, fullyPlayed: false },
+    rating: 4,
+  }),
+  amen: episodeSummary('e2', 'Six Seconds of Amen', sampleScience, {
+    durationMs: 38 * MIN,
+    releaseDate: '2026-09-10',
+    progress: { resumePositionMs: 38 * MIN, fullyPlayed: true },
+  }),
+  digging: episodeSummary('e3', 'Digging in Osaka', crateTalk, {
+    durationMs: 62 * MIN,
+    releaseDate: '2026-09-28',
+    progress: { resumePositionMs: 4 * MIN, fullyPlayed: false },
+  }),
+}
+
+const listen = (id: number, episode: EpisodeSummary, endedAt: string, listenedMs: number, from: number | null = 0): ListenItem => ({
+  id,
+  startedAt: new Date(Date.parse(endedAt) - listenedMs).toISOString(),
+  endedAt,
+  listenedMs,
+  startPositionMs: from,
+  endPositionMs: from === null ? null : from + listenedMs,
+  source: from === null ? 'import' : 'poll',
+  episode,
+})
+
+export const listens: ListenItem[] = [
+  listen(5, episodes.digging, today(20), 4 * MIN),
+  listen(4, episodes.breakbeat, dayAt(1, 9), 10 * MIN, 8 * MIN),
+  listen(3, episodes.breakbeat, dayAt(1, 8), 8 * MIN),
+  listen(2, episodes.amen, dayAt(3, 18), 38 * MIN),
+  listen(1, episodes.amen, dayAt(40, 18), 12 * MIN, null),
+]
+
+export const listensPage: ListensPage = { items: listens, nextCursor: null }
+
+export const listenedShows: ListenedShow[] = [
+  { ...sampleScience, listens: 4 },
+  { ...crateTalk, listens: 1 },
+]
+
+export const episodesPage: EpisodesPage = {
+  items: [
+    { episode: episodes.digging, listens: 1, listenedMs: 4 * MIN, lastListenedAt: listens[0]!.endedAt },
+    { episode: episodes.breakbeat, listens: 2, listenedMs: 18 * MIN, lastListenedAt: listens[1]!.endedAt },
+    { episode: episodes.amen, listens: 2, listenedMs: 50 * MIN, lastListenedAt: listens[3]!.endedAt },
+  ],
+  total: 3,
+}
+
+export const showsList: ShowsList = {
+  items: [
+    { show: crateTalk, stats: { episodes: 1, listens: 1, listenedMs: 4 * MIN, lastListenedAt: listens[0]!.endedAt } },
+    { show: sampleScience, stats: { episodes: 2, listens: 4, listenedMs: 68 * MIN, lastListenedAt: listens[1]!.endedAt } },
+  ],
+}
+
+export const episodeDetail: EpisodeDetail = {
+  episode: {
+    ...episodes.breakbeat,
+    description: 'Where the break came from: a drummer, a turntable, and a block party in the Bronx.',
+    imageUrl: null,
+  },
+  stats: { listens: 2, listenedMs: 18 * MIN, firstListenedAt: listens[2]!.startedAt, lastListenedAt: listens[1]!.endedAt },
+  recentListens: [listens[1]!, listens[2]!].map(({ id, startedAt, endedAt, listenedMs, startPositionMs, endPositionMs, source }) => ({
+    id,
+    startedAt,
+    endedAt,
+    listenedMs,
+    startPositionMs,
+    endPositionMs,
+    source,
+  })),
+}
+
+export const showDetail: ShowDetail = {
+  show: { ...sampleScience, description: 'Where the samples in your favourite records came from.', imageUrl: null },
+  stats: { episodes: 2, listens: 4, listenedMs: 68 * MIN, lastListenedAt: listens[1]!.endedAt },
+  episodes: [
+    { episode: episodeSummary('e4', 'Chopping Soul', sampleScience, { releaseDate: '2026-09-30' }), listens: 0, listenedMs: 0, lastListenedAt: null },
+    { episode: episodes.breakbeat, listens: 2, listenedMs: 18 * MIN, lastListenedAt: listens[1]!.endedAt },
+    { episode: episodes.amen, listens: 2, listenedMs: 50 * MIN, lastListenedAt: listens[3]!.endedAt },
+  ],
+}
+
+/** The breakbeat episode on the player, 18 minutes in. */
+export const playingEpisode: Extract<PlayerItem, { type: 'episode' }> = {
+  type: 'episode',
+  id: 'e1',
+  uri: 'spotify:episode:e1',
+  name: 'The History of the Breakbeat',
+  durationMs: 45 * MIN,
+  explicit: false,
+  show: { id: 's1', name: 'Sample Science' },
+  imageUrl: null,
+  thumbUrl: null,
+}
+
+export const episodePlayback: Playback = { ...playback, context: null, item: playingEpisode, progressMs: 18 * MIN }

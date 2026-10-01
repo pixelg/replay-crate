@@ -74,6 +74,16 @@ export function usePlayingTrackId() {
   )
 }
 
+/** The id of the episode playing right now (not paused), or null; re-renders only when it changes. */
+export function usePlayingEpisodeId() {
+  return (
+    useQuery({
+      ...playbackQueryOptions(api),
+      select: (playback) => (playback?.isPlaying && playback.item?.type === 'episode' ? playback.item.id : null),
+    }).data ?? null
+  )
+}
+
 /**
  * What Spotify has loaded right now, playing or paused, and where from; null once it reports
  * nothing. Re-renders only when that changes, not as the position ticks.
