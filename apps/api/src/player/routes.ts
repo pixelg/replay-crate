@@ -10,6 +10,7 @@ import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
 import { jsonBody, jsonResponse } from '../lib/schemas.ts'
 import { getAccessToken } from '../spotify/access-token.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
+import { recordObservation } from '../podcasts/listens.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
 import { forgetDevice, rememberDevices, rememberedDevices } from './devices.ts'
 import { ListedDevice, Playback, Queue, ratingsFor, toItem, toListedDevice, toPlayback, toRememberedDevice } from './present.ts'
@@ -191,6 +192,10 @@ export function playerRoutes(deps: AppDeps) {
         const result = await withSpotify(c, (token) => spotify.getPlaybackState(token))
         if (result.response) return result.response
         const state = result.value
+        // Episode listens come from looking at the player (Spotify's history leaves them out). Also a side job.
+        await recordObservation(db, c.var.user.id, state, now()).catch((error: unknown) =>
+          console.error('[player] recording an episode listen failed:', error),
+        )
         if (!state) return c.json({ playback: null }, 200)
         // Remembering the device is a side job: it mustn't fail the poll everything else relies on.
         await rememberDevices(db, c.var.user.id, [state.device], now()).catch((error: unknown) =>

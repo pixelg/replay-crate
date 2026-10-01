@@ -122,7 +122,13 @@ describe('auth', () => {
       const { token } = await ctx.login()
       expect(await (await me({ Cookie: `rc_session=${token}` })).json()).toMatchObject({
         needsReauth: false,
-        missingScopes: ['user-read-playback-state', 'user-read-currently-playing', 'user-modify-playback-state'],
+        missingScopes: [
+          'user-read-playback-state',
+          'user-read-currently-playing',
+          'user-modify-playback-state',
+          'user-read-playback-position',
+          'user-library-read',
+        ],
       })
 
       // Reconnecting grants everything the app asks for now.

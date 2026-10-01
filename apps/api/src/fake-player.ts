@@ -1,5 +1,5 @@
 import { SpotifyApiError } from '@replay-crate/spotify'
-import type { RepeatState, SpotifyDevice, SpotifyPlaybackState, SpotifyPlayable, SpotifyTrack } from '@replay-crate/spotify'
+import type { RepeatState, SpotifyDevice, SpotifyEpisode, SpotifyPlaybackState, SpotifyPlayable, SpotifyTrack } from '@replay-crate/spotify'
 import type { SpotifyGateway } from './deps.ts'
 
 // A stand-in for Spotify's player, for unit tests and the E2E server (part of the fake Spotify
@@ -39,6 +39,8 @@ export type FakePlayerOptions = {
   activeDeviceId?: string | null
   /** Looks up tracks for `spotify:track:` URIs and playlist contexts. */
   resolveTrack: (uri: string) => SpotifyTrack
+  /** Looks up episodes for `spotify:episode:` URIs. */
+  resolveEpisode?: (uri: string) => SpotifyEpisode
   resolveContext?: (uri: string) => SpotifyTrack[] | undefined
   now?: () => number
 }
@@ -54,6 +56,9 @@ export function createFakePlayer({
   devices = fakeDevices(),
   activeDeviceId = 'laptop',
   resolveTrack,
+  resolveEpisode = (uri) => {
+    throw failure(404, 'UNKNOWN', `No episode ${uri}`)
+  },
   resolveContext = () => undefined,
   now = () => Date.now(),
 }: FakePlayerOptions) {
@@ -75,7 +80,9 @@ export function createFakePlayer({
     changedAt: now(),
   }
 
-  const asPlayable = (t: SpotifyTrack): SpotifyPlayable => ({ ...t, type: 'track' })
+  const asPlayable = (item: SpotifyTrack | SpotifyEpisode): SpotifyPlayable =>
+    'type' in item && item.type === 'episode' ? item : { ...(item as SpotifyTrack), type: 'track' }
+  const resolve = (uri: string): SpotifyPlayable => asPlayable(uri.startsWith('spotify:episode:') ? resolveEpisode(uri) : resolveTrack(uri))
   const progress = () => {
     const duration = state.item?.duration_ms ?? 0
     return Math.min(duration, state.positionMs + (state.isPlaying ? now() - state.since : 0))
@@ -142,7 +149,7 @@ export function createFakePlayer({
         if (!tracks) throw failure(404, 'UNKNOWN', 'Context not found')
         list = tracks.map(asPlayable)
       } else if (uris) {
-        list = uris.map((uri) => asPlayable(resolveTrack(uri)))
+        list = uris.map(resolve)
       }
       if (!list) {
         // Resume.
@@ -213,7 +220,7 @@ export function createFakePlayer({
     addToQueue: async (_token, uri, { deviceId }) => {
       target(deviceId)
       needsItem()
-      state.queued.push(asPlayable(resolveTrack(uri)))
+      state.queued.push(resolve(uri))
     },
     transferPlayback: async (_token, deviceId, { play: start }) => {
       if (!premium) throw failure(403, 'PREMIUM_REQUIRED', 'Premium required')
@@ -228,9 +235,12 @@ export function createFakePlayer({
     get state() {
       return { ...state, progressMs: progress() }
     },
-    /** Puts `track` on and playing (or paused) on the active device, e.g. to seed a test. */
-    nowPlaying(track: SpotifyTrack, { playing = true, positionMs = 0, upcoming = [] as SpotifyTrack[] } = {}) {
-      changed({ item: asPlayable(track), upcoming: upcoming.map(asPlayable), isPlaying: playing, played: [] })
+    /** Puts a track or episode on and playing (or paused) on the active device, e.g. to seed a test. */
+    nowPlaying(
+      item: SpotifyTrack | SpotifyEpisode,
+      { playing = true, positionMs = 0, upcoming = [] as Array<SpotifyTrack | SpotifyEpisode> } = {},
+    ) {
+      changed({ item: asPlayable(item), upcoming: upcoming.map(asPlayable), isPlaying: playing, played: [] })
       state.positionMs = positionMs
     },
     /** No device active, as when Spotify isn't open anywhere. */

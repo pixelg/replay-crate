@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  getEpisode,
+  getQueue,
   addToQueue,
   getDevices,
   getPlaybackState,
@@ -118,6 +120,18 @@ describe('player', () => {
     await expect(getPlaybackState('t', { fetchFn })).resolves.toEqual(state)
     await expect(getPlaybackState('t', { fetchFn })).resolves.toBeNull()
     expect(call(fetchFn).url).toBe('https://api.spotify.com/v1/me/player?additional_types=track,episode')
+  })
+
+  it('asks for episodes in the queue too', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(json(200, { currently_playing: null, queue: [] }))
+    await getQueue('t', { fetchFn })
+    expect(call(fetchFn).url).toBe('https://api.spotify.com/v1/me/player/queue?additional_types=track,episode')
+  })
+
+  it('looks up one episode by id', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(json(200, { type: 'episode', id: 'e1' }))
+    await expect(getEpisode('t', 'e1', { fetchFn })).resolves.toEqual({ type: 'episode', id: 'e1' })
+    expect(call(fetchFn).url).toBe('https://api.spotify.com/v1/episodes/e1')
   })
 
   it('unwraps the device list', async () => {

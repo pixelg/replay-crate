@@ -16,4 +16,7 @@ export const SPOTIFY_SCOPES = [
   'user-read-playback-state',
   'user-read-currently-playing',
   'user-modify-playback-state',
+  // Podcasts (M15): resume points of episodes, and the shows the user follows.
+  'user-read-playback-position',
+  'user-library-read',
 ] as const

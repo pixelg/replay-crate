@@ -11,6 +11,7 @@ import { createPostgresSearchIndex } from './search/postgres.ts'
 
 export {
   createFakeLibrary,
+  episode,
   paged,
   play,
   playlist,
@@ -50,6 +51,7 @@ export async function createTestContext() {
     searchTracks: vi.fn<SpotifyGateway['searchTracks']>(fake.searchTracks),
     getTopArtists: vi.fn<SpotifyGateway['getTopArtists']>(fake.getTopArtists),
     getTrack: vi.fn<SpotifyGateway['getTrack']>(fake.getTrack),
+    getEpisode: vi.fn<SpotifyGateway['getEpisode']>(fake.getEpisode),
     getPlaybackState: vi.fn<SpotifyGateway['getPlaybackState']>(fake.getPlaybackState),
     getQueue: vi.fn<SpotifyGateway['getQueue']>(fake.getQueue),
     getDevices: vi.fn<SpotifyGateway['getDevices']>(fake.getDevices),
