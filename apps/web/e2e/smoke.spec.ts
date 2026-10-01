@@ -134,17 +134,20 @@ test('imports Spotify streaming history', async ({ page }) => {
     { ts: '2023-03-04T20:15:00Z', ms_played: 201_000, spotify_track_uri: oldie, ip_addr: '203.0.113.7' },
     { ts: '2023-03-05T09:40:00Z', ms_played: 187_000, spotify_track_uri: oldie },
     { ts: '2023-03-05T09:45:00Z', ms_played: 4_000, spotify_track_uri: oldie },
+    // A podcast episode, paused once: two stretches, one listen.
+    { ts: '2023-03-06T07:20:00Z', ms_played: 1_200_000, spotify_track_uri: null, spotify_episode_uri: 'spotify:episode:0ldEpisodeFromTheVault' },
+    { ts: '2023-03-06T07:35:00Z', ms_played: 600_000, spotify_track_uri: null, spotify_episode_uri: 'spotify:episode:0ldEpisodeFromTheVault' },
   ]
   await page.getByLabel(/Choose your Spotify data/).setInputFiles({
     name: 'Streaming_History_Audio_2023_0.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(history)),
   })
-  await expect(page.getByText('2 plays of 1 track')).toBeVisible()
-  await page.getByRole('button', { name: 'Import 2 plays' }).click()
+  await expect(page.getByText('2 plays of 1 track, and 1 podcast listen of 1 episode')).toBeVisible()
+  await page.getByRole('button', { name: 'Import 2 plays and 1 listen' }).click()
 
-  // The track is looked up in the background; the page polls until its plays are in.
-  await expect(page.getByText('Imported 2 plays from Mar 2023 to Mar 2023')).toBeVisible({ timeout: 20_000 })
+  // The track and episode are looked up in the background; the page polls until all of it is in.
+  await expect(page.getByText('Imported 2 plays and 1 podcast listen from Mar 2023 to Mar 2023')).toBeVisible({ timeout: 20_000 })
   await page.getByRole('link', { name: 'See history' }).click()
   await expect(page.getByRole('link', { name: 'Imported Oldie' })).toHaveCount(2)
 })

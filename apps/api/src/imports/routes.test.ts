@@ -58,7 +58,7 @@ describe('streaming history import', () => {
       { ts: '2026-09-20T10:00:40Z', trackId: KNOWN }, // the play we recorded live, 40s off: duplicate
       { ts: '2026-09-19T08:00:00Z', trackId: KNOWN, ms: 123_456 }, // an older play: new
     ])
-    expect(finished).toEqual({ tracksToFetch: 0 })
+    expect(finished).toEqual({ tracksToFetch: 0, episodesToFetch: 0 })
     expect(await storedPlays()).toEqual([
       { trackId: KNOWN, playedAt: new Date('2026-09-19T08:00:00Z'), source: 'import', ms: 123_456 },
       { trackId: KNOWN, playedAt: new Date('2026-09-20T10:00:00Z'), source: 'poll', ms: null },
@@ -77,7 +77,7 @@ describe('streaming history import', () => {
       { ts: '2025-01-01T12:00:00Z', trackId: NEW },
       { ts: '2025-01-02T12:00:00Z', trackId: NEW },
     ])
-    expect(finished).toEqual({ tracksToFetch: 1 })
+    expect(finished).toEqual({ tracksToFetch: 1, episodesToFetch: 0 })
 
     let status = (await json(await send('GET', '/api/v1/imports/latest'))).import
     expect(status).toMatchObject({ id, playCount: 2, waitingPlays: 2, tracksToFetch: 1, done: false })

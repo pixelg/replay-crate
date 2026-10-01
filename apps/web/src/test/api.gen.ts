@@ -642,7 +642,7 @@ export interface paths {
         put?: never;
         /**
          * Start an import
-         * @description Step 1 of 3. The browser parses the Extended Streaming History export and uploads only timestamp, play time and track id: create, add plays (in chunks), finish.
+         * @description Step 1 of 3. The browser parses the Extended Streaming History export and uploads only timestamp, play time and track (or podcast episode) id: create, add plays and listens (in chunks), finish.
          */
         post: operations["createImport"];
         delete?: never;
@@ -662,7 +662,7 @@ export interface paths {
         put?: never;
         /**
          * Upload a chunk of plays
-         * @description Step 2 of 3. Up to 5000 plays per request; call as often as needed.
+         * @description Step 2 of 3. Up to 5000 plays and podcast listens in all per request; call as often as needed. Listens are what the export splits at every pause, already joined.
          */
         post: operations["addImportPlays"];
         delete?: never;
@@ -682,7 +682,7 @@ export interface paths {
         put?: never;
         /**
          * Finish an import
-         * @description Step 3 of 3. Plays of known tracks move into the history now; unknown tracks are queued for lookup and their plays follow. Closes any history gap the import covers.
+         * @description Step 3 of 3. Plays of known tracks and listens of known episodes move into the history now; unknown ones are queued for lookup and follow. Closes any history gap the import covers.
          */
         post: operations["finishImport"];
         delete?: never;
@@ -1554,6 +1554,18 @@ export interface components {
             /** @description Spotify track id. */
             trackId: string;
         };
+        ImportedListen: {
+            /**
+             * Format: date-time
+             * @description When the listen ended, from the export.
+             * @example 2026-09-21T12:00:00.000Z
+             */
+            ts: string;
+            /** @description Milliseconds listened. */
+            ms: number;
+            /** @description Spotify episode id. */
+            episodeId: string;
+        };
         /** @description null if there has never been an import. */
         ImportStatus: {
             id: number;
@@ -1584,6 +1596,14 @@ export interface components {
             waitingPlays: number;
             /** @description Tracks still to look up on Spotify. */
             tracksToFetch: number;
+            /** @description Podcast listens uploaded. */
+            listenCount: number;
+            /** @description Listens of episodes Spotify no longer has. */
+            listensUnavailable: number;
+            /** @description Listens still waiting for their episode's details. */
+            waitingListens: number;
+            /** @description Episodes still to look up on Spotify. */
+            episodesToFetch: number;
             done: boolean;
         } | null;
         /** @description Null when no device is active. */
@@ -4142,12 +4162,15 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    plays: components["schemas"]["ImportedPlay"][];
+                    /** @default [] */
+                    plays?: components["schemas"]["ImportedPlay"][];
+                    /** @default [] */
+                    listens?: components["schemas"]["ImportedListen"][];
                 };
             };
         };
         responses: {
-            /** @description Plays staged. */
+            /** @description Plays and listens staged. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4225,6 +4248,8 @@ export interface operations {
                     "application/json": {
                         /** @description Tracks queued for a Spotify lookup. */
                         tracksToFetch: number;
+                        /** @description Podcast episodes queued for a Spotify lookup. */
+                        episodesToFetch: number;
                     };
                 };
             };

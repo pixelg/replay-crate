@@ -3,9 +3,10 @@ import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
 import { IsoDateTime, jsonBody, jsonResponse } from '../lib/schemas.ts'
+import { addListens } from './listens.ts'
 import { addPlays, createImport, findImport, finishUpload, latestImport } from './service.ts'
 
-/** Most plays accepted per upload request; the web app sends bigger imports in chunks. */
+/** Most plays and listens accepted per upload request; the web app sends bigger imports in chunks. */
 export const MAX_PLAYS_PER_REQUEST = 5_000
 
 const ImportedPlay = z
@@ -15,6 +16,13 @@ const ImportedPlay = z
     trackId: z.string().regex(/^[0-9A-Za-z]{22}$/).openapi({ description: 'Spotify track id.' }),
   })
   .openapi('ImportedPlay')
+const ImportedListen = z
+  .object({
+    ts: IsoDateTime.openapi({ description: 'When the listen ended, from the export.' }),
+    ms: z.number().int().min(0).openapi({ description: 'Milliseconds listened.' }),
+    episodeId: z.string().regex(/^[0-9A-Za-z]{22}$/).openapi({ description: 'Spotify episode id.' }),
+  })
+  .openapi('ImportedListen')
 const ImportParams = z.object({ id: z.coerce.number().int().positive() })
 
 const create = createRoute({
@@ -25,7 +33,7 @@ const create = createRoute({
   summary: 'Start an import',
   description:
     'Step 1 of 3. The browser parses the Extended Streaming History export and uploads only timestamp, ' +
-    'play time and track id: create, add plays (in chunks), finish.',
+    'play time and track (or podcast episode) id: create, add plays and listens (in chunks), finish.',
   security: signedIn,
   responses: {
     201: jsonResponse(z.object({ id: z.number().int() }), 'The new import.'),
@@ -39,14 +47,27 @@ const upload = createRoute({
   tags: ['Imports'],
   operationId: 'addImportPlays',
   summary: 'Upload a chunk of plays',
-  description: `Step 2 of 3. Up to ${MAX_PLAYS_PER_REQUEST} plays per request; call as often as needed.`,
+  description:
+    `Step 2 of 3. Up to ${MAX_PLAYS_PER_REQUEST} plays and podcast listens in all per request; call as often as needed. ` +
+    'Listens are what the export splits at every pause, already joined.',
   security: signedIn,
   request: {
     params: ImportParams,
-    body: jsonBody(z.object({ plays: z.array(ImportedPlay).min(1).max(MAX_PLAYS_PER_REQUEST) })),
+    body: jsonBody(
+      z
+        .object({
+          plays: z.array(ImportedPlay).max(MAX_PLAYS_PER_REQUEST).default([]),
+          listens: z.array(ImportedListen).max(MAX_PLAYS_PER_REQUEST).default([]),
+        })
+        .refine((body) => body.plays.length + body.listens.length > 0, { message: 'Send at least one play or listen', path: ['plays'] })
+        .refine((body) => body.plays.length + body.listens.length <= MAX_PLAYS_PER_REQUEST, {
+          message: `At most ${MAX_PLAYS_PER_REQUEST} plays and listens in all`,
+          path: ['listens'],
+        }),
+    ),
   },
   responses: {
-    200: jsonResponse(z.object({ received: z.number().int() }), 'Plays staged.'),
+    200: jsonResponse(z.object({ received: z.number().int() }), 'Plays and listens staged.'),
     ...errorResponses('invalid_request', 'unauthorized', 'not_found', 'already_finished'),
   },
 })
@@ -58,13 +79,16 @@ const finish = createRoute({
   operationId: 'finishImport',
   summary: 'Finish an import',
   description:
-    'Step 3 of 3. Plays of known tracks move into the history now; unknown tracks are queued for lookup ' +
-    'and their plays follow. Closes any history gap the import covers.',
+    'Step 3 of 3. Plays of known tracks and listens of known episodes move into the history now; unknown ' +
+    'ones are queued for lookup and follow. Closes any history gap the import covers.',
   security: signedIn,
   request: { params: ImportParams },
   responses: {
     200: jsonResponse(
-      z.object({ tracksToFetch: z.number().int().openapi({ description: 'Tracks queued for a Spotify lookup.' }) }),
+      z.object({
+        tracksToFetch: z.number().int().openapi({ description: 'Tracks queued for a Spotify lookup.' }),
+        episodesToFetch: z.number().int().openapi({ description: 'Podcast episodes queued for a Spotify lookup.' }),
+      }),
       'Finished.',
     ),
     ...errorResponses('invalid_request', 'unauthorized', 'not_found'),
@@ -92,6 +116,10 @@ const latest = createRoute({
             uploadedAt: IsoDateTime.nullable(),
             waitingPlays: z.number().int().openapi({ description: "Plays still waiting for their track's details." }),
             tracksToFetch: z.number().int().openapi({ description: 'Tracks still to look up on Spotify.' }),
+            listenCount: z.number().int().openapi({ description: 'Podcast listens uploaded.' }),
+            listensUnavailable: z.number().int().openapi({ description: 'Listens of episodes Spotify no longer has.' }),
+            waitingListens: z.number().int().openapi({ description: "Listens still waiting for their episode's details." }),
+            episodesToFetch: z.number().int().openapi({ description: 'Episodes still to look up on Spotify.' }),
             done: z.boolean(),
           })
           .nullable()
@@ -117,9 +145,10 @@ export function importRoutes(deps: AppDeps) {
       const found = await findImport(db, user.id, id)
       if (!found) return c.json({ error: 'not_found' as const }, 404)
       if (found.uploadedAt) return c.json({ error: 'already_finished' as const }, 409)
-      const { plays } = c.req.valid('json')
+      const { plays, listens } = c.req.valid('json')
       await addPlays(db, id, user.id, plays)
-      return c.json({ received: plays.length }, 200)
+      await addListens(db, id, user.id, listens)
+      return c.json({ received: plays.length + listens.length }, 200)
     })
 
     .openapi({ ...finish, middleware: auth }, async (c) => {

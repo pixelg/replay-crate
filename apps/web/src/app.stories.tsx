@@ -59,7 +59,8 @@ const meta = preview.meta({
 
 export const History = meta.story({
   play: async ({ canvas }) => {
-    await expect(await canvas.findByRole('heading', { level: 1, name: 'History' })).toBeVisible()
+    // The file's first story also loads the app cold, which a busy CI runner can take a while over.
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'History' }, { timeout: 15_000 })).toBeVisible()
     await expect(await canvas.findByRole('heading', { name: 'Today' })).toBeVisible()
     // The automatic sync on open may still be running ("Syncing…"); wait for it to settle.
     await expect(await canvas.findByRole('button', { name: 'Sync now' })).toBeEnabled()
@@ -1179,7 +1180,8 @@ function spotifyExport() {
     [`${history}/Streaming_History_Audio_2021-2023_0.json`]: json([
       { ts: '2021-02-14T19:03:00Z', ms_played: 201_000, spotify_track_uri: 'spotify:track:4uLU6hMCjMI75M1A2tKUQC', ip_addr: '203.0.113.7', conn_country: 'US' },
       { ts: '2021-02-14T19:05:00Z', ms_played: 9_000, spotify_track_uri: 'spotify:track:4uLU6hMCjMI75M1A2tKUQC' },
-      { ts: '2022-08-01T07:30:00Z', ms_played: 2_400_000, spotify_track_uri: null, spotify_episode_uri: 'spotify:episode:5Xt5DXGzch68nYYamXrNxZ' },
+      { ts: '2022-08-01T07:30:00Z', ms_played: 2_400_000, spotify_track_uri: null, spotify_episode_uri: 'spotify:episode:5Xt5DXGzch68nYYamXrNxZ', episode_name: 'A Private Episode', episode_show_name: 'Some Show' },
+      { ts: '2022-08-01T08:00:00Z', ms_played: 600_000, spotify_track_uri: null, spotify_episode_uri: null, audiobook_title: 'An Audiobook' },
     ]),
     [`${history}/Streaming_History_Audio_2023-2025_1.json`]: json([
       { ts: '2023-05-05T12:00:00Z', ms_played: 187_000, spotify_track_uri: 'spotify:track:7ouMYWpwJ422jRcDASZB7P' },
@@ -1196,17 +1198,19 @@ export const ImportHistory = meta.story({
   beforeEach({ msw }) {
     let latest: ImportStatus | null = null
     let uploaded = 0
+    let listened = 0
     msw.use(
       http.get('/api/v1/imports/latest', () => HttpResponse.json({ import: latest })),
       http.post('/api/v1/imports', () => HttpResponse.json({ id: 7 }, { status: 201 })),
       http.post('/api/v1/imports/{id}/plays', async ({ request }) => {
-        const { plays } = await request.json()
+        const { plays = [], listens = [] } = await request.json()
         uploaded += plays.length
-        return HttpResponse.json({ received: plays.length })
+        listened += listens.length
+        return HttpResponse.json({ received: plays.length + listens.length })
       }),
       http.post('/api/v1/imports/{id}/finish', () => {
-        latest = { ...importInProgress, id: 7, playCount: uploaded, waitingPlays: 1, tracksToFetch: 1 }
-        return HttpResponse.json({ tracksToFetch: 1 })
+        latest = { ...importInProgress, id: 7, playCount: uploaded, waitingPlays: 1, tracksToFetch: 1, listenCount: listened, waitingListens: 1, episodesToFetch: 1 }
+        return HttpResponse.json({ tracksToFetch: 1, episodesToFetch: 1 })
       }),
     )
   },
@@ -1215,14 +1219,14 @@ export const ImportHistory = meta.story({
     await expect(canvas.getByRole('link', { name: 'Account privacy page' })).toHaveAttribute('target', '_blank')
 
     await userEvent.upload(await canvas.findByLabelText(/Choose your Spotify data/), [spotifyExport()])
-    await expect(await canvas.findByText('3 plays of 2 tracks')).toBeVisible()
+    await expect(await canvas.findByText('3 plays of 2 tracks, and 1 podcast listen of 1 episode')).toBeVisible()
     await expect(canvas.getByText('Feb 2021 to Jun 2025, from 2 files')).toBeVisible()
     await expect(canvas.getByText(/1 play under 30 seconds/)).toBeVisible()
-    await expect(canvas.getByText('1 podcast, audiobook or video')).toBeVisible()
+    await expect(canvas.getByText('1 audiobook or video')).toBeVisible()
 
-    await userEvent.click(canvas.getByRole('button', { name: 'Import 3 plays' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Import 3 plays and 1 listen' }))
     const status = await canvas.findByRole('status', { name: 'Last import' })
-    await expect(within(status).getByText('Looking up 1 track on Spotify')).toBeVisible()
+    await expect(within(status).getByText('Looking up 1 track and 1 episode on Spotify')).toBeVisible()
     await expect(canvas.getByLabelText(/Choose your Spotify data/)).toBeInTheDocument()
   },
 })
@@ -1234,18 +1238,18 @@ export const ImportSendsOnlyTimeLengthAndTrack = meta.story({
       http.post('/api/v1/imports', () => HttpResponse.json({ id: 7 }, { status: 201 })),
       http.post('/api/v1/imports/{id}/plays', async ({ request }) => {
         const body = JSON.stringify(await request.json())
-        // Nothing else from the export (IP address, country, platform...) may leave the device.
-        if (body.includes('203.0.113.7') || body.includes('conn_country')) {
+        // Nothing else from the export (IP address, country, platform, what an episode is called...) may leave the device.
+        if (['203.0.113.7', 'conn_country', 'A Private Episode', 'Some Show'].some((leak) => body.includes(leak))) {
           return HttpResponse.json({ error: 'invalid_request', issues: [{ path: 'plays', message: 'leak' }] }, { status: 400 })
         }
         return HttpResponse.json({ received: 3 })
       }),
-      http.post('/api/v1/imports/{id}/finish', () => HttpResponse.json({ tracksToFetch: 0 })),
+      http.post('/api/v1/imports/{id}/finish', () => HttpResponse.json({ tracksToFetch: 0, episodesToFetch: 0 })),
     )
   },
   play: async ({ canvas, userEvent }) => {
     await userEvent.upload(await canvas.findByLabelText(/Choose your Spotify data/), [spotifyExport()])
-    await userEvent.click(await canvas.findByRole('button', { name: 'Import 3 plays' }))
+    await userEvent.click(await canvas.findByRole('button', { name: 'Import 3 plays and 1 listen' }))
     await expect(await canvas.findByLabelText(/Choose your Spotify data/)).toBeInTheDocument()
     await expect(canvas.queryByRole('alert')).not.toBeInTheDocument()
   },
@@ -1269,10 +1273,10 @@ export const ImportUploadFails = meta.story({
   },
   play: async ({ canvas, userEvent }) => {
     await userEvent.upload(await canvas.findByLabelText(/Choose your Spotify data/), [spotifyExport()])
-    await userEvent.click(await canvas.findByRole('button', { name: 'Import 3 plays' }))
+    await userEvent.click(await canvas.findByRole('button', { name: 'Import 3 plays and 1 listen' }))
     await expect(await canvas.findByRole('alert')).toHaveTextContent(/^Import failed/)
     // The summary stays, so trying again is one click.
-    await expect(canvas.getByRole('button', { name: 'Import 3 plays' })).toBeEnabled()
+    await expect(canvas.getByRole('button', { name: 'Import 3 plays and 1 listen' })).toBeEnabled()
   },
 })
 

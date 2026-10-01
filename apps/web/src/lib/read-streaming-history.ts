@@ -1,7 +1,18 @@
-import { isStreamingHistoryFile, parseStreamingHistory, type ParseResult } from '@replay-crate/core'
+import { isStreamingHistoryFile, mergeListens, parseStreamingHistory, type ImportedListen, type ImportedPlay } from '@replay-crate/core'
 import { unzip, type Unzipped } from 'fflate'
 
-export type StreamingHistory = ParseResult & {
+export type StreamingHistory = {
+  plays: ImportedPlay[]
+  /** Podcast listens, the stretches the export splits at every pause joined up. */
+  listens: ImportedListen[]
+  /** Entries that are neither music nor podcasts (audiobooks, videos), or have no id. */
+  other: number
+  /** Music played for less than 30 seconds, which Spotify doesn't count as a stream. */
+  tooShort: number
+  /** Podcast listens under 30 seconds in all. */
+  tooShortListens: number
+  /** Entries missing a timestamp or play time. */
+  malformed: number
   /** Streaming history files found (inside the zip or chosen directly). */
   files: number
   /** Plays that appeared more than once across the files, e.g. a file chosen twice. */
@@ -24,7 +35,8 @@ const unzipHistory = (data: Uint8Array) =>
 /**
  * Reads Spotify's Extended Streaming History, as the my_spotify_data.zip Spotify sends or
  * the Streaming_History_Audio_*.json files inside it. Everything happens on this device;
- * what comes back is only each play's end time, play time and track id.
+ * what comes back is only each play's (or podcast listen's) end time, play time and track (or
+ * episode) id.
  */
 export async function readStreamingHistory(chosen: File[]): Promise<StreamingHistory> {
   const decoder = new TextDecoder()
@@ -43,8 +55,9 @@ export async function readStreamingHistory(chosen: File[]): Promise<StreamingHis
     }
   }
 
-  const history: StreamingHistory = { plays: [], notMusic: 0, tooShort: 0, malformed: 0, files: 0, repeated: 0 }
+  const history: StreamingHistory = { plays: [], listens: [], other: 0, tooShort: 0, tooShortListens: 0, malformed: 0, files: 0, repeated: 0 }
   const seen = new Set<string>()
+  const stretches = new Map<string, ImportedListen>()
   for (const { name, text } of sources) {
     let entries: unknown
     try {
@@ -55,7 +68,7 @@ export async function readStreamingHistory(chosen: File[]): Promise<StreamingHis
     if (!Array.isArray(entries)) throw new StreamingHistoryError(`${name} isn't a streaming history file.`)
     const parsed = parseStreamingHistory(entries)
     history.files++
-    history.notMusic += parsed.notMusic
+    history.other += parsed.other
     history.tooShort += parsed.tooShort
     history.malformed += parsed.malformed
     for (const play of parsed.plays) {
@@ -67,7 +80,12 @@ export async function readStreamingHistory(chosen: File[]): Promise<StreamingHis
       seen.add(key)
       history.plays.push(play)
     }
+    // A file chosen twice repeats its stretches too; they're joined into listens once all are in.
+    for (const stretch of parsed.episodes) stretches.set(`${stretch.ts} ${stretch.episodeId}`, stretch)
   }
+  const { listens, tooShort } = mergeListens([...stretches.values()])
+  history.listens = listens
+  history.tooShortListens = tooShort
 
   if (!history.files) {
     throw new StreamingHistoryError(

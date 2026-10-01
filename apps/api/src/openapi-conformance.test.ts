@@ -83,7 +83,9 @@ describe('responses match the spec', () => {
     const imported = { id: String(id) }
     await call('POST', '/imports/{id}/plays', imported, {
       plays: [{ ts: '2026-01-02T10:00:00Z', ms: 200_000, trackId: '4uLU6hMCjMI75M1A2tKUQC' }],
+      listens: [{ ts: '2026-01-02T11:00:00Z', ms: 600_000, episodeId: '5Xt5DXGzch68nYYamXrNxZ' }],
     })
+    await call('POST', '/imports/{id}/plays', imported, {})
     await call('POST', '/imports/{id}/finish', imported)
     await call('GET', '/imports/latest')
 

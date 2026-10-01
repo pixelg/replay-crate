@@ -2,8 +2,10 @@ import { schema, type Db } from '@replay-crate/db'
 import type { ImportedPlay } from '@replay-crate/core'
 import { and, count, desc, eq, gte, isNull, lte, sql } from 'drizzle-orm'
 import { enqueue } from '../jobs/queue.ts'
+import { episodeJobRef } from '../podcasts/listens.ts'
+import { promoteListens } from './listens.ts'
 
-const { importPlays, imports, jobs, syncGaps } = schema
+const { importListens, importPlays, imports, jobs, syncGaps } = schema
 
 /**
  * An imported play and a recorded play of the same track this close together are the same
@@ -107,12 +109,23 @@ export async function discardTrack(db: Db, trackId: string): Promise<void> {
 
 /**
  * All plays are uploaded: move over what we can now, queue a Spotify lookup for every
- * track we don't know yet (its plays move over when it arrives), and mark any history
- * gaps this import covers as filled.
+ * track and episode we don't know yet (its plays or listens move over when it arrives), and
+ * mark any history gaps this import covers as filled.
  */
 export async function finishUpload(db: Db, importId: number, userId: string, now: Date) {
   await db.update(imports).set({ uploadedAt: now }).where(eq(imports.id, importId))
   await promote(db)
+  await promoteListens(db)
+
+  const unknownEpisodes = await db
+    .selectDistinct({ episodeId: importListens.episodeId })
+    .from(importListens)
+    .where(eq(importListens.importId, importId))
+  await enqueue(
+    db,
+    unknownEpisodes.map(({ episodeId }) => ({ kind: 'episode' as const, ref: episodeJobRef(userId, episodeId), userId })),
+    now,
+  )
 
   const unknown = await db
     .selectDistinct({ trackId: importPlays.trackId })
@@ -142,7 +155,7 @@ export async function finishUpload(db: Db, importId: number, userId: string, now
         ),
       )
   }
-  return { tracksToFetch: unknown.length }
+  return { tracksToFetch: unknown.length, episodesToFetch: unknownEpisodes.length }
 }
 
 /** The user's most recent import with how much is still waiting on Spotify. */
@@ -150,10 +163,15 @@ export async function latestImport(db: Db, userId: string) {
   const [row] = await db.select().from(imports).where(eq(imports.userId, userId)).orderBy(desc(imports.id)).limit(1)
   if (!row) return null
   const [waiting] = await db.select({ n: count() }).from(importPlays).where(eq(importPlays.importId, row.id))
+  const [waitingListens] = await db.select({ n: count() }).from(importListens).where(eq(importListens.importId, row.id))
   const [queued] = await db
     .select({ n: count() })
     .from(jobs)
     .where(and(eq(jobs.userId, userId), eq(jobs.kind, 'track')))
+  const [queuedEpisodes] = await db
+    .select({ n: count() })
+    .from(jobs)
+    .where(and(eq(jobs.userId, userId), eq(jobs.kind, 'episode')))
   return {
     id: row.id,
     playCount: row.playCount,
@@ -166,6 +184,12 @@ export async function latestImport(db: Db, userId: string) {
     waitingPlays: waiting?.n ?? 0,
     /** Tracks still to look up on Spotify. */
     tracksToFetch: queued?.n ?? 0,
-    done: Boolean(row.uploadedAt) && (waiting?.n ?? 0) === 0,
+    listenCount: row.listenCount,
+    listensUnavailable: row.listensUnavailable,
+    /** Listens still waiting for their episode's details. */
+    waitingListens: waitingListens?.n ?? 0,
+    /** Episodes still to look up on Spotify. */
+    episodesToFetch: queuedEpisodes?.n ?? 0,
+    done: Boolean(row.uploadedAt) && (waiting?.n ?? 0) === 0 && (waitingListens?.n ?? 0) === 0,
   }
 }

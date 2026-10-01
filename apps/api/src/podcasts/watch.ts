@@ -72,6 +72,7 @@ export function startPlayerWatch(
   }: { intervalMs: number; firstRunAfterMs?: number; holder?: string; log?: Logger },
 ): () => void {
   let running = false
+  let stopped = false
   let holding: boolean | undefined
 
   async function tick() {
@@ -82,7 +83,8 @@ export function startPlayerWatch(
       const held = await holdLease(deps.db, WATCH_LEASE, holder, intervalMs * 2, now)
       if (held !== holding && !held) log.info('[watch] another process watches the players; standing by')
       holding = held
-      if (!held || (await pausedUntil(deps.db, now))) return
+      // Stopped while the lease was being taken: don't start a round.
+      if (!held || stopped || (await pausedUntil(deps.db, now))) return
       // The app polls every few seconds while it's open; a look it took this recently means it's still there.
       await watchAllUsers(deps, { freshMs: intervalMs * 0.75 })
     } catch (error) {
@@ -95,6 +97,7 @@ export function startPlayerWatch(
   const first = setTimeout(tick, firstRunAfterMs)
   const timer = setInterval(tick, intervalMs)
   return () => {
+    stopped = true
     clearTimeout(first)
     clearInterval(timer)
     if (holding) void releaseLease(deps.db, WATCH_LEASE, holder).catch(() => {})

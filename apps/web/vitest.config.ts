@@ -26,6 +26,9 @@ export default mergeConfig(
           },
           test: {
             name: 'storybook',
+            // Browser mode's default is 15 s. A file's first full-app story also loads the app cold,
+            // and on a busy CI runner (two such files at once) that alone can take most of it.
+            testTimeout: 30_000,
             browser: {
               enabled: true,
               headless: true,

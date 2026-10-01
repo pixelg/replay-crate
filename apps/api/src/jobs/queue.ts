@@ -4,6 +4,7 @@ import { pickImage, SpotifyApiError } from '@replay-crate/spotify'
 import { and, asc, count, eq, gt, inArray, lte, notInArray, sql, type SQL } from 'drizzle-orm'
 import { genreHandlers } from '../genres/jobs.ts'
 import { getAccessToken, ReauthRequiredError } from '../spotify/access-token.ts'
+import { discardEpisode, promoteListens } from '../imports/listens.ts'
 import { discardTrack, promote } from '../imports/service.ts'
 import { saveProgress, upsertEpisodes } from '../podcasts/catalog.ts'
 import { parseEpisodeJobRef } from '../podcasts/listens.ts'
@@ -44,7 +45,10 @@ const handlers: Record<JobKind, Handler> = {
         })
     },
   },
-  /** Fetch an episode for its details (the player leaves some out) and the user's resume point. */
+  /**
+   * Fetch an episode for its details (the player leaves some out) and the user's resume point,
+   * then move any imported listens that were waiting for it into history.
+   */
   episode: {
     api: 'spotify',
     run: async (deps, ref, { accessToken }) => {
@@ -59,6 +63,11 @@ const handlers: Record<JobKind, Handler> = {
           deps.now?.() ?? new Date(),
         )
       }
+      await promoteListens(deps.db, [episodeId])
+    },
+    gone: (deps, ref) => {
+      const { userId, episodeId } = parseEpisodeJobRef(ref)
+      return discardEpisode(deps.db, userId, episodeId)
     },
   },
   ...genreHandlers,
