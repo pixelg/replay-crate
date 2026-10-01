@@ -1,5 +1,9 @@
 import type {
   Device,
+  ListensTimeline,
+  PodcastStatsCalendar,
+  PodcastStatsOverview,
+  PodcastStatsTop,
   EpisodeDetail,
   EpisodesPage,
   EpisodeSummary,
@@ -870,3 +874,71 @@ export const playingEpisode: Extract<PlayerItem, { type: 'episode' }> = {
 }
 
 export const episodePlayback: Playback = { ...playback, context: null, item: playingEpisode, progressMs: 18 * MIN }
+
+/** Podcast stats over `days` days: two shows, most days a bit of each. */
+export function podcastStatsOverview(days = 30): PodcastStatsOverview {
+  const series = Array.from({ length: days }, (_, i) => {
+    const date = localDayKey(new Date(Date.now() - (days - 1 - i) * 86_400_000))
+    const science = i % 3 === 0 ? 0 : 20 + (i % 5) * 6
+    const talk = i % 4 === 0 ? 35 : 0
+    return {
+      date,
+      listens: (science ? 1 : 0) + (talk ? 1 : 0),
+      minutes: science + talk,
+      byShow: [
+        { listens: science ? 1 : 0, minutes: science },
+        { listens: talk ? 1 : 0, minutes: talk },
+      ],
+      others: { listens: 0, minutes: 0 },
+    }
+  })
+  const sum = (pick: (point: (typeof series)[number]) => number) => series.reduce((total, point) => total + pick(point), 0)
+  return {
+    range: '30d',
+    tz: 'UTC',
+    bucket: 'day',
+    totals: { listens: sum((point) => point.listens), minutes: sum((point) => point.minutes), episodes: 9, shows: 2, finished: 4 },
+    shows: [
+      { id: 's1', name: 'Sample Science', thumbUrl: null, listens: sum((point) => point.byShow[0]!.listens), minutes: sum((point) => point.byShow[0]!.minutes) },
+      { id: 's2', name: 'Crate Talk', thumbUrl: null, listens: sum((point) => point.byShow[1]!.listens), minutes: sum((point) => point.byShow[1]!.minutes) },
+    ],
+    series,
+  }
+}
+
+export const podcastStatsTop: PodcastStatsTop = {
+  type: 'shows',
+  range: '30d',
+  tz: 'UTC',
+  metric: 'minutes',
+  limit: 10,
+  items: [
+    { rank: 1, id: 's1', name: 'Sample Science', subtitle: '6 episodes', imageUrl: null, listens: 20, minutes: 610 },
+    { rank: 2, id: 's2', name: 'Crate Talk', subtitle: '3 episodes', imageUrl: null, listens: 8, minutes: 280 },
+  ],
+}
+
+export const podcastTopEpisodes: PodcastStatsTop['items'] = [
+  { rank: 1, id: 'e1', name: 'The History of the Breakbeat', subtitle: 'Sample Science', imageUrl: null, listens: 2, minutes: 45 },
+  { rank: 2, id: 'e3', name: 'Digging in Osaka', subtitle: 'Crate Talk', imageUrl: null, listens: 1, minutes: 30 },
+]
+
+export function podcastStatsCalendar(year = thisYear): PodcastStatsCalendar {
+  return {
+    year,
+    tz: 'UTC',
+    years: [2025, thisYear],
+    days: [
+      { date: `${year}-03-02`, listens: 1, minutes: 45 },
+      { date: `${year}-03-09`, listens: 2, minutes: 70 },
+      { date: `${year}-06-21`, listens: 1, minutes: 20 },
+    ],
+  }
+}
+
+export const listensTimeline: ListensTimeline = {
+  months: [
+    { month: localDayKey(new Date()).slice(0, 7), listens: 5 },
+    { month: '2025-08', listens: 1 },
+  ],
+}

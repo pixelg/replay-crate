@@ -1,4 +1,4 @@
-import { statsCalendarQueryOptions, type StatsCalendar } from '@replay-crate/api-client'
+import { podcastStatsCalendarQueryOptions, statsCalendarQueryOptions, type StatsCalendar } from '@replay-crate/api-client'
 import { localDayKey } from '@replay-crate/core'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -66,8 +66,27 @@ function shadeOf(plays: number, [first, second, third]: [number, number, number]
   return plays <= first ? 1 : plays <= second ? 2 : plays <= third ? 3 : 4
 }
 
-const playsLabel = (plays: number) => (plays === 0 ? 'No plays' : plays === 1 ? '1 play' : `${plays.toLocaleString()} plays`)
-const dayLabel = (day: string, plays: number) => `${playsLabel(plays)} on ${dayFormat.format(dayStart(day))}`
+/** What a calendar counts per day: plays, or minutes of podcasts. */
+type Unit = {
+  title: string
+  /** "3 plays", "No plays"; "45 min", "Nothing". */
+  label: (n: number) => string
+  /** A shade's span in the legend: "4–9 plays". */
+  span: (from: number, to: number) => string
+}
+const PLAYS: Unit = {
+  title: 'Plays per day',
+  label: (n) => (n === 0 ? 'No plays' : n === 1 ? '1 play' : `${n.toLocaleString()} plays`),
+  span: (from, to) => `${from.toLocaleString()}–${to.toLocaleString()} plays`,
+}
+const MINUTES: Unit = {
+  title: 'Podcasts per day',
+  label: (n) => (n === 0 ? 'No podcasts' : `${n.toLocaleString()} min`),
+  span: (from, to) => `${from.toLocaleString()}–${to.toLocaleString()} min`,
+}
+
+/** A year of counts per day, whatever is counted. */
+type DayCounts = { year: number; years: number[]; days: Array<{ date: string; count: number }> }
 
 /**
  * The heatmap for one year, fetched in the viewer's time zone, with its own year switcher. Starts at
@@ -88,19 +107,48 @@ export function PlayCalendarCard({ initialYear }: { initialYear?: number }) {
   return <Card aria-hidden className="h-56 motion-safe:animate-pulse" />
 }
 
+/** The podcast heatmap: minutes heard per day, a day opening podcast History there. */
+export function PodcastCalendarCard({ initialYear }: { initialYear?: number }) {
+  const today = localDayKey(new Date())
+  const [year, setYear] = useState(() => initialYear ?? Number(today.slice(0, 4)))
+  const calendar = useQuery({ ...podcastStatsCalendarQueryOptions(api, year, timeZone), placeholderData: keepPreviousData })
+  if (calendar.data) {
+    const { days, ...rest } = calendar.data
+    return (
+      <DayCalendar
+        calendar={{ ...rest, days: days.map((day) => ({ date: day.date, count: day.minutes })) }}
+        unit={MINUTES}
+        year={year}
+        today={today}
+        onYearChange={setYear}
+        pending={calendar.isPlaceholderData}
+      />
+    )
+  }
+  if (calendar.error) return <InlineError error={calendar.error} action="Loading podcasts per day" />
+  return <Card aria-hidden className="h-56 motion-safe:animate-pulse" />
+}
+
 /**
  * A GitHub-style year of plays per day. Not a Recharts chart (Recharts has no calendar), so it's an
  * accessible grid in the charts' card, in the charts' colours: every day is a link to it in History,
  * the arrow keys move between days, and hovering or focusing one shows its count.
  */
-export function PlayCalendar({
+export function PlayCalendar({ calendar, ...props }: Omit<Parameters<typeof DayCalendar>[0], 'calendar' | 'unit'> & { calendar: StatsCalendar }) {
+  const { days, ...rest } = calendar
+  return <DayCalendar calendar={{ ...rest, days: days.map((day) => ({ date: day.date, count: day.plays })) }} unit={PLAYS} {...props} />
+}
+
+function DayCalendar({
   calendar,
+  unit,
   year,
   today,
   onYearChange,
   pending = false,
 }: {
-  calendar: StatsCalendar
+  calendar: DayCounts
+  unit: Unit
   /** The year picked; `calendar` still holds the last one while it loads. */
   year: number
   /** The viewer's today, `YYYY-MM-DD`: later days can't have plays. */
@@ -109,9 +157,9 @@ export function PlayCalendar({
   pending?: boolean
 }) {
   const { days } = calendar
-  const total = days.reduce((sum, day) => sum + day.plays, 0)
-  const busiest = days.reduce<(typeof days)[number] | null>((top, day) => (!top || day.plays > top.plays ? day : top), null)
-  const bounds = useMemo(() => shadeBounds(days.map((day) => day.plays)), [days])
+  const total = days.reduce((sum, day) => sum + day.count, 0)
+  const busiest = days.reduce<(typeof days)[number] | null>((top, day) => (!top || day.count > top.count ? day : top), null)
+  const bounds = useMemo(() => shadeBounds(days.map((day) => day.count)), [days])
 
   // Every year with plays, and this one; the arrows step through them.
   const years = [...new Set([...calendar.years, Number(today.slice(0, 4))])].toSorted((a, b) => a - b)
@@ -119,16 +167,16 @@ export function PlayCalendar({
   const later = years.find((y) => y > year)
 
   const [first, second, third] = bounds
-  const range = (from: number, to: number) => (from === to ? playsLabel(from) : `${from.toLocaleString()}–${to.toLocaleString()} plays`)
-  const legend = ['No plays', range(1, first), range(first + 1, second), range(second + 1, third), `${(third + 1).toLocaleString()}+ plays`]
+  const range = (from: number, to: number) => (from === to ? unit.label(from) : unit.span(from, to))
+  const legend = [unit.label(0), range(1, first), range(first + 1, second), range(second + 1, third), `${unit.label(third + 1)}+`]
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Plays per day</CardTitle>
+        <CardTitle>{unit.title}</CardTitle>
         <CardDescription>
-          {playsLabel(total)} in {calendar.year}
-          {busiest && ` · busiest ${shortDayFormat.format(dayStart(busiest.date))} (${busiest.plays.toLocaleString()})`}
+          {unit.label(total)} in {calendar.year}
+          {busiest && ` · busiest ${shortDayFormat.format(dayStart(busiest.date))} (${unit.label(busiest.count)})`}
         </CardDescription>
         <CardAction className="flex items-center gap-1">
           <IconButton label="Earlier year" className="size-8" disabled={earlier === undefined} onClick={() => earlier && onYearChange(earlier)}>
@@ -158,7 +206,7 @@ export function PlayCalendar({
       {/* While the next year loads, its days fade (only the days: faded text would be hard to read). */}
       <CardContent className={cn('flex flex-col gap-2', pending && '[&_[data-day]]:opacity-40')} aria-busy={pending}>
         {/* A fresh grid per year: its focus and scroll position start over. */}
-        <CalendarGrid key={calendar.year} calendar={calendar} bounds={bounds} today={today} />
+        <CalendarGrid key={calendar.year} calendar={calendar} unit={unit} bounds={bounds} today={today} />
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <p>Pick a day to open it in History.</p>
           <div className="flex items-center gap-1.5">
@@ -183,9 +231,10 @@ const STEPS: Record<string, number | undefined> = { ArrowUp: -1, ArrowDown: 1, A
 /** About half the widest tip: closer to the window's edge than this, it lines up with the day instead. */
 const TIP_ROOM = 120
 
-function CalendarGrid({ calendar, bounds, today }: { calendar: StatsCalendar; bounds: [number, number, number]; today: string }) {
+function CalendarGrid({ calendar, unit, bounds, today }: { calendar: DayCounts; unit: Unit; bounds: [number, number, number]; today: string }) {
   const { year } = calendar
-  const counts = useMemo(() => new Map(calendar.days.map((day) => [day.date, day.plays])), [calendar.days])
+  const counts = useMemo(() => new Map(calendar.days.map((day) => [day.date, day.count])), [calendar.days])
+  const dayLabel = (day: string, n: number) => `${unit.label(n)} on ${dayFormat.format(dayStart(day))}`
   const weeks = useMemo(() => yearWeeks(year), [year])
   // Months label the week holding their 1st, up to the next month's.
   const months = useMemo(() => {
@@ -253,7 +302,7 @@ function CalendarGrid({ calendar, bounds, today }: { calendar: StatsCalendar; bo
       <table
         ref={grid}
         role="grid"
-        aria-label={`Plays per day in ${year}`}
+        aria-label={`${unit.title} in ${year}`}
         // Fills the card up to a size, and scrolls rather than shrinking days below 12px.
         className="w-full max-w-5xl min-w-[52rem] table-fixed border-separate border-spacing-[3px] text-[10px] leading-none text-muted-foreground"
         onPointerOver={point}

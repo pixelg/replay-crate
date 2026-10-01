@@ -6,6 +6,8 @@ import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
 import { IsoDateTime, jsonResponse } from '../lib/schemas.ts'
 import { ListenItem, loadEpisodeSummaries, ShowRef } from '../podcasts/present.ts'
+import { listenMonths } from '../stats/podcasts.ts'
+import { timeZone } from '../stats/ranges.ts'
 
 const { episodeListens, episodes, shows } = schema
 
@@ -60,11 +62,35 @@ const listListenedShows = createRoute({
   },
 })
 
+const getListensTimeline = createRoute({
+  method: 'get',
+  path: '/history/listens/timeline',
+  tags: ['History'],
+  operationId: 'getListensTimeline',
+  summary: 'Podcast listens per month',
+  description: 'How many listens ended in each calendar month of `tz`, newest first; months without listens are left out.',
+  security: signedIn,
+  request: {
+    query: z.object({ tz: timeZone.default('UTC').openapi({ description: 'IANA time zone for month boundaries.', example: 'Europe/Berlin' }) }),
+  },
+  responses: {
+    200: jsonResponse(
+      z.object({ months: z.array(z.object({ month: z.string().openapi({ example: '2019-03' }), listens: z.number().int() })) }),
+      'Months with listens.',
+    ),
+    ...errorResponses('invalid_request', 'unauthorized'),
+  },
+})
+
 export function listenRoutes(deps: AppDeps) {
   const { db } = deps
   const auth = requireUser(deps)
 
   return createRouter()
+    .openapi({ ...getListensTimeline, middleware: auth }, async (c) =>
+      c.json({ months: await listenMonths(db, c.var.user.id, c.req.valid('query').tz) }, 200),
+    )
+
     .openapi({ ...listListenedShows, middleware: auth }, async (c) => {
       const rows = await db
         .select({ id: shows.id, name: shows.name, thumbUrl: shows.thumbUrl, listens: count(), last: max(episodeListens.endedAt) })

@@ -1,5 +1,5 @@
-import type { StatsOverview } from '@replay-crate/api-client'
-import { useState, type CSSProperties } from 'react'
+import type { PodcastStatsOverview, StatsOverview } from '@replay-crate/api-client'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -16,11 +16,21 @@ import { bucketDate } from '@/lib/stats-ranges'
 const axisDate = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
 const tooltipDate = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
 
-type Measure = 'plays' | 'minutes'
-const measures = [
-  { value: 'plays', label: 'Plays' },
-  { value: 'minutes', label: 'Time played' },
-] as const
+type Measure = 'count' | 'minutes'
+
+/** What a chart counts: plays of tracks, or listens of episodes. */
+type Counted = { label: string; one: string; many: string }
+const PLAYS: Counted = { label: 'Plays', one: 'play', many: 'plays' }
+const LISTENS: Counted = { label: 'Listens', one: 'listen', many: 'listens' }
+
+/** The chart's data, whatever is being charted: per bucket, a count and time for each group (an artist, a show). */
+export type OverTime = {
+  bucket: 'day' | 'week'
+  groups: Array<{ name: string }>
+  series: Array<{ date: string; byGroup: Array<{ count: number; minutes: number }> }>
+  /** Nothing in the span at all. */
+  empty: boolean
+}
 
 /** "3 h 20 min", "45 min". */
 function duration(minutes: number) {
@@ -28,8 +38,8 @@ function duration(minutes: number) {
   return hours ? `${hours} h ${minutes % 60} min` : `${minutes} min`
 }
 
-/** The chart's keys: one per top artist (a0…). */
-const artistKey = (index: number) => `a${index}`
+/** The chart's keys: one per group (g0…). */
+const groupKey = (index: number) => `g${index}`
 
 /**
  * shadcn's "Area Chart - Interactive": who you listened to over time. Stacked areas for the
@@ -37,52 +47,116 @@ const artistKey = (index: number) => `a${index}`
  * else is left out: it dwarfed the artists and flattened them. The page picks the span (a rolling
  * window, or a year or month).
  */
-export function ListeningOverTime({
+export function ListeningOverTime({ overview, emptyText = 'No plays in this range yet.' }: { overview: StatsOverview; emptyText?: string }) {
+  const { artists } = overview
+  return (
+    <OverTimeChart
+      data={{
+        bucket: overview.bucket,
+        groups: artists,
+        series: overview.series.map((point) => ({
+          date: point.date,
+          byGroup: point.byArtist.map((artist) => ({ count: artist.plays, minutes: artist.minutes })),
+        })),
+        empty: overview.totals.plays === 0,
+      }}
+      title="Who you listened to"
+      description={
+        artists.length ? `Your top ${artists.length === 1 ? 'artist' : `${artists.length} artists`} by plays` : 'Your top artists by plays'
+      }
+      note={
+        overview.openGaps > 0 &&
+        "Some plays in this range weren't recorded, so these are minimums. Importing your Spotify data fills them in."
+      }
+      counted={PLAYS}
+      emptyText={emptyText}
+    />
+  )
+}
+
+/** The podcast counterpart: the span's top shows by time heard, in time or listens. */
+export function PodcastListeningOverTime({
   overview,
-  emptyText = 'No plays in this range yet.',
+  emptyText = 'No podcast listens in this range yet.',
 }: {
-  overview: StatsOverview
-  /** What to say when nothing was played in the span. */
+  overview: PodcastStatsOverview
   emptyText?: string
 }) {
-  const { series, bucket, totals, artists } = overview
-  const perWeek = bucket === 'week'
-  const [measure, setMeasure] = useState<Measure>('plays')
+  const { shows } = overview
+  return (
+    <OverTimeChart
+      data={{
+        bucket: overview.bucket,
+        groups: shows,
+        series: overview.series.map((point) => ({
+          date: point.date,
+          byGroup: point.byShow.map((show) => ({ count: show.listens, minutes: show.minutes })),
+        })),
+        empty: overview.totals.listens === 0,
+      }}
+      title="What you listened to"
+      description={shows.length ? `Your top ${shows.length === 1 ? 'show' : `${shows.length} shows`} by time` : 'Your top shows by time'}
+      counted={LISTENS}
+      initialMeasure="minutes"
+      emptyText={emptyText}
+    />
+  )
+}
 
-  // Top artists get the chart colours in order.
+function OverTimeChart({
+  data: { bucket, groups, series, empty },
+  title,
+  description,
+  note,
+  counted,
+  initialMeasure = 'count',
+  emptyText,
+}: {
+  data: OverTime
+  title: string
+  description: string
+  /** A caveat under the description. */
+  note?: ReactNode
+  counted: Counted
+  initialMeasure?: Measure
+  /** What to say when nothing was played in the span. */
+  emptyText: string
+}) {
+  const perWeek = bucket === 'week'
+  const [measure, setMeasure] = useState<Measure>(initialMeasure)
+  const measures = [
+    { value: 'count', label: counted.label },
+    { value: 'minutes', label: 'Time played' },
+  ] as const
+
+  // Top groups get the chart colours in order.
   const chartConfig: ChartConfig = Object.fromEntries(
-    artists.map((artist, index) => [artistKey(index), { label: artist.name, color: `var(--chart-${index + 1})` }]),
+    groups.map((group, index) => [groupKey(index), { label: group.name, color: `var(--chart-${index + 1})` }]),
   )
   const data = series.map((point) => ({
     date: point.date,
-    ...Object.fromEntries(point.byArtist.map((listening, index) => [artistKey(index), listening[measure]])),
+    ...Object.fromEntries(point.byGroup.map((listening, index) => [groupKey(index), listening[measure]])),
     // Both measures, for the tooltip.
-    listening: Object.fromEntries(point.byArtist.map((listening, index) => [artistKey(index), listening])),
+    listening: Object.fromEntries(point.byGroup.map((listening, index) => [groupKey(index), listening])),
   }))
-  const keys = artists.map((_, index) => artistKey(index))
+  const keys = groups.map((_, index) => groupKey(index))
   const rank = (key: unknown) => keys.indexOf(String(key))
 
   return (
     <Card className="@container/card">
       <CardHeader>
-        <CardTitle>Who you listened to</CardTitle>
+        <CardTitle>{title}</CardTitle>
         <CardDescription>
-          {artists.length
-            ? `Your top ${artists.length === 1 ? 'artist' : `${artists.length} artists`} by plays`
-            : 'Your top artists by plays'}
+          {description}
           {perWeek && ' · per week'}
-          {overview.openGaps > 0 && (
-            <span className="block text-xs">
-              Some plays in this range weren't recorded, so these are minimums. Importing your Spotify data fills them in.
-            </span>
-          )}
+          {note && <span className="block text-xs">{note}</span>}
         </CardDescription>
         <CardAction className="flex flex-wrap items-center justify-end gap-2">
           <Segmented<Measure> label="Measure" value={measure} onChange={setMeasure} options={measures} />
         </CardAction>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-        {totals.plays === 0 ? (
+        {empty ? (
           <p className="flex h-[250px] items-center justify-center text-sm text-muted-foreground">{emptyText}</p>
         ) : (
           <ChartContainer config={chartConfig} className="aspect-auto h-[280px] w-full">
@@ -117,7 +191,7 @@ export function ListeningOverTime({
                   <ChartTooltipContent
                     active={props.active}
                     label={props.label}
-                    // Top artists in rank order (the chart stacks them the other way up).
+                    // Top groups in rank order (the chart stacks them the other way up).
                     payload={[...(props.payload ?? [])].sort((x, y) => rank(x.dataKey) - rank(y.dataKey))}
                     indicator="dot"
                     labelFormatter={(value) => {
@@ -126,10 +200,10 @@ export function ListeningOverTime({
                     }}
                     // Both measures, whichever is charted: plays and time.
                     formatter={(_value, name, item) => {
-                      const listening = (item.payload as { listening: Record<string, { plays: number; minutes: number }> }).listening[
+                      const listening = (item.payload as { listening: Record<string, { count: number; minutes: number }> }).listening[
                         String(name)
                       ]
-                      const plays = listening?.plays ?? 0
+                      const times = listening?.count ?? 0
                       return (
                         <div className="flex w-full items-center gap-2">
                           <span
@@ -138,9 +212,9 @@ export function ListeningOverTime({
                             style={{ '--color-bg': `var(--color-${name})` } as CSSProperties}
                           />
                           <span className="flex-1 text-muted-foreground">{chartConfig[String(name)]?.label}</span>
-                          {plays ? (
+                          {times ? (
                             <span className="font-mono font-medium tabular-nums">
-                              {plays} {plays === 1 ? 'play' : 'plays'} · {duration(listening!.minutes)}
+                              {times} {times === 1 ? counted.one : counted.many} · {duration(listening!.minutes)}
                             </span>
                           ) : (
                             <span className="text-muted-foreground">–</span>

@@ -2,6 +2,11 @@ import { createOpenApiHttp } from 'openapi-msw'
 import type { paths } from './api.gen.ts'
 import {
   devices,
+  listensTimeline,
+  podcastStatsCalendar,
+  podcastStatsOverview,
+  podcastStatsTop,
+  podcastTopEpisodes,
   episodeDetail,
   episodesPage,
   listenedShows,
@@ -106,6 +111,29 @@ export const handlers = {
     http.put('/api/v1/episodes/{id}/rating', async ({ request, response }) => response(200).json(await request.json())),
     http.delete('/api/v1/episodes/{id}/rating', ({ response }) => response(204).empty()),
     http.get('/api/v1/shows', ({ response }) => response(200).json(showsList)),
+    http.get('/api/v1/history/listens/timeline', ({ response }) => response(200).json(listensTimeline)),
+    // The same numbers for any range or period, echoing which one was asked for.
+    http.get('/api/v1/stats/podcasts/overview', ({ query, response }) => {
+      const { range, ...overview } = podcastStatsOverview()
+      const period = query.get('period')
+      return response(200).json(period ? { period, ...overview } : { range, ...overview })
+    }),
+    http.get('/api/v1/stats/podcasts/top', ({ query, response }) => {
+      const { range, ...top } = podcastStatsTop
+      const period = query.get('period')
+      const type = (query.get('type') as typeof podcastStatsTop.type | null) ?? 'shows'
+      return response(200).json({
+        ...top,
+        items: type === 'episodes' ? podcastTopEpisodes : top.items,
+        ...(period ? { period } : { range }),
+        type,
+        metric: (query.get('metric') as typeof podcastStatsTop.metric | null) ?? 'minutes',
+      })
+    }),
+    http.get('/api/v1/stats/podcasts/calendar', ({ query, response }) => {
+      const year = query.get('year')
+      return response(200).json(podcastStatsCalendar(year ? Number(year) : undefined))
+    }),
     http.get('/api/v1/shows/{id}', ({ response }) => response(200).json(showDetail)),
   ],
   tracks: [

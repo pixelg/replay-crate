@@ -218,6 +218,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/history/listens/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Podcast listens per month
+         * @description How many listens ended in each calendar month of `tz`, newest first; months without listens are left out.
+         */
+        get: operations["getListensTimeline"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/history/listens/shows": {
         parameters: {
             query?: never;
@@ -603,6 +623,66 @@ export interface paths {
          * @description For a calendar heatmap: the year's days that have plays, in the user's time zone, and every year that has plays.
          */
         get: operations["getStatsCalendar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stats/podcasts/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Podcast totals and listening over time
+         * @description The podcast counterpart of `/stats/overview`: time heard (the episodes' own time, so 2× counts the time heard, not the time it took) and listens per bucket, split by the span's top 5 shows by time and everything else. Bucketed by week past 90 days, else by day, in local days of `tz`. A listen counts where it ended.
+         */
+        get: operations["getPodcastStatsOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stats/podcasts/top": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Most listened shows or episodes
+         * @description Ranked by time heard or by listens, over a rolling `range` or a calendar `period`.
+         */
+        get: operations["getPodcastStatsTop"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stats/podcasts/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Podcast time per day for a year
+         * @description For a calendar heatmap: the year's days with listens and the time heard on each, in local days of `tz`, and every year with listens.
+         */
+        get: operations["getPodcastStatsCalendar"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1528,6 +1608,52 @@ export interface components {
             minutes: number;
             rating: components["schemas"]["Rating"] & unknown;
         };
+        PodcastStatsOverview: {
+            range?: components["schemas"]["StatsRange"];
+            period?: components["schemas"]["StatsPeriod"];
+            tz: string;
+            /** @enum {string} */
+            bucket: "day" | "week";
+            totals: {
+                listens: number;
+                minutes: number;
+                episodes: number;
+                shows: number;
+                /** @description Episodes listened to in the span that are now played to the end. */
+                finished: number;
+            };
+            /** @description The span's top shows by time heard, most first. */
+            shows: {
+                id: string;
+                name: string;
+                thumbUrl: string | null;
+                listens: number;
+                minutes: number;
+            }[];
+            series: {
+                /** @description Bucket start, YYYY-MM-DD. */
+                date: string;
+                listens: number;
+                minutes: number;
+                /** @description Per show in `shows`, same order. */
+                byShow: components["schemas"]["ShowListening"][];
+                others: components["schemas"]["ShowListening"] & unknown;
+            }[];
+        };
+        ShowListening: {
+            listens: number;
+            minutes: number;
+        };
+        PodcastTopItem: {
+            rank: number;
+            id: string;
+            name: string;
+            /** @description The show, for episodes; an episode count for shows. */
+            subtitle: string | null;
+            imageUrl: string | null;
+            listens: number;
+            minutes: number;
+        };
         SpotifyTopItem: {
             rank: number;
             id: string;
@@ -2363,6 +2489,62 @@ export interface operations {
                          * @example 2026-09-21T12:00:00.000Z
                          */
                         olderPlayedAt?: string | null;
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    getListensTimeline: {
+        parameters: {
+            query?: {
+                /** @description IANA time zone for month boundaries. */
+                tz?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Months with listens. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        months: {
+                            /** @example 2019-03 */
+                            month: string;
+                            listens: number;
+                        }[];
                     };
                 };
             };
@@ -3977,6 +4159,203 @@ export interface operations {
                             /** @description YYYY-MM-DD. */
                             date: string;
                             plays: number;
+                        }[];
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    getPodcastStatsOverview: {
+        parameters: {
+            query?: {
+                /** @description A rolling window ending now. `30d` unless `period` is given. */
+                range?: components["schemas"]["StatsRange"];
+                /** @description A calendar year (`2019`) or month (`2019-03`), in local days of `tz`. Not with `range`. */
+                period?: components["schemas"]["StatsPeriod"];
+                /** @description IANA time zone for day boundaries. */
+                tz?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The overview. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PodcastStatsOverview"];
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    getPodcastStatsTop: {
+        parameters: {
+            query?: {
+                type?: "shows" | "episodes";
+                /** @description A rolling window ending now. `30d` unless `period` is given. */
+                range?: components["schemas"]["StatsRange"];
+                /** @description A calendar year (`2019`) or month (`2019-03`), in local days of `tz`. Not with `range`. */
+                period?: components["schemas"]["StatsPeriod"];
+                /** @description IANA time zone for day boundaries. */
+                tz?: string;
+                metric?: "minutes" | "listens";
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ranking, echoing the query. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @default shows
+                         * @enum {string}
+                         */
+                        type: "shows" | "episodes";
+                        range?: components["schemas"]["StatsRange"];
+                        period?: components["schemas"]["StatsPeriod"];
+                        /**
+                         * @description IANA time zone for day boundaries.
+                         * @default UTC
+                         * @example America/Los_Angeles
+                         */
+                        tz: string;
+                        /**
+                         * @default minutes
+                         * @enum {string}
+                         */
+                        metric: "minutes" | "listens";
+                        /** @default 10 */
+                        limit: number;
+                        items: components["schemas"]["PodcastTopItem"][];
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    getPodcastStatsCalendar: {
+        parameters: {
+            query?: {
+                /** @description Defaults to the current year. */
+                year?: number;
+                /** @description IANA time zone for day boundaries. */
+                tz?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Daily listening. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        year: number;
+                        tz: string;
+                        /** @description Every year with listens, oldest first. */
+                        years: number[];
+                        /** @description Days with listens, oldest first; the rest had none. */
+                        days: {
+                            /** @description YYYY-MM-DD. */
+                            date: string;
+                            listens: number;
+                            minutes: number;
                         }[];
                     };
                 };

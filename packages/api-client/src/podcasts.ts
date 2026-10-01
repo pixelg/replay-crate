@@ -18,6 +18,12 @@ export type ShowsList = InferResponseType<ApiClient['shows']['$get'], 200>
 export type LibraryShow = ShowsList['items'][number]
 export type ShowDetail = InferResponseType<ApiClient['shows'][':id']['$get'], 200>
 export type EpisodeSort = 'recent' | 'most' | 'rating' | 'newest'
+export type ListensTimeline = InferResponseType<ApiClient['history']['listens']['timeline']['$get'], 200>
+export type PodcastStatsOverview = InferResponseType<ApiClient['stats']['podcasts']['overview']['$get'], 200>
+export type PodcastStatsTop = InferResponseType<ApiClient['stats']['podcasts']['top']['$get'], 200>
+export type PodcastStatsCalendar = InferResponseType<ApiClient['stats']['podcasts']['calendar']['$get'], 200>
+/** What stats cover: a rolling window ending now, or a calendar year (`2019`) or month (`2019-03`). */
+type Scope = { range: '7d' | '30d' | '90d' | '1y' | 'all' } | { period: string }
 
 /** Which listens History lists: of one show, and ending between `since` (inclusive) and `until` (exclusive). */
 export type ListensFilter = { show?: string; since?: string; until?: string }
@@ -41,17 +47,62 @@ export const listensPageQueryOptions = (api: ApiClient, { page, size, ...filter 
     placeholderData: keepPreviousData,
   })
 
-/** Every listen, a page at a time; each page's `nextCursor` fetches older ones. */
-export const listensInfiniteQueryOptions = (api: ApiClient, filter: ListensFilter = {}) =>
+/**
+ * Every listen, a page at a time; each page's `nextCursor` fetches older ones. With `from`, only
+ * listens that ended before it: a jump into the past.
+ */
+export const listensInfiniteQueryOptions = (api: ApiClient, filter: ListensFilter = {}, from?: string) =>
   infiniteQueryOptions({
-    queryKey: ['listens', 'infinite', listensKey(filter)],
+    queryKey: ['listens', 'infinite', from ?? null, listensKey(filter)],
     queryFn: async ({ pageParam }): Promise<ListensPage> => {
       const endpoint = 'GET /api/v1/history/listens'
       const query = { ...listensQuery(filter), ...(pageParam && { before: pageParam }) }
       return expectOk(await send(endpoint, () => api.history.listens.$get({ query })), endpoint)
     },
-    initialPageParam: null as string | null,
+    initialPageParam: (from ?? null) as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+  })
+
+/** Listens per calendar month in `tz`, newest first: the podcast timeline. */
+export const listensTimelineQueryOptions = (api: ApiClient, tz: string) =>
+  queryOptions({
+    queryKey: ['listens', 'timeline', tz],
+    queryFn: async (): Promise<ListensTimeline> => {
+      const endpoint = 'GET /api/v1/history/listens/timeline'
+      return expectOk(await send(endpoint, () => api.history.listens.timeline.$get({ query: { tz } })), endpoint)
+    },
+  })
+
+/** Podcast totals and listening over time. Under `['listens']`: new listens change them. */
+export const podcastStatsOverviewQueryOptions = (api: ApiClient, scope: Scope, tz: string) =>
+  queryOptions({
+    queryKey: ['listens', 'stats', 'overview', scope, tz],
+    queryFn: async (): Promise<PodcastStatsOverview> => {
+      const endpoint = 'GET /api/v1/stats/podcasts/overview'
+      return expectOk(await send(endpoint, () => api.stats.podcasts.overview.$get({ query: { ...scope, tz } })), endpoint)
+    },
+  })
+
+export const podcastStatsTopQueryOptions = (
+  api: ApiClient,
+  query: Scope & { type: PodcastStatsTop['type']; metric: PodcastStatsTop['metric']; tz: string },
+) =>
+  queryOptions({
+    queryKey: ['listens', 'stats', 'top', query],
+    queryFn: async (): Promise<PodcastStatsTop> => {
+      const endpoint = 'GET /api/v1/stats/podcasts/top'
+      return expectOk(await send(endpoint, () => api.stats.podcasts.top.$get({ query })), endpoint)
+    },
+  })
+
+/** Time heard per day of `year` in the viewer's time zone, and the years with listens. */
+export const podcastStatsCalendarQueryOptions = (api: ApiClient, year: number, tz: string) =>
+  queryOptions({
+    queryKey: ['listens', 'stats', 'calendar', year, tz],
+    queryFn: async (): Promise<PodcastStatsCalendar> => {
+      const endpoint = 'GET /api/v1/stats/podcasts/calendar'
+      return expectOk(await send(endpoint, () => api.stats.podcasts.calendar.$get({ query: { year: String(year), tz } })), endpoint)
+    },
   })
 
 /** The shows in the user's listens, most listened first: History's show filter. */
