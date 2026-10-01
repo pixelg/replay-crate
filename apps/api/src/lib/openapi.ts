@@ -5,8 +5,10 @@ import type { Env } from 'hono'
 export const TAGS = [
   { name: 'System', description: 'Health, background jobs and the scheduled poll.' },
   { name: 'Auth', description: 'Spotify sign-in (PKCE) and the session.' },
-  { name: 'History', description: 'Recorded plays, syncing them from Spotify, and gaps in the record.' },
+  { name: 'History', description: 'Recorded plays and podcast listens, syncing them from Spotify, and gaps in the record.' },
   { name: 'Tracks', description: 'Tracks you have played, with their stats.' },
+  { name: 'Episodes', description: 'Podcast episodes you have listened to, with your progress and ratings.' },
+  { name: 'Shows', description: 'Podcast shows you listen to.' },
   { name: 'Playlists', description: 'Your Spotify playlists: reading, syncing, creating and editing.' },
   { name: 'Stats', description: 'Listening metrics.' },
   { name: 'Imports', description: 'Backfilling history from the Extended Streaming History export.' },

@@ -2,7 +2,7 @@ import type { OpenAPIHono, RouteConfig } from '@hono/zod-openapi'
 import type { ZodType } from 'zod'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { API_BASE } from './app.ts'
-import { createTestContext, CRON_SECRET, paged, REDIRECT_URI, play, playlist, playlistContext, playlistEntry, track } from './testing.ts'
+import { createTestContext, CRON_SECRET, episode, paged, REDIRECT_URI, play, playlist, playlistContext, playlistEntry, track } from './testing.ts'
 
 /**
  * The spec's response schemas only check types at compile time. This calls the API with
@@ -146,6 +146,28 @@ describe('responses match the spec', () => {
     await call('GET', '/player')
     await call('GET', '/player/queue')
     await call('GET', '/player/devices')
+    // A podcast episode, played across two looks at the player so there's a listen.
+    ctx.library.addEpisodes(episode('talk', { show: ['pod', 'The Pod'] }))
+    await call('PUT', '/player/play', {}, { uris: ['spotify:episode:talk'] })
+    ctx.advance(60_000)
+    await call('GET', '/player')
+    ctx.advance(60_000)
+    await call('GET', '/player')
+    await call('PUT', '/episodes/{id}/rating', { id: 'talk' }, { rating: 5 })
+    await call('PUT', '/episodes/{id}/rating', { id: 'talk' }, { rating: 0 })
+    await call('GET', '/history/listens')
+    await call('GET', '/history/listens?show=pod&offset=0&limit=1')
+    await call('GET', '/history/listens?offset=0&before=2026-01-01T00:00:00.000Z')
+    await call('GET', '/history/listens/shows')
+    await call('GET', '/episodes')
+    await call('GET', '/episodes?sort=rating&unfinished=true&offset=1')
+    await call('GET', '/episodes?sort=sideways')
+    await call('GET', '/episodes/{id}', { id: 'talk' })
+    await call('GET', '/episodes/{id}', { id: 'nope' })
+    await call('DELETE', '/episodes/{id}/rating', { id: 'talk' })
+    await call('GET', '/shows')
+    await call('GET', '/shows/{id}', { id: 'pod' })
+    await call('GET', '/shows/{id}', { id: 'nope' })
     // Search, once the indexer has caught up with everything above.
     await ctx.indexSearch()
     await call('GET', '/search?q=song')

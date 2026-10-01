@@ -1,4 +1,5 @@
-import { bigint, boolean, index, integer, pgTable, primaryKey, text, timestamp, unique } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { bigint, boolean, check, index, integer, pgTable, primaryKey, smallint, text, timestamp, unique } from 'drizzle-orm/pg-core'
 import { users } from './auth.ts'
 import { playSource } from './plays.ts'
 
@@ -110,6 +111,30 @@ export const playerWatch = pgTable('player_watch', {
   observedAt: timestamp('observed_at', { withTimezone: true }).notNull(),
   episodeId: text('episode_id'),
 })
+
+/** A user's 1–5 star rating of an episode, like `track_ratings`. No row means unrated. */
+export const episodeRatings = pgTable(
+  'episode_ratings',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    episodeId: text('episode_id')
+      .notNull()
+      .references(() => episodes.id),
+    rating: smallint('rating').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.episodeId] }),
+    check('episode_ratings_rating_range', sql`${t.rating} between 1 and 5`),
+    index('episode_ratings_user_rating_idx').on(t.userId, t.rating),
+  ],
+)
 
 export type Show = typeof shows.$inferSelect
 export type Episode = typeof episodes.$inferSelect

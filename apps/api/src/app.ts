@@ -5,6 +5,8 @@ import { HTTPException } from 'hono/http-exception'
 import { requestId } from 'hono/request-id'
 import { authRoutes } from './auth/routes.ts'
 import type { AppDeps } from './deps.ts'
+import { episodeRoutes } from './episodes/routes.ts'
+import { listenRoutes } from './history/listen-routes.ts'
 import { historyRoutes } from './history/routes.ts'
 import { importRoutes } from './imports/routes.ts'
 import { genreRoutes } from './genres/routes.ts'
@@ -13,6 +15,7 @@ import { playerRoutes } from './player/routes.ts'
 import { playlistManageRoutes } from './playlists/manage-routes.ts'
 import { playlistRoutes } from './playlists/routes.ts'
 import { searchRoutes } from './search/routes.ts'
+import { showRoutes } from './shows/routes.ts'
 import { statsRoutes } from './stats/routes.ts'
 import { systemRoutes } from './system/routes.ts'
 import { trackRoutes } from './tracks/routes.ts'
@@ -58,7 +61,10 @@ export function createApp(deps: AppDeps) {
     .route('/', systemRoutes(deps))
     .route('/', authRoutes(deps))
     .route('/', historyRoutes(deps))
+    .route('/', listenRoutes(deps))
     .route('/', trackRoutes(deps))
+    .route('/', episodeRoutes(deps))
+    .route('/', showRoutes(deps))
     // Before playlistRoutes so /playlists/preview isn't taken for a playlist id.
     .route('/', playlistManageRoutes(deps))
     .route('/', playlistRoutes(deps))
