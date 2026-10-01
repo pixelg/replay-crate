@@ -16,11 +16,19 @@
     },
     {
       "name": "History",
-      "description": "Recorded plays, syncing them from Spotify, and gaps in the record."
+      "description": "Recorded plays and podcast listens, syncing them from Spotify, and gaps in the record."
     },
     {
       "name": "Tracks",
       "description": "Tracks you have played, with their stats."
+    },
+    {
+      "name": "Episodes",
+      "description": "Podcast episodes you have listened to, with your progress and ratings."
+    },
+    {
+      "name": "Shows",
+      "description": "Podcast shows you listen to."
     },
     {
       "name": "Playlists",
@@ -616,6 +624,171 @@
           "name"
         ]
       },
+      "ListenedShow": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ShowRef"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "listens": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "listens"
+            ]
+          }
+        ]
+      },
+      "ShowRef": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "thumbUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "thumbUrl"
+        ]
+      },
+      "ListenItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          },
+          "listenedMs": {
+            "type": "integer",
+            "description": "How much of the episode was heard (at 2×, twice the time on the clock)."
+          },
+          "startPositionMs": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "endPositionMs": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "poll",
+              "import"
+            ]
+          },
+          "episode": {
+            "$ref": "#/components/schemas/EpisodeSummary"
+          }
+        },
+        "required": [
+          "id",
+          "startedAt",
+          "endedAt",
+          "listenedMs",
+          "startPositionMs",
+          "endPositionMs",
+          "source",
+          "episode"
+        ]
+      },
+      "EpisodeSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Spotify episode id."
+          },
+          "name": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "explicit": {
+            "type": "boolean"
+          },
+          "releaseDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Spotify's precision: YYYY, YYYY-MM or YYYY-MM-DD."
+          },
+          "thumbUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "show": {
+            "$ref": "#/components/schemas/ShowRef"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/EpisodeProgress"
+          },
+          "rating": {
+            "$ref": "#/components/schemas/Rating"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "durationMs",
+          "explicit",
+          "releaseDate",
+          "thumbUrl",
+          "show",
+          "progress",
+          "rating"
+        ]
+      },
+      "EpisodeProgress": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "resumePositionMs": {
+            "type": "integer",
+            "description": "Where listening would pick up."
+          },
+          "fullyPlayed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "resumePositionMs",
+          "fullyPlayed"
+        ],
+        "description": "Null when the user has never played it."
+      },
       "LibraryTrack": {
         "type": "object",
         "properties": {
@@ -948,6 +1121,297 @@
           "playedFrom",
           "recentPlays",
           "playlists"
+        ]
+      },
+      "LibraryEpisode": {
+        "type": "object",
+        "properties": {
+          "episode": {
+            "$ref": "#/components/schemas/EpisodeSummary"
+          },
+          "listens": {
+            "type": "integer"
+          },
+          "listenedMs": {
+            "type": "integer",
+            "description": "Across all its listens."
+          },
+          "lastListenedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          }
+        },
+        "required": [
+          "episode",
+          "listens",
+          "listenedMs",
+          "lastListenedAt"
+        ]
+      },
+      "EpisodeDetail": {
+        "type": "object",
+        "properties": {
+          "episode": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EpisodeSummary"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Plain text, cut short."
+                  },
+                  "imageUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "description",
+                  "imageUrl"
+                ]
+              }
+            ]
+          },
+          "stats": {
+            "type": "object",
+            "properties": {
+              "listens": {
+                "type": "integer"
+              },
+              "listenedMs": {
+                "type": "integer"
+              },
+              "firstListenedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "example": "2026-09-21T12:00:00.000Z"
+              },
+              "lastListenedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "example": "2026-09-21T12:00:00.000Z"
+              }
+            },
+            "required": [
+              "listens",
+              "listenedMs",
+              "firstListenedAt",
+              "lastListenedAt"
+            ]
+          },
+          "recentListens": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "startedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "example": "2026-09-21T12:00:00.000Z"
+                },
+                "endedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "example": "2026-09-21T12:00:00.000Z"
+                },
+                "listenedMs": {
+                  "type": "integer",
+                  "description": "How much of the episode was heard (at 2×, twice the time on the clock)."
+                },
+                "startPositionMs": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "endPositionMs": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "poll",
+                    "import"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "startedAt",
+                "endedAt",
+                "listenedMs",
+                "startPositionMs",
+                "endPositionMs",
+                "source"
+              ]
+            },
+            "description": "The latest 20, newest first."
+          }
+        },
+        "required": [
+          "episode",
+          "stats",
+          "recentListens"
+        ]
+      },
+      "LibraryShow": {
+        "type": "object",
+        "properties": {
+          "show": {
+            "$ref": "#/components/schemas/ShowRef"
+          },
+          "stats": {
+            "type": "object",
+            "properties": {
+              "episodes": {
+                "type": "integer",
+                "description": "Episodes listened to."
+              },
+              "listens": {
+                "type": "integer"
+              },
+              "listenedMs": {
+                "type": "integer"
+              },
+              "lastListenedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "example": "2026-09-21T12:00:00.000Z"
+              }
+            },
+            "required": [
+              "episodes",
+              "listens",
+              "listenedMs",
+              "lastListenedAt"
+            ]
+          }
+        },
+        "required": [
+          "show",
+          "stats"
+        ]
+      },
+      "ShowDetail": {
+        "type": "object",
+        "properties": {
+          "show": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ShowRef"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "imageUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "description",
+                  "imageUrl"
+                ]
+              }
+            ]
+          },
+          "stats": {
+            "type": "object",
+            "properties": {
+              "episodes": {
+                "type": "integer",
+                "description": "Episodes listened to."
+              },
+              "listens": {
+                "type": "integer"
+              },
+              "listenedMs": {
+                "type": "integer"
+              },
+              "lastListenedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "example": "2026-09-21T12:00:00.000Z"
+              }
+            },
+            "required": [
+              "episodes",
+              "listens",
+              "listenedMs",
+              "lastListenedAt"
+            ]
+          },
+          "episodes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "episode": {
+                  "$ref": "#/components/schemas/EpisodeSummary"
+                },
+                "listens": {
+                  "type": "integer"
+                },
+                "listenedMs": {
+                  "type": "integer"
+                },
+                "lastListenedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time",
+                  "example": "2026-09-21T12:00:00.000Z"
+                }
+              },
+              "required": [
+                "episode",
+                "listens",
+                "listenedMs",
+                "lastListenedAt"
+              ]
+            }
+          }
+        },
+        "required": [
+          "show",
+          "stats",
+          "episodes"
         ]
       },
       "PlaylistSummary": {
@@ -3148,6 +3612,226 @@
         }
       }
     },
+    "/api/v1/history/listens/shows": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "operationId": "listListenedShows",
+        "summary": "Shows in the listening history",
+        "description": "Every show the user has listened to, with how many listens it has, most listened first: the choices for `show`.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listened shows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "shows": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ListenedShow"
+                      }
+                    }
+                  },
+                  "required": [
+                    "shows"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/history/listens": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "operationId": "listListens",
+        "summary": "Podcast listening history",
+        "description": "Episode listens, the most recently ended first. Pass `nextCursor` back as `before` for older ones, or `offset` for numbered pages (which also returns `total`), not both. `show` keeps only listens of that show, and `since` / `until` only listens that ended in that stretch of time.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-09-21T12:00:00.000Z",
+              "description": "Only listens that ended strictly before this."
+            },
+            "required": false,
+            "description": "Only listens that ended strictly before this.",
+            "name": "before",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "description": "Listens to skip, for numbered pages."
+            },
+            "required": false,
+            "description": "Listens to skip, for numbered pages.",
+            "name": "offset",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Only listens of this show (Spotify show id)."
+            },
+            "required": false,
+            "description": "Only listens of this show (Spotify show id).",
+            "name": "show",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-09-21T12:00:00.000Z",
+              "description": "Only listens that ended at or after this time."
+            },
+            "required": false,
+            "description": "Only listens that ended at or after this time.",
+            "name": "since",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-09-21T12:00:00.000Z",
+              "description": "Only listens that ended strictly before this time."
+            },
+            "required": false,
+            "description": "Only listens that ended strictly before this time.",
+            "name": "until",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of listens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ListenItem"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "example": "2026-09-21T12:00:00.000Z",
+                      "description": "Where the next page starts; null on the last page."
+                    },
+                    "total": {
+                      "type": "integer",
+                      "description": "All listens matching the filters. With `offset` only."
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tracks": {
       "get": {
         "tags": [
@@ -3541,6 +4225,550 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TrackDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/episodes": {
+      "get": {
+        "tags": [
+          "Episodes"
+        ],
+        "operationId": "listEpisodes",
+        "summary": "Every episode you have listened to",
+        "description": "With how often and how long, and where you are in it. `recent` sorts by the last listen, `most` by time listened, `rating` by stars (unrated last), `newest` by release date. `unfinished` keeps only episodes not played to the end.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "recent",
+                "most",
+                "rating",
+                "newest"
+              ],
+              "default": "recent"
+            },
+            "required": false,
+            "name": "sort",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "description": "Only episodes not finished."
+            },
+            "required": false,
+            "description": "Only episodes not finished.",
+            "name": "unfinished",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of episodes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LibraryEpisode"
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "description": "Across all pages."
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/episodes/{id}": {
+      "get": {
+        "tags": [
+          "Episodes"
+        ],
+        "operationId": "getEpisode",
+        "summary": "An episode with your listens",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify episode id."
+            },
+            "required": true,
+            "description": "Spotify episode id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The episode.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpisodeDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/episodes/{id}/rating": {
+      "put": {
+        "tags": [
+          "Episodes"
+        ],
+        "operationId": "rateEpisode",
+        "summary": "Rate an episode",
+        "description": "1 to 5 stars, replacing any earlier rating. An episode the app hasn't seen yet is fetched from Spotify first.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify episode id."
+            },
+            "required": true,
+            "description": "Spotify episode id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rating": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  }
+                },
+                "required": [
+                  "rating"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rating": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 5
+                    }
+                  },
+                  "required": [
+                    "rating"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthRequiredError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Episodes"
+        ],
+        "operationId": "clearEpisodeRating",
+        "summary": "Clear an episode rating",
+        "description": "Back to unrated. Clearing an unrated episode is fine too.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify episode id."
+            },
+            "required": true,
+            "description": "Spotify episode id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Unrated."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shows": {
+      "get": {
+        "tags": [
+          "Shows"
+        ],
+        "operationId": "listShows",
+        "summary": "Shows you listen to",
+        "description": "Every show with a listen, the most recently listened first.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listened shows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LibraryShow"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shows/{id}": {
+      "get": {
+        "tags": [
+          "Shows"
+        ],
+        "operationId": "getShow",
+        "summary": "A show with its episodes",
+        "description": "Its episodes the app knows (listened to, or seen in the player), newest release first, with the user's listens.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify show id."
+            },
+            "required": true,
+            "description": "Spotify show id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The show.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShowDetail"
                 }
               }
             }

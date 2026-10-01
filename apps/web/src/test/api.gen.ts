@@ -218,6 +218,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/history/listens/shows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Shows in the listening history
+         * @description Every show the user has listened to, with how many listens it has, most listened first: the choices for `show`.
+         */
+        get: operations["listListenedShows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/history/listens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Podcast listening history
+         * @description Episode listens, the most recently ended first. Pass `nextCursor` back as `before` for older ones, or `offset` for numbered pages (which also returns `total`), not both. `show` keeps only listens of that show, and `since` / `until` only listens that ended in that stretch of time.
+         */
+        get: operations["listListens"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tracks": {
         parameters: {
             query?: never;
@@ -274,6 +314,107 @@ export interface paths {
          * @description Where you played it from, recent plays, and which of your playlists hold it.
          */
         get: operations["getTrack"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/episodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every episode you have listened to
+         * @description With how often and how long, and where you are in it. `recent` sorts by the last listen, `most` by time listened, `rating` by stars (unrated last), `newest` by release date. `unfinished` keeps only episodes not played to the end.
+         */
+        get: operations["listEpisodes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/episodes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** An episode with your listens */
+        get: operations["getEpisode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/episodes/{id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Rate an episode
+         * @description 1 to 5 stars, replacing any earlier rating. An episode the app hasn't seen yet is fetched from Spotify first.
+         */
+        put: operations["rateEpisode"];
+        post?: never;
+        /**
+         * Clear an episode rating
+         * @description Back to unrated. Clearing an unrated episode is fine too.
+         */
+        delete: operations["clearEpisodeRating"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Shows you listen to
+         * @description Every show with a listen, the most recently listened first.
+         */
+        get: operations["listShows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shows/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A show with its episodes
+         * @description Its episodes the app knows (listened to, or seen in the player), newest release first, with the user's listens.
+         */
+        get: operations["getShow"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1067,6 +1208,53 @@ export interface components {
             id: string;
             name: string;
         };
+        ListenedShow: components["schemas"]["ShowRef"] & {
+            listens: number;
+        };
+        ShowRef: {
+            id: string;
+            name: string;
+            thumbUrl: string | null;
+        };
+        ListenItem: {
+            id: number;
+            /**
+             * Format: date-time
+             * @example 2026-09-21T12:00:00.000Z
+             */
+            startedAt: string;
+            /**
+             * Format: date-time
+             * @example 2026-09-21T12:00:00.000Z
+             */
+            endedAt: string;
+            /** @description How much of the episode was heard (at 2×, twice the time on the clock). */
+            listenedMs: number;
+            startPositionMs: number | null;
+            endPositionMs: number | null;
+            /** @enum {string} */
+            source: "poll" | "import";
+            episode: components["schemas"]["EpisodeSummary"];
+        };
+        EpisodeSummary: {
+            /** @description Spotify episode id. */
+            id: string;
+            name: string;
+            durationMs: number;
+            explicit: boolean;
+            /** @description Spotify's precision: YYYY, YYYY-MM or YYYY-MM-DD. */
+            releaseDate: string | null;
+            thumbUrl: string | null;
+            show: components["schemas"]["ShowRef"];
+            progress: components["schemas"]["EpisodeProgress"];
+            rating: components["schemas"]["Rating"];
+        };
+        /** @description Null when the user has never played it. */
+        EpisodeProgress: {
+            /** @description Where listening would pick up. */
+            resumePositionMs: number;
+            fullyPlayed: boolean;
+        } | null;
         LibraryTrack: {
             track: {
                 id: string;
@@ -1162,6 +1350,99 @@ export interface components {
                 id: string;
                 name: string;
                 thumbUrl: string | null;
+            }[];
+        };
+        LibraryEpisode: {
+            episode: components["schemas"]["EpisodeSummary"];
+            listens: number;
+            /** @description Across all its listens. */
+            listenedMs: number;
+            /**
+             * Format: date-time
+             * @example 2026-09-21T12:00:00.000Z
+             */
+            lastListenedAt: string;
+        };
+        EpisodeDetail: {
+            episode: components["schemas"]["EpisodeSummary"] & {
+                /** @description Plain text, cut short. */
+                description: string | null;
+                imageUrl: string | null;
+            };
+            stats: {
+                listens: number;
+                listenedMs: number;
+                /**
+                 * Format: date-time
+                 * @example 2026-09-21T12:00:00.000Z
+                 */
+                firstListenedAt: string | null;
+                /**
+                 * Format: date-time
+                 * @example 2026-09-21T12:00:00.000Z
+                 */
+                lastListenedAt: string | null;
+            };
+            /** @description The latest 20, newest first. */
+            recentListens: {
+                id: number;
+                /**
+                 * Format: date-time
+                 * @example 2026-09-21T12:00:00.000Z
+                 */
+                startedAt: string;
+                /**
+                 * Format: date-time
+                 * @example 2026-09-21T12:00:00.000Z
+                 */
+                endedAt: string;
+                /** @description How much of the episode was heard (at 2×, twice the time on the clock). */
+                listenedMs: number;
+                startPositionMs: number | null;
+                endPositionMs: number | null;
+                /** @enum {string} */
+                source: "poll" | "import";
+            }[];
+        };
+        LibraryShow: {
+            show: components["schemas"]["ShowRef"];
+            stats: {
+                /** @description Episodes listened to. */
+                episodes: number;
+                listens: number;
+                listenedMs: number;
+                /**
+                 * Format: date-time
+                 * @example 2026-09-21T12:00:00.000Z
+                 */
+                lastListenedAt: string | null;
+            };
+        };
+        ShowDetail: {
+            show: components["schemas"]["ShowRef"] & {
+                description: string | null;
+                imageUrl: string | null;
+            };
+            stats: {
+                /** @description Episodes listened to. */
+                episodes: number;
+                listens: number;
+                listenedMs: number;
+                /**
+                 * Format: date-time
+                 * @example 2026-09-21T12:00:00.000Z
+                 */
+                lastListenedAt: string | null;
+            };
+            episodes: {
+                episode: components["schemas"]["EpisodeSummary"];
+                listens: number;
+                listenedMs: number;
+                /**
+                 * Format: date-time
+                 * @example 2026-09-21T12:00:00.000Z
+                 */
+                lastListenedAt: string | null;
             }[];
         };
         PlaylistSummary: {
@@ -2094,6 +2375,115 @@ export interface operations {
             };
         };
     };
+    listListenedShows: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Listened shows. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        shows: components["schemas"]["ListenedShow"][];
+                    };
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    listListens: {
+        parameters: {
+            query?: {
+                /** @description Only listens that ended strictly before this. */
+                before?: string;
+                limit?: number;
+                /** @description Listens to skip, for numbered pages. */
+                offset?: number | null;
+                /** @description Only listens of this show (Spotify show id). */
+                show?: string;
+                /** @description Only listens that ended at or after this time. */
+                since?: string;
+                /** @description Only listens that ended strictly before this time. */
+                until?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of listens. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["ListenItem"][];
+                        /**
+                         * Format: date-time
+                         * @description Where the next page starts; null on the last page.
+                         * @example 2026-09-21T12:00:00.000Z
+                         */
+                        nextCursor: string | null;
+                        /** @description All listens matching the filters. With `offset` only. */
+                        total?: number;
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
     listTracks: {
         parameters: {
             query?: {
@@ -2317,6 +2707,345 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrackDetail"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    listEpisodes: {
+        parameters: {
+            query?: {
+                sort?: "recent" | "most" | "rating" | "newest";
+                /** @description Only episodes not finished. */
+                unfinished?: "true" | "false";
+                limit?: number;
+                offset?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of episodes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["LibraryEpisode"][];
+                        /** @description Across all pages. */
+                        total: number;
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    getEpisode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Spotify episode id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The episode. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpisodeDetail"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    rateEpisode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Spotify episode id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    rating: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Rated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        rating: number;
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+            /** @description reauth_required */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthRequiredError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+            /** @description rate_limited */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedError"];
+                };
+            };
+        };
+    };
+    clearEpisodeRating: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Spotify episode id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unrated. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    listShows: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Listened shows. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["LibraryShow"][];
+                    };
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    getShow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Spotify show id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The show. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShowDetail"];
                 };
             };
             /** @description unauthorized */
