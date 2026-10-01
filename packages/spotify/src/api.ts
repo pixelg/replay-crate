@@ -4,6 +4,7 @@ import type {
   PlayRequest,
   RepeatState,
   SpotifyDevice,
+  SpotifyEpisode,
   SpotifyPlaybackState,
   SpotifyQueue,
   SpotifyTrack,
@@ -255,6 +256,11 @@ export function getTrack(accessToken: string, id: string, options?: RequestOptio
   return spotifyGet(`/tracks/${encodeURIComponent(id)}`, accessToken, options)
 }
 
+/** One podcast episode by id, with the user's resume point. (The batch `GET /episodes?ids=` was removed in Feb 2026.) */
+export function getEpisode(accessToken: string, id: string, options?: RequestOptions): Promise<SpotifyEpisode> {
+  return spotifyGet(`/episodes/${encodeURIComponent(id)}`, accessToken, options)
+}
+
 // Player API. Every call needs Premium; commands go to `deviceId`, or to the active device when
 // it's omitted (404 NO_ACTIVE_DEVICE when there's none).
 
@@ -274,7 +280,7 @@ export async function getPlaybackState(accessToken: string, options?: RequestOpt
 
 /** The current item and what's up next (the user's queue, then the rest of the context). */
 export function getQueue(accessToken: string, options?: RequestOptions): Promise<SpotifyQueue> {
-  return spotifyGet('/me/player/queue', accessToken, options)
+  return spotifyGet('/me/player/queue?additional_types=track,episode', accessToken, options)
 }
 
 /** Devices the user can play on right now (Spotify Connect). */

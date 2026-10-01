@@ -7,6 +7,7 @@ export {
   getArtist,
   getCurrentUser,
   getDevices,
+  getEpisode,
   getMyPlaylists,
   getPlaybackState,
   getPlaylistItems,

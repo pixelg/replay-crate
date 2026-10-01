@@ -91,7 +91,20 @@ export type TopTimeRange = 'short_term' | 'medium_term' | 'long_term'
 
 // Player API (needs Premium, and the user-*-playback-state scopes).
 
-/** A podcast episode, as the player reports it when one is playing or queued. */
+/** A show, as nested in an episode. (`publisher` and `available_markets` went in Feb 2026.) */
+export type SpotifySimplifiedShow = {
+  id: string
+  name: string
+  uri: string
+  images: SpotifyImage[]
+  description?: string
+  explicit?: boolean
+}
+
+/**
+ * A podcast episode. The player and `GET /episodes/{id}` both send the whole object, but only the
+ * fields the player is sure to carry are required.
+ */
 export type SpotifyEpisode = {
   type: 'episode'
   id: string
@@ -100,7 +113,13 @@ export type SpotifyEpisode = {
   duration_ms: number
   explicit: boolean
   images: SpotifyImage[]
-  show: { id: string; name: string; uri: string; images: SpotifyImage[] }
+  show: SpotifySimplifiedShow
+  /** Plain text (`html_description` has the markup). */
+  description?: string
+  release_date?: string
+  release_date_precision?: 'year' | 'month' | 'day'
+  /** The user's place in it; only with the user-read-playback-position scope. */
+  resume_point?: { fully_played: boolean; resume_position_ms: number }
 }
 
 /** What the player can hold: a track or an episode, told apart by `type`. */

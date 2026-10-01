@@ -5,6 +5,8 @@ import { and, asc, count, eq, gt, inArray, lte, notInArray, sql, type SQL } from
 import { genreHandlers } from '../genres/jobs.ts'
 import { getAccessToken, ReauthRequiredError } from '../spotify/access-token.ts'
 import { discardTrack, promote } from '../imports/service.ts'
+import { saveProgress, upsertEpisodes } from '../podcasts/catalog.ts'
+import { parseEpisodeJobRef } from '../podcasts/listens.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
 import { DEFAULT_BUDGET, pauseApi, pausedUntil, takeCall, type Api, type CallBudget } from './budget.ts'
 import type { JobKind } from './enqueue.ts'
@@ -40,6 +42,23 @@ const handlers: Record<JobKind, Handler> = {
           target: artists.id,
           set: { name: sql`excluded.name`, imageUrl: sql`excluded.image_url`, updatedAt: sql`now()` },
         })
+    },
+  },
+  /** Fetch an episode for its details (the player leaves some out) and the user's resume point. */
+  episode: {
+    api: 'spotify',
+    run: async (deps, ref, { accessToken }) => {
+      const { userId, episodeId } = parseEpisodeJobRef(ref)
+      const item = await deps.spotify.getEpisode(await accessToken(), episodeId)
+      await upsertEpisodes(deps.db, [item])
+      if (item.resume_point) {
+        const { fully_played, resume_position_ms } = item.resume_point
+        await saveProgress(
+          deps.db,
+          { userId, episodeId, resumePositionMs: resume_position_ms, fullyPlayed: fully_played, authoritative: true },
+          deps.now?.() ?? new Date(),
+        )
+      }
     },
   },
   ...genreHandlers,

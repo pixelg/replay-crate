@@ -3,6 +3,7 @@ import type {
   Paging,
   PlayHistoryItem,
   SpotifyContext,
+  SpotifyEpisode,
   SpotifyImage,
   SpotifyPlaylist,
   SpotifyPlaylistItem,
@@ -59,6 +60,36 @@ export function track(
       artists: artists.slice(0, 1),
     },
     artists,
+  }
+}
+
+/** A Spotify episode object; the show defaults to one per episode. */
+export function episode(
+  id: string,
+  options: { name?: string; show?: [id: string, name: string]; durationMs?: number; releaseDate?: string } = {},
+): SpotifyEpisode {
+  const [showId, showName] = options.show ?? [`show-${id}`, `Show ${id}`]
+  return {
+    type: 'episode',
+    id,
+    name: options.name ?? `Episode ${id}`,
+    uri: `spotify:episode:${id}`,
+    duration_ms: options.durationMs ?? 3_600_000,
+    explicit: false,
+    images: [
+      { url: `https://i.scdn.co/${id}-300`, width: 300, height: 300 },
+      { url: `https://i.scdn.co/${id}-64`, width: 64, height: 64 },
+    ],
+    show: {
+      id: showId,
+      name: showName,
+      uri: `spotify:show:${showId}`,
+      images: [{ url: `https://i.scdn.co/${showId}-300`, width: 300, height: 300 }],
+      description: `About ${showName}`,
+    },
+    description: `In this episode of ${showName}…`,
+    release_date: options.releaseDate ?? '2026-09-01',
+    release_date_precision: 'day',
   }
 }
 
@@ -135,12 +166,30 @@ export function createFakeLibrary() {
     const id = uri.replace('spotify:track:', '')
     return catalog.get(id) ?? track(id)
   }
+  /** Episodes the fake knows, and the user's place in each (Spotify's resume point). */
+  const episodes = new Map<string, SpotifyEpisode>()
+  const resumePoints = new Map<string, { fully_played: boolean; resume_position_ms: number }>()
+  const episodeFromUri = (uri: string) => {
+    const id = uri.replace('spotify:episode:', '')
+    return episodes.get(id) ?? episode(id)
+  }
 
   return {
     store,
     catalog,
     remember,
     trackFromUri,
+    episodes,
+    episodeFromUri,
+    /** Episodes Spotify knows of (playing or looking up any other answers with a made-up one). */
+    addEpisodes(...added: SpotifyEpisode[]) {
+      for (const e of added) episodes.set(e.id, e)
+    },
+    /** Where Spotify says the user got to in an episode. */
+    setResumePoint(id: string, point: { fully_played: boolean; resume_position_ms: number }) {
+      resumePoints.set(id, point)
+    },
+    resumePoints,
     /** A playlist's tracks by `spotify:playlist:` URI, as the player plays them. */
     contextTracks: (uri: string) => store.get(uri.replace('spotify:playlist:', ''))?.entries,
     /** Seeds a playlist the user owns. */
@@ -199,7 +248,12 @@ export function createFakeLibrary() {
 
 /** The fake player over `library`'s tracks and playlists (Premium, laptop active, nothing playing). */
 export const fakePlayerFor = (library: ReturnType<typeof createFakeLibrary>, options: { now?: () => number } = {}) =>
-  createFakePlayer({ resolveTrack: library.trackFromUri, resolveContext: library.contextTracks, ...options })
+  createFakePlayer({
+    resolveTrack: library.trackFromUri,
+    resolveEpisode: library.episodeFromUri,
+    resolveContext: library.contextTracks,
+    ...options,
+  })
 
 /** A Spotify gateway backed by `library`, with a fixed user and optional recent plays. */
 export function createFakeSpotify(
@@ -272,6 +326,14 @@ export function createFakeSpotify(
     },
     // Tracks the fake has seen come back as themselves; anything else is a made-up track.
     getTrack: async (_token, id) => library.catalog.get(id) ?? track(id),
+    // Only episodes the fake was told about; the resume point is left out until one is set, as
+    // without the user-read-playback-position scope.
+    getEpisode: async (_token, id) => {
+      const known = library.episodes.get(id)
+      if (!known) throw new SpotifyApiError(404, `episode ${id} not in the fake`)
+      const point = library.resumePoints.get(id)
+      return { ...known, ...(point && { resume_point: point }) }
+    },
     ...library.gateway,
     ...player.gateway,
   }
