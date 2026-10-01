@@ -6,7 +6,7 @@ const MESSAGES = {
   expired: "Spotify access has expired, so new plays aren't being recorded. Reconnect to pick up where you left off.",
   /** The app asks for scopes this user never granted; history keeps recording meanwhile. */
   permissions:
-    'Replay Crate needs new Spotify permissions to show and control playback. Reconnect to allow them; your history keeps recording either way.',
+    'Replay Crate needs new Spotify permissions, for the player and for your podcasts. Reconnect to allow them; your history keeps recording either way.',
 }
 
 /** Asks the user to go through the Spotify login again, and says why. */

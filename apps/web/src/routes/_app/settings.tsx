@@ -9,6 +9,7 @@ import { Segmented } from '../../components/ui/segmented.tsx'
 import { ModeToggle } from '../../components/mode-toggle.tsx'
 import { UserAvatar } from '../../components/user-avatar.tsx'
 import { api } from '../../lib/api.ts'
+import { setModeOffers, useModeOffers } from '../../lib/mode-offer.ts'
 import { useLogout } from '../../lib/use-logout.ts'
 import { type ThemePreference, useTheme } from '../../lib/theme.ts'
 
@@ -30,6 +31,7 @@ function SettingsPage() {
   const { data: me } = useSuspenseQuery(meQueryOptions(api))
   const logout = useLogout()
   const { preference, setPreference } = useTheme()
+  const offers = useModeOffers()
 
   return (
     <>
@@ -57,6 +59,20 @@ function SettingsPage() {
               Music or podcasts: what History, the library, Playlists and Stats show on this device. The player plays either.
             </p>
             <ModeToggle className="w-auto" />
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+              Offer to switch when what's playing is the other kind. It only asks; it never switches by itself.
+            </p>
+            <Segmented<'on' | 'off'>
+              label="Offer to switch"
+              value={offers.enabled ? 'on' : 'off'}
+              onChange={(next) => setModeOffers(next === 'on')}
+              options={[
+                { value: 'on', label: 'Offer' },
+                { value: 'off', label: "Don't" },
+              ]}
+            />
           </div>
         </section>
         <section className="rounded-lg border border-border bg-card p-4">
