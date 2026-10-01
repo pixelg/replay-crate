@@ -168,6 +168,13 @@ describe('responses match the spec', () => {
     await call('GET', '/episodes/{id}', { id: 'nope' })
     await call('DELETE', '/episodes/{id}/rating', { id: 'talk' })
     await call('GET', '/shows')
+    await call('GET', '/history/listens/timeline?tz=Europe/Berlin')
+    await call('GET', '/stats/podcasts/overview?range=all')
+    await call('GET', '/stats/podcasts/overview?period=2026-09&tz=Europe/Berlin')
+    await call('GET', '/stats/podcasts/overview?range=7d&period=2026')
+    await call('GET', '/stats/podcasts/top')
+    await call('GET', '/stats/podcasts/top?type=episodes&metric=listens&period=2026')
+    await call('GET', '/stats/podcasts/calendar?year=2026')
     await call('GET', '/shows/{id}', { id: 'pod' })
     await call('GET', '/shows/{id}', { id: 'nope' })
     // Search, once the indexer has caught up with everything above.

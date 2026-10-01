@@ -6,6 +6,7 @@ import { jsonResponse, Rating } from '../lib/schemas.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { calendarDays, yearsWithPlays } from './calendar.ts'
 import { overview } from './overview.ts'
+import { podcastCalendarDays, podcastOverview, podcastTop, yearsWithListens } from './podcasts.ts'
 import { localDay, period, range, timeZone, type Range, type Span } from './ranges.ts'
 import { spotifyTop } from './spotify-top.ts'
 import { top } from './top.ts'
@@ -187,6 +188,124 @@ const getSpotifyTop = createRoute({
   },
 })
 
+const ShowListening = z.object({ listens: z.number().int(), minutes: z.number().int() }).openapi('ShowListening')
+
+const getPodcastOverview = createRoute({
+  method: 'get',
+  path: '/stats/podcasts/overview',
+  tags: ['Stats'],
+  operationId: 'getPodcastStatsOverview',
+  summary: 'Podcast totals and listening over time',
+  description:
+    "The podcast counterpart of `/stats/overview`: time heard (the episodes' own time, so 2× counts the time " +
+    "heard, not the time it took) and listens per bucket, split by the span's top 5 shows by time and everything " +
+    'else. Bucketed by week past 90 days, else by day, in local days of `tz`. A listen counts where it ended.',
+  security: signedIn,
+  request: { query: z.object({ ...Scope, tz: Tz }) },
+  responses: {
+    200: jsonResponse(
+      z
+        .object({
+          ...Scope,
+          tz: z.string(),
+          bucket: z.enum(['day', 'week']),
+          totals: z.object({
+            listens: z.number().int(),
+            minutes: z.number().int(),
+            episodes: z.number().int(),
+            shows: z.number().int(),
+            finished: z.number().int().openapi({ description: "Episodes listened to in the span that are now played to the end." }),
+          }),
+          shows: z
+            .array(z.object({ id: z.string(), name: z.string(), thumbUrl: z.string().nullable(), ...ShowListening.shape }))
+            .openapi({ description: "The span's top shows by time heard, most first." }),
+          series: z.array(
+            z.object({
+              date: z.string().openapi({ description: 'Bucket start, YYYY-MM-DD.' }),
+              listens: z.number().int(),
+              minutes: z.number().int(),
+              byShow: z.array(ShowListening).openapi({ description: 'Per show in `shows`, same order.' }),
+              others: ShowListening.openapi({ description: 'Every other show.' }),
+            }),
+          ),
+        })
+        .openapi('PodcastStatsOverview'),
+      'The overview.',
+    ),
+    ...errorResponses('invalid_request', 'unauthorized'),
+  },
+})
+
+const PodcastTopQuery = z.object({
+  type: z.enum(['shows', 'episodes']).default('shows'),
+  ...Scope,
+  tz: Tz,
+  metric: z.enum(['minutes', 'listens']).default('minutes'),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+})
+
+const getPodcastTop = createRoute({
+  method: 'get',
+  path: '/stats/podcasts/top',
+  tags: ['Stats'],
+  operationId: 'getPodcastStatsTop',
+  summary: 'Most listened shows or episodes',
+  description: 'Ranked by time heard or by listens, over a rolling `range` or a calendar `period`.',
+  security: signedIn,
+  request: { query: PodcastTopQuery },
+  responses: {
+    200: jsonResponse(
+      PodcastTopQuery.extend({
+        items: z.array(
+          z
+            .object({
+              rank: z.number().int(),
+              id: z.string(),
+              name: z.string(),
+              subtitle: z.string().nullable().openapi({ description: "The show, for episodes; an episode count for shows." }),
+              imageUrl: z.string().nullable(),
+              listens: z.number().int(),
+              minutes: z.number().int(),
+            })
+            .openapi('PodcastTopItem'),
+        ),
+      }),
+      'The ranking, echoing the query.',
+    ),
+    ...errorResponses('invalid_request', 'unauthorized'),
+  },
+})
+
+const getPodcastCalendar = createRoute({
+  method: 'get',
+  path: '/stats/podcasts/calendar',
+  tags: ['Stats'],
+  operationId: 'getPodcastStatsCalendar',
+  summary: 'Podcast time per day for a year',
+  description: "For a calendar heatmap: the year's days with listens and the time heard on each, in local days of `tz`, and every year with listens.",
+  security: signedIn,
+  request: {
+    query: z.object({
+      year: z.coerce.number().int().min(1900).max(9999).optional().openapi({ description: 'Defaults to the current year.', example: 2023 }),
+      tz: Tz,
+    }),
+  },
+  responses: {
+    200: jsonResponse(
+      z.object({
+        year: z.number().int(),
+        tz: z.string(),
+        years: z.array(z.number().int()).openapi({ description: 'Every year with listens, oldest first.' }),
+        days: z
+          .array(z.object({ date: z.string().openapi({ description: 'YYYY-MM-DD.' }), listens: z.number().int(), minutes: z.number().int() }))
+          .openapi({ description: 'Days with listens, oldest first; the rest had none.' }),
+      }),
+      'Daily listening.',
+    ),
+    ...errorResponses('invalid_request', 'unauthorized'),
+  },
+})
+
 /** What a query covers: its period, or its rolling range (30 days by default). Null when it names both. */
 function spanOf({ range, period }: { range?: Range; period?: string }): Span | null {
   if (range !== undefined && period !== undefined) return null
@@ -219,6 +338,29 @@ export function statsRoutes(deps: AppDeps) {
       const userId = c.var.user.id
       const year = query.year ?? Number(localDay(now(), tz).slice(0, 4))
       const [days, years] = await Promise.all([calendarDays(deps.db, userId, { year, tz }), yearsWithPlays(deps.db, userId, tz)])
+      return c.json({ year, tz, years, days }, 200)
+    })
+
+    .openapi({ ...getPodcastOverview, middleware: auth }, async (c) => {
+      const query = c.req.valid('query')
+      const span = spanOf(query)
+      if (!span) return c.json(bothGiven(), 400)
+      return c.json(await podcastOverview(deps.db, c.var.user.id, { span, tz: query.tz, now: now() }), 200)
+    })
+
+    .openapi({ ...getPodcastTop, middleware: auth }, async (c) => {
+      const { type, range, period, tz, metric, limit } = c.req.valid('query')
+      const span = spanOf({ range, period })
+      if (!span) return c.json(bothGiven(), 400)
+      const items = await podcastTop(deps.db, c.var.user.id, { type, metric, span, tz, limit, now: now() })
+      return c.json({ type, ...span, tz, metric, limit, items }, 200)
+    })
+
+    .openapi({ ...getPodcastCalendar, middleware: auth }, async (c) => {
+      const { tz, ...query } = c.req.valid('query')
+      const userId = c.var.user.id
+      const year = query.year ?? Number(localDay(now(), tz).slice(0, 4))
+      const [days, years] = await Promise.all([podcastCalendarDays(deps.db, userId, { year, tz }), yearsWithListens(deps.db, userId, tz)])
       return c.json({ year, tz, years, days }, 200)
     })
 

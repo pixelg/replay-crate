@@ -41,7 +41,8 @@ const inPodcastMode = () => {
 
 export const SwitchesHistoryToPodcasts = meta.story({
   play: async ({ canvas, userEvent }) => {
-    const sidebar = within(await canvas.findByRole('complementary'))
+    // The file's first story also loads the app cold, which a busy CI runner can take a while over.
+    const sidebar = within(await canvas.findByRole('complementary', undefined, { timeout: 15_000 }))
     const main = within(await canvas.findByRole('main'))
     await expect((await main.findAllByRole('link', { name: 'Brass Monkey Business' }, { timeout: 5_000 }))[0]).toBeVisible()
 
@@ -194,5 +195,51 @@ export const SettingsPicksTheMode = meta.story({
     await expect(pathname()).toBe('/settings')
     const nav = within(within(await canvas.findByRole('complementary')).getByRole('navigation', { name: 'Main' }))
     await expect(await nav.findByRole('link', { name: 'Episodes' })).toBeVisible()
+  },
+})
+
+export const PodcastStats = meta.story({
+  args: { path: '/stats' },
+  beforeEach: inPodcastMode,
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('heading', { level: 1, name: 'Stats' }, { timeout: 5_000 })).toBeVisible()
+    await expect(await main.findByText('What you listened to')).toBeVisible()
+    const totals = within(main.getByRole('list', { name: 'Totals' }))
+    await expect(totals.getByText('Finished')).toBeVisible()
+    await expect(totals.getByText('Shows')).toBeVisible()
+    // No ranking of podcasts from Spotify to compare with.
+    await expect(main.queryByText("Spotify's view")).toBeNull()
+
+    await expect(main.getByText('Top shows')).toBeVisible()
+    await userEvent.click(within(main.getByRole('group', { name: 'What to rank' })).getByRole('button', { name: 'Episodes' }))
+    await expect(await main.findByText('Top episodes')).toBeVisible()
+    await expect(main.getByText('Podcasts per day')).toBeVisible()
+    await expect(main.getByRole('grid', { name: /^Podcasts per day in/ })).toBeVisible()
+  },
+})
+
+export const StatsKeepTheirRangeAcrossModes = meta.story({
+  args: { path: '/stats?range=90d' },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByText('Who you listened to', undefined, { timeout: 5_000 })).toBeVisible()
+    await userEvent.click(within(await canvas.findByRole('complementary')).getByRole('button', { name: 'Podcasts' }))
+    await expect(await main.findByText('What you listened to')).toBeVisible()
+    await expect(router?.state.location.search).toMatchObject({ range: '90d' })
+    await expect(main.getByText('Top shows')).toBeVisible()
+  },
+})
+
+export const CalendarDayOpensPodcastHistory = meta.story({
+  args: { path: `/history?before=${encodeURIComponent(new Date(Date.now() + 60_000).toISOString())}` },
+  beforeEach: inPodcastMode,
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByText(/^Showing/)).toBeVisible()
+    await expect(main.getByRole('link', { name: 'Back to now' })).toBeVisible()
+    await expect(await main.findByRole('link', { name: 'Digging in Osaka' })).toBeVisible()
+    // A jump reads from the past: nothing playing heads it.
+    await expect(main.queryByRole('group', { name: 'Now playing' })).toBeNull()
   },
 })

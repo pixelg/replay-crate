@@ -1,4 +1,7 @@
 import {
+  listensTimelineQueryOptions,
+  podcastStatsOverviewQueryOptions,
+  podcastStatsTopQueryOptions,
   spotifyTopQueryOptions,
   statsOverviewQueryOptions,
   statsTopQueryOptions,
@@ -11,14 +14,15 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { InlineError } from '@/components/inline-error'
 import { PageHeader } from '@/components/page-header'
-import { ListeningOverTime } from '@/components/stats/listening-over-time'
-import { PlayCalendarCard } from '@/components/stats/play-calendar'
+import { ListeningOverTime, PodcastListeningOverTime } from '@/components/stats/listening-over-time'
+import { PlayCalendarCard, PodcastCalendarCard } from '@/components/stats/play-calendar'
 import { SpotifyView, type SpotifyTimeRange } from '@/components/stats/spotify-view'
 import { StatsScope } from '@/components/stats/stats-scope'
-import { TopChart, type TopMetric, type TopType } from '@/components/stats/top-chart'
-import { Totals } from '@/components/stats/totals'
+import { PodcastTopChart, TopChart, type PodcastTopMetric, type PodcastTopType, type TopMetric, type TopType } from '@/components/stats/top-chart'
+import { PodcastTotals, Totals } from '@/components/stats/totals'
 import { Card } from '@/components/ui/card'
 import { api } from '@/lib/api'
+import { getMode, useMode } from '@/lib/mode'
 import { formatPeriod, timeZone } from '@/lib/months'
 import { isStatsRange, statsRanges } from '@/lib/stats-ranges'
 
@@ -37,14 +41,24 @@ export const Route = createFileRoute('/_app/stats')({
       ...(hasYear && Number.isInteger(month) && month >= 1 && month <= 12 && { month }),
     }
   },
-  loaderDeps: ({ search }) => ({ scope: scopeOf(search) }),
-  loader: ({ context, deps: { scope } }) =>
-    Promise.all([
-      context.queryClient.ensureQueryData(statsOverviewQueryOptions(api, scope, timeZone)),
-      context.queryClient.ensureQueryData(statsTopQueryOptions(api, { ...scope, type: 'tracks', metric: 'plays', tz: timeZone })),
-    ]),
-  component: StatsPage,
+  loaderDeps: ({ search }) => ({ mode: getMode(), scope: scopeOf(search) }),
+  loader: ({ context, deps: { mode, scope } }) =>
+    mode === 'podcasts'
+      ? Promise.all([
+          context.queryClient.ensureQueryData(podcastStatsOverviewQueryOptions(api, scope, timeZone)),
+          context.queryClient.ensureQueryData(podcastStatsTopQueryOptions(api, { ...scope, type: 'shows', metric: 'minutes', tz: timeZone })),
+        ])
+      : Promise.all([
+          context.queryClient.ensureQueryData(statsOverviewQueryOptions(api, scope, timeZone)),
+          context.queryClient.ensureQueryData(statsTopQueryOptions(api, { ...scope, type: 'tracks', metric: 'plays', tz: timeZone })),
+        ]),
+  component: StatsRoute,
 })
+
+/** Music or podcast stats, as the mode says; the range or period carries over. */
+function StatsRoute() {
+  return useMode() === 'podcasts' ? <PodcastStatsPage /> : <StatsPage />
+}
 
 /** The API's `period` for a year (`2019`) or month (`2019-03`). */
 const periodOf = ({ year, month }: StatsSearch) =>
@@ -145,6 +159,76 @@ function StatsPage() {
 
       {/* Picking a year for the page turns the calendar to it too. */}
       <PlayCalendarCard key={search.year} initialYear={search.year} />
+    </div>
+  )
+}
+
+/**
+ * Podcast stats: time heard over time by show, totals, top shows or episodes, and minutes per
+ * day. Spotify keeps no ranking of podcasts, so there's no "Spotify's view" here.
+ */
+function PodcastStatsPage() {
+  const search = Route.useSearch()
+  const { range } = search
+  const period = periodOf(search)
+  const scope = scopeOf(search)
+  const navigate = Route.useNavigate()
+  const [topType, setTopType] = useState<PodcastTopType>('shows')
+  const [metric, setMetric] = useState<PodcastTopMetric>('minutes')
+  const overview = useQuery({ ...podcastStatsOverviewQueryOptions(api, scope, timeZone), placeholderData: keepPreviousData })
+  const top = useQuery({
+    ...podcastStatsTopQueryOptions(api, { ...scope, type: topType, metric, tz: timeZone }),
+    placeholderData: keepPreviousData,
+  })
+  const { data: timeline } = useQuery(listensTimelineQueryOptions(api, timeZone))
+  const months = (timeline?.months ?? []).map((month) => ({ month: month.month, plays: month.listens }))
+
+  const periodLabel = period && formatPeriod(period)
+  const rangeLabel = statsRanges.find((option) => option.value === range)!.label
+  const setRange = (next: StatsRange) => void navigate({ search: { range: next }, replace: true })
+  const setPeriod = (next: string) => {
+    const [year, month] = next.split('-').map(Number) as [number, number | undefined]
+    void navigate({ search: { range, year, ...(month && { month }) }, replace: true })
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        title={periodLabel ? `Your ${periodLabel} in podcasts` : 'Stats'}
+        description={
+          periodLabel
+            ? `What you listened to in ${periodLabel}, from every podcast listen Replay Crate has recorded.`
+            : 'What you actually listen to, from every podcast listen Replay Crate has recorded.'
+        }
+      />
+      <StatsScope range={range} period={period} months={months} onRangeChange={setRange} onPeriodChange={setPeriod} />
+
+      {overview.data ? (
+        <>
+          <PodcastListeningOverTime overview={overview.data} emptyText={periodLabel ? `No podcast listens in ${periodLabel}.` : undefined} />
+          <PodcastTotals totals={overview.data.totals} />
+        </>
+      ) : overview.error ? (
+        <InlineError error={overview.error} action="Loading stats" />
+      ) : (
+        <ChartSkeleton />
+      )}
+
+      {top.data ? (
+        <PodcastTopChart
+          top={top.data}
+          scope={periodLabel ? `in ${periodLabel}` : rangeLabel.toLowerCase()}
+          emptyText={periodLabel ? `Nothing listened to in ${periodLabel}.` : undefined}
+          onTypeChange={setTopType}
+          onMetricChange={setMetric}
+        />
+      ) : top.error ? (
+        <InlineError error={top.error} action="Loading top lists" />
+      ) : (
+        <ChartSkeleton />
+      )}
+
+      <PodcastCalendarCard key={search.year} initialYear={search.year} />
     </div>
   )
 }

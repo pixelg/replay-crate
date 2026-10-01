@@ -87,8 +87,8 @@ export const Route = createFileRoute('/_app/history')({
   loader: ({ context: { queryClient }, deps: { mode, page, size, before, genre, show, when } }) =>
     mode === 'podcasts'
       ? Promise.all([
-          size === 'all'
-            ? queryClient.ensureInfiniteQueryData(listensInfiniteQueryOptions(api, listensFilter(show, when)))
+          before !== undefined || size === 'all'
+            ? queryClient.ensureInfiniteQueryData(listensInfiniteQueryOptions(api, listensFilter(show, when), before))
             : queryClient.ensureQueryData(listensPageQueryOptions(api, { page, size, ...listensFilter(show, when) })),
           show !== undefined && queryClient.ensureQueryData(listenedShowsQueryOptions(api)),
         ])
@@ -407,10 +407,13 @@ function useHeight() {
   return [ref, height] as const
 }
 
-/** The listens to show: one numbered page, or with All every page loaded so far ("Load older listens"). */
-function useListens(page: number, size: PageSize, filter: ListensFilter) {
-  const all = size === 'all'
-  const infinite = useInfiniteQuery({ ...listensInfiniteQueryOptions(api, filter), enabled: all })
+/**
+ * The listens to show: one numbered page, or by cursor every page loaded so far ("Load older
+ * listens"), with All or after a jump into the past (`before`).
+ */
+function useListens(page: number, size: PageSize, filter: ListensFilter, before: string | undefined) {
+  const all = size === 'all' || before !== undefined
+  const infinite = useInfiniteQuery({ ...listensInfiniteQueryOptions(api, filter, before), enabled: all })
   const paged = useQuery({ ...listensPageQueryOptions(api, { page, size: all ? 0 : size, ...filter }), enabled: !all })
   if (all) {
     return {
@@ -442,13 +445,14 @@ function PodcastHistoryPage() {
   const navigate = Route.useNavigate()
   const page = search.page ?? 1
   const size = search.size ?? storedPageSize('history')
-  const { show, when } = search
-  const { listens, total, loadMore, isLoadingMore, isPlaceholder, isPending } = useListens(page, size, listensFilter(show, when))
+  const { show, when, before } = search
+  const { listens, total, loadMore, isLoadingMore, isPlaceholder, isPending } = useListens(page, size, listensFilter(show, when), before)
   const { data: shows = [] } = useQuery(listenedShowsQueryOptions(api))
   const showName = shows.find((known) => known.id === show)?.name
   const playingEpisodeId = usePlayingEpisodeId()
   const nowPlaying = useNowPlaying()
-  const playingEpisode = nowPlaying?.item.type === 'episode' ? nowPlaying.item : null
+  // After a jump the list reads from the past, so what's playing now doesn't head it.
+  const playingEpisode = nowPlaying?.item.type === 'episode' && before === undefined ? nowPlaying.item : null
   const [nowPlayingRef, nowPlayingHeight] = useHeight()
 
   const lastPage = total !== undefined && size !== 'all' ? pageCount(total, size) : undefined
@@ -473,12 +477,32 @@ function PodcastHistoryPage() {
             allLabel: 'All shows',
             options: shows.map((known) => ({ value: known.id, name: known.name, count: known.listens })),
             value: show,
-            onChange: (next) => void navigate({ search: (prev) => ({ size: prev.size, when: prev.when, show: next }) }),
+            onChange: (next) => void navigate({ search: (prev) => ({ size: prev.size, before: prev.before, when: prev.when, show: next }) }),
           }}
           when={when}
+          // A date range and a jump into the past don't mix: the range wins.
           onWhenChange={(next) => void navigate({ search: (prev) => ({ size: prev.size, show: prev.show, when: next }) })}
         />
       </div>
+
+      {before !== undefined && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2 text-sm">
+          <p className="flex items-start gap-2">
+            <CalendarClock aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
+            <span>
+              Showing <span className="font-medium">{jumpLabel(before).replace(/^plays /, 'listens ')}</span>, newest first.
+            </span>
+          </p>
+          <Link
+            from={Route.fullPath}
+            to="."
+            search={(prev) => ({ size: prev.size, show: prev.show })}
+            className={buttonClasses({ variant: 'secondary', size: 'sm' })}
+          >
+            <ArrowUpToLine aria-hidden className="size-4" /> Back to now
+          </Link>
+        </div>
+      )}
 
       {playingEpisode && <EpisodeNowPlaying ref={nowPlayingRef} item={playingEpisode} isPlaying={nowPlaying!.isPlaying} />}
 
@@ -494,15 +518,22 @@ function PodcastHistoryPage() {
               </Button>
             </div>
           )}
-          <ListPagination
-            page={page}
-            size={size}
-            total={total}
-            onSizeChange={setSize}
-            linkTo={(to) => <Link from={Route.fullPath} to="." search={(prev) => ({ ...prev, page: to > 1 ? to : undefined })} />}
-          />
+          {/* A jump reads by cursor: no pages, and no page size. */}
+          {before === undefined && (
+            <ListPagination
+              page={page}
+              size={size}
+              total={total}
+              onSizeChange={setSize}
+              linkTo={(to) => <Link from={Route.fullPath} to="." search={(prev) => ({ ...prev, page: to > 1 ? to : undefined })} />}
+            />
+          )}
         </>
-      ) : isPending ? null : when !== undefined || show !== undefined ? (
+      ) : isPending ? null : before !== undefined ? (
+        <EmptyState icon={History} title="Nothing listened to before then">
+          Your podcast history starts later. Pick another day, or go back to now.
+        </EmptyState>
+      ) : when !== undefined || show !== undefined ? (
         <EmptyState
           icon={ListFilter}
           title={`No listens${show !== undefined ? ` of ${showName ?? 'this show'}` : ''}${when !== undefined ? ` ${historyRange(when).phrase}` : ''}`}

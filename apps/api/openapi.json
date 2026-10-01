@@ -1694,6 +1694,195 @@
           "rating"
         ]
       },
+      "PodcastStatsOverview": {
+        "type": "object",
+        "properties": {
+          "range": {
+            "$ref": "#/components/schemas/StatsRange"
+          },
+          "period": {
+            "$ref": "#/components/schemas/StatsPeriod"
+          },
+          "tz": {
+            "type": "string"
+          },
+          "bucket": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week"
+            ]
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "listens": {
+                "type": "integer"
+              },
+              "minutes": {
+                "type": "integer"
+              },
+              "episodes": {
+                "type": "integer"
+              },
+              "shows": {
+                "type": "integer"
+              },
+              "finished": {
+                "type": "integer",
+                "description": "Episodes listened to in the span that are now played to the end."
+              }
+            },
+            "required": [
+              "listens",
+              "minutes",
+              "episodes",
+              "shows",
+              "finished"
+            ]
+          },
+          "shows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "thumbUrl": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "listens": {
+                  "type": "integer"
+                },
+                "minutes": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "thumbUrl",
+                "listens",
+                "minutes"
+              ]
+            },
+            "description": "The span's top shows by time heard, most first."
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "description": "Bucket start, YYYY-MM-DD."
+                },
+                "listens": {
+                  "type": "integer"
+                },
+                "minutes": {
+                  "type": "integer"
+                },
+                "byShow": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ShowListening"
+                  },
+                  "description": "Per show in `shows`, same order."
+                },
+                "others": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ShowListening"
+                    },
+                    {
+                      "description": "Every other show."
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "date",
+                "listens",
+                "minutes",
+                "byShow",
+                "others"
+              ]
+            }
+          }
+        },
+        "required": [
+          "tz",
+          "bucket",
+          "totals",
+          "shows",
+          "series"
+        ]
+      },
+      "ShowListening": {
+        "type": "object",
+        "properties": {
+          "listens": {
+            "type": "integer"
+          },
+          "minutes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "listens",
+          "minutes"
+        ]
+      },
+      "PodcastTopItem": {
+        "type": "object",
+        "properties": {
+          "rank": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The show, for episodes; an episode count for shows."
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "listens": {
+            "type": "integer"
+          },
+          "minutes": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rank",
+          "id",
+          "name",
+          "subtitle",
+          "imageUrl",
+          "listens",
+          "minutes"
+        ]
+      },
       "SpotifyTopItem": {
         "type": "object",
         "properties": {
@@ -3620,6 +3809,104 @@
                     "items",
                     "nextCursor",
                     "lastSyncedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/history/listens/timeline": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "operationId": "getListensTimeline",
+        "summary": "Podcast listens per month",
+        "description": "How many listens ended in each calendar month of `tz`, newest first; months without listens are left out.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "default": "UTC",
+              "description": "IANA time zone for month boundaries.",
+              "example": "Europe/Berlin"
+            },
+            "required": false,
+            "description": "IANA time zone for month boundaries.",
+            "name": "tz",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Months with listens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "months": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "month": {
+                            "type": "string",
+                            "example": "2019-03"
+                          },
+                          "listens": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "month",
+                          "listens"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "months"
                   ]
                 }
               }
@@ -6543,6 +6830,404 @@
                         ]
                       },
                       "description": "Days with plays, oldest first; the rest had none."
+                    }
+                  },
+                  "required": [
+                    "year",
+                    "tz",
+                    "years",
+                    "days"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stats/podcasts/overview": {
+      "get": {
+        "tags": [
+          "Stats"
+        ],
+        "operationId": "getPodcastStatsOverview",
+        "summary": "Podcast totals and listening over time",
+        "description": "The podcast counterpart of `/stats/overview`: time heard (the episodes' own time, so 2× counts the time heard, not the time it took) and listens per bucket, split by the span's top 5 shows by time and everything else. Bucketed by week past 90 days, else by day, in local days of `tz`. A listen counts where it ended.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/StatsRange"
+            },
+            "required": false,
+            "description": "A rolling window ending now. `30d` unless `period` is given.",
+            "name": "range",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/StatsPeriod"
+            },
+            "required": false,
+            "description": "A calendar year (`2019`) or month (`2019-03`), in local days of `tz`. Not with `range`.",
+            "name": "period",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "default": "UTC",
+              "description": "IANA time zone for day boundaries.",
+              "example": "America/Los_Angeles"
+            },
+            "required": false,
+            "description": "IANA time zone for day boundaries.",
+            "name": "tz",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The overview.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PodcastStatsOverview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stats/podcasts/top": {
+      "get": {
+        "tags": [
+          "Stats"
+        ],
+        "operationId": "getPodcastStatsTop",
+        "summary": "Most listened shows or episodes",
+        "description": "Ranked by time heard or by listens, over a rolling `range` or a calendar `period`.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "shows",
+                "episodes"
+              ],
+              "default": "shows"
+            },
+            "required": false,
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/StatsRange"
+            },
+            "required": false,
+            "description": "A rolling window ending now. `30d` unless `period` is given.",
+            "name": "range",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/StatsPeriod"
+            },
+            "required": false,
+            "description": "A calendar year (`2019`) or month (`2019-03`), in local days of `tz`. Not with `range`.",
+            "name": "period",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "default": "UTC",
+              "description": "IANA time zone for day boundaries.",
+              "example": "America/Los_Angeles"
+            },
+            "required": false,
+            "description": "IANA time zone for day boundaries.",
+            "name": "tz",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "minutes",
+                "listens"
+              ],
+              "default": "minutes"
+            },
+            "required": false,
+            "name": "metric",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The ranking, echoing the query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "shows",
+                        "episodes"
+                      ],
+                      "default": "shows"
+                    },
+                    "range": {
+                      "$ref": "#/components/schemas/StatsRange"
+                    },
+                    "period": {
+                      "$ref": "#/components/schemas/StatsPeriod"
+                    },
+                    "tz": {
+                      "type": "string",
+                      "default": "UTC",
+                      "description": "IANA time zone for day boundaries.",
+                      "example": "America/Los_Angeles"
+                    },
+                    "metric": {
+                      "type": "string",
+                      "enum": [
+                        "minutes",
+                        "listens"
+                      ],
+                      "default": "minutes"
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 50,
+                      "default": 10
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PodcastTopItem"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stats/podcasts/calendar": {
+      "get": {
+        "tags": [
+          "Stats"
+        ],
+        "operationId": "getPodcastStatsCalendar",
+        "summary": "Podcast time per day for a year",
+        "description": "For a calendar heatmap: the year's days with listens and the time heard on each, in local days of `tz`, and every year with listens.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1900,
+              "maximum": 9999,
+              "description": "Defaults to the current year.",
+              "example": 2023
+            },
+            "required": false,
+            "description": "Defaults to the current year.",
+            "name": "year",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "default": "UTC",
+              "description": "IANA time zone for day boundaries.",
+              "example": "America/Los_Angeles"
+            },
+            "required": false,
+            "description": "IANA time zone for day boundaries.",
+            "name": "tz",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Daily listening.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "year": {
+                      "type": "integer"
+                    },
+                    "tz": {
+                      "type": "string"
+                    },
+                    "years": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      },
+                      "description": "Every year with listens, oldest first."
+                    },
+                    "days": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "date": {
+                            "type": "string",
+                            "description": "YYYY-MM-DD."
+                          },
+                          "listens": {
+                            "type": "integer"
+                          },
+                          "minutes": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "date",
+                          "listens",
+                          "minutes"
+                        ]
+                      },
+                      "description": "Days with listens, oldest first; the rest had none."
                     }
                   },
                   "required": [
