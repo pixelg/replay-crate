@@ -11,6 +11,7 @@ import { useIsPlaying } from '../lib/use-player.ts'
 import { SearchPalette } from './search/search-palette.tsx'
 import { ThemeToggle } from './theme-toggle.tsx'
 import { MiniPlayer, MiniPlayerBar } from './mini-player.tsx'
+import { ModeOffer } from './mode-offer.tsx'
 import { ModeToggle } from './mode-toggle.tsx'
 import { Toaster } from './ui/sonner.tsx'
 import { navSectionsFor } from './nav-items.ts'
@@ -76,6 +77,7 @@ export function AppShell({
             </div>
           </header>
           {banner}
+          <ModeOffer />
           <main className="flex-1 px-4 pt-6 pb-[calc(5rem+var(--player-bar)+env(safe-area-inset-bottom))] md:px-8 md:pb-10">
             {children}
           </main>

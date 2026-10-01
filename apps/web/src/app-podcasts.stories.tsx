@@ -398,3 +398,62 @@ export const SearchPageInPodcastMode = meta.story({
     await expect(await main.findByRole('button', { name: 'Play Who Sampled Whom' })).toBeVisible()
   },
 })
+
+export const OffersToSwitchWhenAPodcastPlays = meta.story({
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/player', () => HttpResponse.json({ playback: episodePlayback })))
+  },
+  play: async ({ canvas, userEvent }) => {
+    const offer = within(await canvas.findByRole('status', { name: 'Switch mode' }))
+    await expect(offer.getByText('A podcast is playing.')).toBeVisible()
+    // Nothing changes until asked.
+    await expect(within(await canvas.findByRole('complementary')).getByRole('button', { name: 'Music' })).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(offer.getByRole('button', { name: 'Switch to Podcasts' }))
+    await expect(await canvas.findByRole('link', { name: 'Digging in Osaka' })).toBeVisible()
+    await waitFor(() => expect(canvas.queryByRole('status', { name: 'Switch mode' })).toBeNull())
+  },
+})
+
+export const OffersMusicWhenMusicPlaysInPodcastMode = meta.story({
+  beforeEach: inPodcastMode,
+  play: async ({ canvas }) => {
+    const offer = within(await canvas.findByRole('status', { name: 'Switch mode' }))
+    await expect(offer.getByRole('button', { name: 'Switch to Music' })).toBeVisible()
+  },
+})
+
+export const NotNowPutsTheOfferAway = meta.story({
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/player', () => HttpResponse.json({ playback: episodePlayback })))
+  },
+  play: async ({ canvas, userEvent }) => {
+    const offer = within(await canvas.findByRole('status', { name: 'Switch mode' }))
+    await userEvent.click(offer.getByRole('button', { name: 'Not now' }))
+    await waitFor(() => expect(canvas.queryByRole('status', { name: 'Switch mode' })).toBeNull())
+    await expect(within(await canvas.findByRole('complementary')).getByRole('button', { name: 'Music' })).toHaveAttribute('aria-pressed', 'true')
+  },
+})
+
+export const NoOfferOnThePlayer = meta.story({
+  args: { path: '/player' },
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/player', () => HttpResponse.json({ playback: episodePlayback })))
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Player' })).toBeVisible()
+    await expect(canvas.queryByRole('status', { name: 'Switch mode' })).toBeNull()
+  },
+})
+
+export const OffersCanBeTurnedOff = meta.story({
+  args: { path: '/settings' },
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/player', () => HttpResponse.json({ playback: episodePlayback })))
+  },
+  play: async ({ canvas, userEvent }) => {
+    await expect(await canvas.findByRole('status', { name: 'Switch mode' })).toBeVisible()
+    const setting = within(await canvas.findByRole('group', { name: 'Offer to switch' }))
+    await userEvent.click(setting.getByRole('button', { name: "Don't" }))
+    await waitFor(() => expect(canvas.queryByRole('status', { name: 'Switch mode' })).toBeNull())
+  },
+})

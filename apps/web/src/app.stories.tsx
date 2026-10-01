@@ -281,7 +281,7 @@ export const NeedsPermissions = meta.story({
     msw.use(http.get('/api/v1/auth/me', () => HttpResponse.json(connectedBeforeThePlayer)))
   },
   play: async ({ canvas }) => {
-    await expect(await canvas.findByText(/needs new Spotify permissions to show and control playback/)).toBeVisible()
+    await expect(await canvas.findByText(/needs new Spotify permissions, for the player and for your podcasts/)).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Reconnect Spotify' })).toBeVisible()
     // History still loads and syncs: the old grant covers it.
     await expect(await canvas.findByRole('heading', { name: 'Today' })).toBeVisible()
