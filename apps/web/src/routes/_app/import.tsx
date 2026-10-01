@@ -44,9 +44,9 @@ function ImportPage() {
   }
 
   const upload = useMutation({
-    mutationFn: (plays: StreamingHistory['plays']) => {
+    mutationFn: ({ plays, listens }: StreamingHistory) => {
       setSent(0)
-      return uploadImport(api, plays, setSent)
+      return uploadImport(api, plays, setSent, listens)
     },
     onSuccess: () => {
       setHistory(null)
@@ -60,7 +60,7 @@ function ImportPage() {
     <>
       <PageHeader
         title="Import history"
-        description="Fill in plays from before Replay Crate, or from while it wasn't running, with your Spotify data."
+        description="Fill in plays and podcast listens from before Replay Crate, or from while it wasn't running, with your Spotify data."
       />
       <div className="flex flex-col gap-4">
         {latest && !history && <ImportStatus status={latest} />}
@@ -70,7 +70,7 @@ function ImportPage() {
             <ImportSummary
               history={history}
               sent={sent}
-              onImport={() => upload.mutate(history.plays)}
+              onImport={() => upload.mutate(history)}
               onChooseAgain={() => {
                 setHistory(null)
                 upload.reset()
@@ -104,7 +104,8 @@ function ImportPage() {
                 </p>
               )}
               <p className="text-xs text-muted-foreground">
-                Your files are read on this device. Only each play's time, length and track are sent to Replay Crate.
+                Your files are read on this device. Only each play's time, length and track (or episode) are sent to
+                Replay Crate.
               </p>
             </CardContent>
           </Card>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isStreamingHistoryFile, parseStreamingHistory, summarizeImport } from './streaming-history.ts'
+import { isStreamingHistoryFile, mergeListens, parseStreamingHistory, summarizeImport } from './streaming-history.ts'
 
 const entry = (overrides: Record<string, unknown> = {}) => ({
   ts: '2024-03-10T21:44:02Z',
@@ -36,14 +36,57 @@ describe('parseStreamingHistory', () => {
     const result = parseStreamingHistory([
       entry(),
       entry({ ms_played: 12_000 }), // skipped after 12s
-      entry({ spotify_track_uri: null, spotify_episode_uri: 'spotify:episode:abc', episode_name: 'A podcast' }),
+      entry({ spotify_track_uri: null, spotify_episode_uri: 'spotify:episode:abc', episode_name: 'Not a real id' }),
       entry({ spotify_track_uri: 'spotify:local:::song' }),
       entry({ ts: 'not a date' }),
       entry({ ms_played: undefined }),
       'garbage',
     ])
-    expect(result).toMatchObject({ notMusic: 2, tooShort: 1, malformed: 3 })
+    expect(result).toMatchObject({ other: 2, tooShort: 1, malformed: 3 })
     expect(result.plays).toHaveLength(1)
+  })
+
+  it('keeps every stretch of a podcast episode, reduced to timestamp, play time and episode id', () => {
+    const podcast = { spotify_track_uri: null, master_metadata_track_name: null, episode_name: 'On Listening', episode_show_name: 'The Pod' }
+    const { episodes, plays, other } = parseStreamingHistory([
+      entry({ ...podcast, spotify_episode_uri: 'spotify:episode:5Xt5DXGzch68nYYamXrNxZ', ms_played: 12_000 }),
+      entry({ ...podcast, spotify_episode_uri: 'spotify:episode:5Xt5DXGzch68nYYamXrNxZ', ms_played: 0 }),
+    ])
+    expect(episodes).toEqual([{ ts: '2024-03-10T21:44:02.000Z', ms: 12_000, episodeId: '5Xt5DXGzch68nYYamXrNxZ' }])
+    expect(Object.keys(episodes[0]!)).toEqual(['ts', 'ms', 'episodeId'])
+    expect(plays).toEqual([])
+    expect(other).toBe(0)
+  })
+})
+
+describe('mergeListens', () => {
+  const MIN = 60_000
+  const stretch = (endsAt: string, minutes: number, episodeId = '5Xt5DXGzch68nYYamXrNxZ') => ({ ts: endsAt, ms: minutes * MIN, episodeId })
+
+  it('joins stretches of one episode a pause apart, ending where the last one did', () => {
+    const { listens } = mergeListens([
+      stretch('2024-03-10T08:40:00.000Z', 10),
+      stretch('2024-03-10T08:20:00.000Z', 20),
+      // 50 minutes later: another listen.
+      stretch('2024-03-10T09:45:00.000Z', 5),
+    ])
+    expect(listens).toEqual([stretch('2024-03-10T08:40:00.000Z', 30), stretch('2024-03-10T09:45:00.000Z', 5)])
+  })
+
+  it('keeps episodes apart, and drops listens under 30 seconds in all', () => {
+    const result = mergeListens([
+      stretch('2024-03-10T08:00:00.000Z', 10, 'aaaaaaaaaaaaaaaaaaaaaa'),
+      stretch('2024-03-10T08:05:00.000Z', 3, 'bbbbbbbbbbbbbbbbbbbbbb'),
+      { ts: '2024-03-10T10:00:00.000Z', ms: 20_000, episodeId: 'aaaaaaaaaaaaaaaaaaaaaa' },
+      { ts: '2024-03-10T12:00:00.000Z', ms: 20_000, episodeId: 'bbbbbbbbbbbbbbbbbbbbbb' },
+      { ts: '2024-03-10T12:01:00.000Z', ms: 20_000, episodeId: 'bbbbbbbbbbbbbbbbbbbbbb' },
+    ])
+    expect(result.listens.map((listen) => [listen.episodeId, listen.ms])).toEqual([
+      ['aaaaaaaaaaaaaaaaaaaaaa', 10 * MIN],
+      ['bbbbbbbbbbbbbbbbbbbbbb', 3 * MIN],
+      ['bbbbbbbbbbbbbbbbbbbbbb', 40_000],
+    ])
+    expect(result.tooShort).toBe(1)
   })
 })
 

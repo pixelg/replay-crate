@@ -9,7 +9,7 @@ import { count, monthFormat } from './format.ts'
 
 /**
  * What was found in the chosen files, before anything is sent. While uploading, `sent`
- * is the number of plays uploaded so far.
+ * is the number of plays and listens uploaded so far.
  */
 export function ImportSummary({
   history,
@@ -24,9 +24,17 @@ export function ImportSummary({
 }) {
   const summary = useMemo(() => summarizeImport(history.plays), [history])
   const uploading = sent !== undefined
+  const listens = history.listens.length
+  const episodes = useMemo(() => new Set(history.listens.map((listen) => listen.episodeId)).size, [history])
+  const total = summary.plays + listens
+  const found = [
+    summary.plays > 0 && `${count(summary.plays, 'play')} of ${count(summary.tracks, 'track')}`,
+    listens > 0 && `${count(listens, 'podcast listen')} of ${count(episodes, 'episode')}`,
+  ].filter(Boolean)
   const skipped = [
     history.tooShort && `${count(history.tooShort, 'play')} under 30 seconds, which Spotify doesn't count either`,
-    history.notMusic && `${count(history.notMusic, 'podcast, audiobook or video', 'podcasts, audiobooks and videos')}`,
+    history.tooShortListens && `${count(history.tooShortListens, 'podcast listen')} under 30 seconds`,
+    history.other && `${count(history.other, 'audiobook or video', 'audiobooks and videos')}`,
     history.repeated && `${count(history.repeated, 'play')} repeated across files`,
     history.malformed && `${count(history.malformed, 'entry', 'entries')} that couldn't be read`,
   ].filter(Boolean)
@@ -34,11 +42,13 @@ export function ImportSummary({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{summary.plays ? `${count(summary.plays, 'play')} of ${count(summary.tracks, 'track')}` : 'No plays to import'}</CardTitle>
+        <CardTitle>{found.length ? found.join(', and ') : 'No plays to import'}</CardTitle>
         <CardDescription>
           {summary.earliest && summary.latest
             ? `${monthFormat.format(new Date(summary.earliest))} to ${monthFormat.format(new Date(summary.latest))}, from ${count(history.files, 'file')}`
-            : `Nothing in ${history.files === 1 ? 'that file' : 'those files'} is music played for 30 seconds or more.`}
+            : total
+              ? `From ${count(history.files, 'file')}`
+              : `Nothing in ${history.files === 1 ? 'that file' : 'those files'} is music or a podcast played for 30 seconds or more.`}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -52,24 +62,28 @@ export function ImportSummary({
             </ul>
           </div>
         )}
-        {summary.plays > 0 && (
+        {total > 0 && (
           <p className="text-muted-foreground">
-            Plays Replay Crate already has are skipped, so importing the same data again is safe. Only each play's time,
-            length and track are sent; nothing else in the export leaves this device.
+            Plays and listens Replay Crate already has are skipped, so importing the same data again is safe. Only each
+            play's time, length and track (or episode) are sent; nothing else in the export leaves this device.
           </p>
         )}
         {uploading && (
-          <Progress value={Math.round((sent / summary.plays) * 100)}>
-            <ProgressLabel>Uploading {count(sent, 'play')}</ProgressLabel>
+          <Progress value={Math.round((sent / total) * 100)}>
+            <ProgressLabel>
+              Uploading {sent.toLocaleString()} of {total.toLocaleString()}
+            </ProgressLabel>
             <ProgressValue />
           </Progress>
         )}
       </CardContent>
       <CardFooter className="flex flex-wrap gap-2">
-        {summary.plays > 0 && (
+        {total > 0 && (
           <Button onClick={onImport} disabled={uploading}>
             <Upload aria-hidden className="size-4" />
-            {uploading ? 'Importing…' : `Import ${count(summary.plays, 'play')}`}
+            {uploading
+              ? 'Importing…'
+              : `Import ${[summary.plays > 0 && count(summary.plays, 'play'), listens > 0 && count(listens, 'listen')].filter(Boolean).join(' and ')}`}
           </Button>
         )}
         <Button variant="ghost" onClick={onChooseAgain} disabled={uploading}>

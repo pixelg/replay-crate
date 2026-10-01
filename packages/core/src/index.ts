@@ -41,8 +41,11 @@ export {
 export { parseSpotifyUri, type SpotifyUri } from './spotify-uri.ts'
 export {
   isStreamingHistoryFile,
+  LISTEN_JOIN_MS,
+  mergeListens,
   parseStreamingHistory,
   summarizeImport,
+  type ImportedListen,
   type ImportedPlay,
   type ParseResult,
   type StreamingHistoryEntry,

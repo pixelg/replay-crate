@@ -31,7 +31,11 @@ library.remember([
 ])
 
 // A podcast episode, played only by the podcasts spec.
-library.addEpisodes(episode('e2etalk', { name: 'Testing Out Loud', show: ['e2epod', 'The Test Pod'], durationMs: 30 * 60_000 }))
+library.addEpisodes(
+  episode('e2etalk', { name: 'Testing Out Loud', show: ['e2epod', 'The Test Pod'], durationMs: 30 * 60_000 }),
+  // Known only to (fake) Spotify: arrives through a streaming history import.
+  episode('0ldEpisodeFromTheVault', { name: 'From The Archive', show: ['e2epod', 'The Test Pod'] }),
+)
 
 // Plays pinned to calendar days from server start, so "Today" / "Yesterday" headings hold at any
 // time of day (hour offsets cross midnight early in the morning).

@@ -83,6 +83,8 @@ describe('player watch', () => {
     stop = startPlayerWatch(ctx.deps, { intervalMs: 50, firstRunAfterMs: 0, log })
     await vi.waitFor(() => expect(ctx.spotify.getPlaybackState.mock.calls.length).toBeGreaterThanOrEqual(2), { timeout: 2_000 })
     stop()
+    // A look already under way finishes; no new round starts.
+    await sleep(100)
     const callsWhenStopped = ctx.spotify.getPlaybackState.mock.calls.length
     await sleep(200)
     expect(ctx.spotify.getPlaybackState).toHaveBeenCalledTimes(callsWhenStopped)

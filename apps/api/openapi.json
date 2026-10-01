@@ -1773,6 +1773,32 @@
           "trackId"
         ]
       },
+      "ImportedListen": {
+        "type": "object",
+        "properties": {
+          "ts": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z",
+            "description": "When the listen ended, from the export."
+          },
+          "ms": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Milliseconds listened."
+          },
+          "episodeId": {
+            "type": "string",
+            "pattern": "^[0-9A-Za-z]{22}$",
+            "description": "Spotify episode id."
+          }
+        },
+        "required": [
+          "ts",
+          "ms",
+          "episodeId"
+        ]
+      },
       "ImportStatus": {
         "type": [
           "object",
@@ -1826,6 +1852,22 @@
             "type": "integer",
             "description": "Tracks still to look up on Spotify."
           },
+          "listenCount": {
+            "type": "integer",
+            "description": "Podcast listens uploaded."
+          },
+          "listensUnavailable": {
+            "type": "integer",
+            "description": "Listens of episodes Spotify no longer has."
+          },
+          "waitingListens": {
+            "type": "integer",
+            "description": "Listens still waiting for their episode's details."
+          },
+          "episodesToFetch": {
+            "type": "integer",
+            "description": "Episodes still to look up on Spotify."
+          },
           "done": {
             "type": "boolean"
           }
@@ -1840,6 +1882,10 @@
           "uploadedAt",
           "waitingPlays",
           "tracksToFetch",
+          "listenCount",
+          "listensUnavailable",
+          "waitingListens",
+          "episodesToFetch",
           "done"
         ],
         "description": "null if there has never been an import."
@@ -6709,7 +6755,7 @@
         ],
         "operationId": "createImport",
         "summary": "Start an import",
-        "description": "Step 1 of 3. The browser parses the Extended Streaming History export and uploads only timestamp, play time and track id: create, add plays (in chunks), finish.",
+        "description": "Step 1 of 3. The browser parses the Extended Streaming History export and uploads only timestamp, play time and track (or podcast episode) id: create, add plays and listens (in chunks), finish.",
         "security": [
           {
             "session": []
@@ -6767,7 +6813,7 @@
         ],
         "operationId": "addImportPlays",
         "summary": "Upload a chunk of plays",
-        "description": "Step 2 of 3. Up to 5000 plays per request; call as often as needed.",
+        "description": "Step 2 of 3. Up to 5000 plays and podcast listens in all per request; call as often as needed. Listens are what the export splits at every pause, already joined.",
         "security": [
           {
             "session": []
@@ -6799,20 +6845,25 @@
                     "items": {
                       "$ref": "#/components/schemas/ImportedPlay"
                     },
-                    "minItems": 1,
-                    "maxItems": 5000
+                    "maxItems": 5000,
+                    "default": []
+                  },
+                  "listens": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ImportedListen"
+                    },
+                    "maxItems": 5000,
+                    "default": []
                   }
-                },
-                "required": [
-                  "plays"
-                ]
+                }
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Plays staged.",
+            "description": "Plays and listens staged.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6889,7 +6940,7 @@
         ],
         "operationId": "finishImport",
         "summary": "Finish an import",
-        "description": "Step 3 of 3. Plays of known tracks move into the history now; unknown tracks are queued for lookup and their plays follow. Closes any history gap the import covers.",
+        "description": "Step 3 of 3. Plays of known tracks and listens of known episodes move into the history now; unknown ones are queued for lookup and follow. Closes any history gap the import covers.",
         "security": [
           {
             "session": []
@@ -6920,10 +6971,15 @@
                     "tracksToFetch": {
                       "type": "integer",
                       "description": "Tracks queued for a Spotify lookup."
+                    },
+                    "episodesToFetch": {
+                      "type": "integer",
+                      "description": "Podcast episodes queued for a Spotify lookup."
                     }
                   },
                   "required": [
-                    "tracksToFetch"
+                    "tracksToFetch",
+                    "episodesToFetch"
                   ]
                 }
               }

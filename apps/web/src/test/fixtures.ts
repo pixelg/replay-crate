@@ -443,6 +443,10 @@ export const importInProgress: ImportStatus = {
   uploadedAt: hoursAgo(1),
   waitingPlays: 16_870,
   tracksToFetch: 2_904,
+  listenCount: 0,
+  listensUnavailable: 0,
+  waitingListens: 0,
+  episodesToFetch: 0,
   done: false,
 }
 
