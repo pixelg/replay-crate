@@ -410,6 +410,106 @@ describe('player', () => {
     })
   })
 
+  describe('playing from Up next', () => {
+    const [a1, a2, a3, a4] = ['a1', 'a2', 'a3', 'a4'].map((id) => track(id, { album: ['dusty', 'Dusty Grooves'] }))
+    const [q1, q2] = [track('q1'), track('q2')]
+    const ids = (items: Array<{ id: string | null }>) => items.map((item) => item.id)
+    const playNow = (uri: string, index: number) => send('POST', '/queue/play', { uri, index })
+
+    // On the phone, which ignores bare URIs: the album from its first track, with two tracks queued.
+    beforeEach(async () => {
+      ctx.library.remember([a1!, a2!, a3!, a4!, q1!, q2!])
+      await send('PUT', '/device', { deviceId: 'phone' })
+      await send('PUT', '/play', { item: 'spotify:track:a1' })
+      await send('POST', '/queue', { uri: 'spotify:track:q1' })
+      await send('POST', '/queue', { uri: 'spotify:track:q2' })
+      ctx.spotify.play.mockClear()
+    })
+
+    it("plays one of the album's tracks from the album, keeping the user's queue", async () => {
+      expect((await playNow('spotify:track:a3', 3)).status).toBe(204)
+      expect(ctx.spotify.play).toHaveBeenCalledWith('access-1', {
+        contextUri: 'spotify:album:dusty',
+        offset: { uri: 'spotify:track:a3' },
+        deviceId: undefined,
+      })
+      expect(ctx.spotify.skipToNext).not.toHaveBeenCalled()
+      const { activeDeviceId, isPlaying, item, queued, upcoming } = ctx.player.state
+      expect({ activeDeviceId, isPlaying, item: item?.id, queued: ids(queued), upcoming: ids(upcoming) }).toEqual({
+        activeDeviceId: 'phone',
+        isPlaying: true,
+        item: 'a3',
+        queued: ['q1', 'q2'],
+        upcoming: ['a4'],
+      })
+    })
+
+    it('skips to an item the user queued, so Up next stays as it was', async () => {
+      expect((await playNow('spotify:track:q2', 1)).status).toBe(204)
+      expect(ctx.spotify.skipToNext).toHaveBeenCalledTimes(2)
+      expect(ctx.spotify.play).not.toHaveBeenCalled()
+      expect(ctx.player.state).toMatchObject({ isPlaying: true, item: { id: 'q2' }, queued: [] })
+      expect(ids(ctx.player.state.upcoming)).toEqual(['a2', 'a3', 'a4'])
+    })
+
+    it('skips to the very next item, and under shuffle, whose order only skipping keeps', async () => {
+      expect((await playNow('spotify:track:q1', 0)).status).toBe(204)
+      expect(ctx.spotify.skipToNext).toHaveBeenCalledTimes(1)
+
+      await send('PUT', '/shuffle', { on: true })
+      expect((await playNow('spotify:track:a3', 2)).status).toBe(204)
+      expect(ctx.spotify.skipToNext).toHaveBeenCalledTimes(4)
+      expect(ctx.spotify.play).not.toHaveBeenCalled()
+      expect(ctx.player.state).toMatchObject({ item: { id: 'a3' } })
+    })
+
+    it("plays from a playlist whose contents Replay Crate keeps, and skips through others'", async () => {
+      ctx.library.add('kept', [a4!, q1!, a1!])
+      await upsertCatalog(ctx.db, [a4!, q1!, a1!])
+      await ctx.db.insert(schema.playlists).values({ id: 'kept', ownerId: 'me', name: 'Kept', snapshotId: 's1', itemsSnapshotId: 's1' })
+      await ctx.db.insert(schema.playlistItems).values([a4!, q1!, a1!].map((t, position) => ({ playlistId: 'kept', position, trackId: t.id! })))
+      ctx.library.add('theirs', [a4!, q1!, a1!])
+
+      await send('PUT', '/play', { contextUri: 'spotify:playlist:kept', offset: { position: 0 } })
+      ctx.spotify.play.mockClear()
+      expect((await playNow('spotify:track:a1', 3)).status).toBe(204)
+      expect(ctx.spotify.play).toHaveBeenCalledWith('access-1', expect.objectContaining({ contextUri: 'spotify:playlist:kept' }))
+      expect(ctx.spotify.skipToNext).not.toHaveBeenCalled()
+
+      await send('PUT', '/play', { contextUri: 'spotify:playlist:theirs', offset: { position: 0 } })
+      ctx.spotify.play.mockClear()
+      expect((await playNow('spotify:track:a1', 3)).status).toBe(204)
+      expect(ctx.spotify.play).not.toHaveBeenCalled()
+      expect(ctx.spotify.skipToNext).toHaveBeenCalledTimes(4)
+      expect(ctx.player.state).toMatchObject({ isPlaying: true, item: { id: 'a1' } })
+    })
+
+    it('finds the item again when the queue has moved, and says when it has gone', async () => {
+      await send('POST', '/next')
+      expect((await playNow('spotify:track:q2', 1)).status).toBe(204)
+      expect(ctx.player.state).toMatchObject({ item: { id: 'q2' } })
+
+      const res = await playNow('spotify:track:q1', 0)
+      expect(res.status).toBe(404)
+      expect(await json(res)).toEqual({ error: 'not_found' })
+    })
+
+    it('resumes when it gets there paused', async () => {
+      await send('PUT', '/pause')
+      expect((await playNow('spotify:track:q1', 0)).status).toBe(204)
+      expect(ctx.spotify.play).toHaveBeenCalledWith('access-1', { deviceId: undefined })
+      expect(ctx.player.state).toMatchObject({ isPlaying: true, item: { id: 'q1' } })
+    })
+
+    it("says so when the device doesn't get there, without skipping again", async () => {
+      ctx.spotify.skipToNext.mockImplementationOnce(async () => {})
+      const res = await playNow('spotify:track:q2', 1)
+      expect(res.status).toBe(409)
+      expect(await json(res)).toEqual({ error: 'not_started', device: 'Phone' })
+      expect(ctx.spotify.skipToNext).toHaveBeenCalledTimes(2)
+    })
+  })
+
   describe('failures', () => {
     it('no active device', async () => {
       ctx.player.deactivate()

@@ -224,7 +224,7 @@ export const handlers = {
     ...(['/api/v1/player/play', '/api/v1/player/pause', '/api/v1/player/seek', '/api/v1/player/shuffle', '/api/v1/player/repeat', '/api/v1/player/volume', '/api/v1/player/device'] as const).map((path) =>
       http.put(path, ({ response }) => response(204).empty()),
     ),
-    ...(['/api/v1/player/next', '/api/v1/player/previous', '/api/v1/player/queue'] as const).map((path) =>
+    ...(['/api/v1/player/next', '/api/v1/player/previous', '/api/v1/player/queue', '/api/v1/player/queue/play'] as const).map((path) =>
       http.post(path, ({ response }) => response(204).empty()),
     ),
   ],

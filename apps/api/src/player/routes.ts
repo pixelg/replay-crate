@@ -13,6 +13,7 @@ import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { recordObservation } from '../podcasts/listens.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
 import { forgetDevice, rememberDevices, rememberedDevices } from './devices.ts'
+import { playFromQueue } from './play-from-queue.ts'
 import { ITEM_URI, playItem, type PlayItemResult } from './play-item.ts'
 import { ListedDevice, Playback, Queue, ratingsFor, toItem, toListedDevice, toPlayback, toRememberedDevice } from './present.ts'
 
@@ -151,6 +152,19 @@ const enqueue = command(
   'addToQueue',
   'Add to the queue',
   z.object({ deviceId, uri: z.string().openapi({ description: 'A spotify:track: or spotify:episode: URI.' }) }),
+)
+const playQueued = command(
+  'post',
+  '/player/queue/play',
+  'playFromQueue',
+  'Play an item from Up next',
+  z.object({
+    deviceId,
+    uri: z.string().regex(ITEM_URI).openapi({ description: 'The track or episode.', example: 'spotify:track:4uLU6hMCjMI75M1A2tKUQC' }),
+    index: z.number().int().min(0).openapi({ description: "Where it is in Up next (the queue's `queue`), counting from 0." }),
+  }),
+  "Gets there without a bare URI (which Spotify's iPhone app ignores): an item of the playing album, or of a playlist whose contents Replay Crate keeps, plays from that context when shuffle is off, keeping the user's queue; anything else is skipped to, keeping Up next as it was. Answers once the device is playing it (not_started when it doesn't show there in time); not_found when it has left Up next.",
+  ['not_started'],
 )
 const transfer = command(
   'put',
@@ -305,6 +319,14 @@ export function playerRoutes(deps: AppDeps) {
         const { uri, ...target } = c.req.valid('json')
         const result = await withSpotify(c, (token) => spotify.addToQueue(token, uri, target))
         return result.response ?? c.body(null, 204)
+      })
+      .openapi({ ...playQueued, middleware: auth }, async (c) => {
+        const { deviceId: target, uri, index } = c.req.valid('json')
+        const result = await withSpotify(c, (token) => playFromQueue(deps, token, { uri, index, deviceId: target }))
+        if (result.response) return result.response
+        if ('missing' in result.value) return c.json({ error: 'not_found' as const }, 404)
+        if (!result.value.started) return c.json({ error: 'not_started' as const, device: result.value.device }, 409)
+        return c.body(null, 204)
       })
       .openapi({ ...transfer, middleware: auth }, async (c) => {
         const { deviceId: target, play: start } = c.req.valid('json')

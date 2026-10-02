@@ -152,6 +152,7 @@ describe('sendPlayerCommand', () => {
     [{ kind: 'seek', positionMs: 1_000 }, 'PUT', '/api/v1/player/seek', { positionMs: 1_000 }],
     [{ kind: 'volume', percent: 40 }, 'PUT', '/api/v1/player/volume', { percent: 40 }],
     [{ kind: 'queue', uri: 'spotify:track:q' }, 'POST', '/api/v1/player/queue', { uri: 'spotify:track:q' }],
+    [{ kind: 'playQueued', uri: 'spotify:track:q', index: 2 }, 'POST', '/api/v1/player/queue/play', { uri: 'spotify:track:q', index: 2 }],
     [{ kind: 'transfer', deviceId: 'phone', play: true }, 'PUT', '/api/v1/player/device', { deviceId: 'phone', play: true }],
   ])('%j', async (command, method, path, body) => {
     const { api, fetch } = client()

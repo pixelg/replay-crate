@@ -1095,6 +1095,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/player/queue/play": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Play an item from Up next
+         * @description Gets there without a bare URI (which Spotify's iPhone app ignores): an item of the playing album, or of a playlist whose contents Replay Crate keeps, plays from that context when shuffle is off, keeping the user's queue; anything else is skipped to, keeping Up next as it was. Answers once the device is playing it (not_started when it doesn't show there in time); not_found when it has left Up next.
+         */
+        post: operations["playFromQueue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/player/device": {
         parameters: {
             query?: never;
@@ -6400,6 +6420,101 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReauthRequiredError"] | components["schemas"]["NoActiveDeviceError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+            /** @description rate_limited */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedError"];
+                };
+            };
+        };
+    };
+    playFromQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description The device to act on. Defaults to the active one. */
+                    deviceId?: string;
+                    /**
+                     * @description The track or episode.
+                     * @example spotify:track:4uLU6hMCjMI75M1A2tKUQC
+                     */
+                    uri: string;
+                    /** @description Where it is in Up next (the queue's `queue`), counting from 0. */
+                    index: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Sent to the device. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description forbidden | premium_required | missing_scopes | command_refused */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"] | components["schemas"]["PremiumRequiredError"] | components["schemas"]["MissingScopesError"] | components["schemas"]["CommandRefusedError"];
+                };
+            };
+            /** @description not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+            /** @description reauth_required | no_active_device | not_started */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthRequiredError"] | components["schemas"]["NoActiveDeviceError"] | components["schemas"]["NotStartedError"];
                 };
             };
             /** @description internal_error */
