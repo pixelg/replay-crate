@@ -85,15 +85,18 @@ export function usePlayingEpisodeId() {
 }
 
 /**
- * What Spotify has loaded right now, playing or paused, and where from; null once it reports
- * nothing. Re-renders only when that changes, not as the position ticks.
+ * What Spotify has loaded right now, playing or paused, and where from (no context for an item
+ * the user queued); null once it reports nothing. Re-renders only when that changes, not as the
+ * position ticks.
  */
 export function useNowPlaying(): { item: PlayerItem; context: PlayContext | null; isPlaying: boolean } | null {
   return (
     useQuery({
       ...playbackQueryOptions(api),
       select: (playback) =>
-        playback?.item ? { item: playback.item, context: playback.context, isPlaying: playback.isPlaying } : null,
+        playback?.item
+          ? { item: playback.item, context: playback.fromQueue ? null : playback.context, isPlaying: playback.isPlaying }
+          : null,
     }).data ?? null
   )
 }

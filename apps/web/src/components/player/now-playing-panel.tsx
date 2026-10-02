@@ -42,7 +42,11 @@ export function NowPlayingPanel({
       <AlbumArt src={imageOf(item)} className="size-56 rounded-lg shadow-lg md:size-64" />
       <div className="flex w-full min-w-0 flex-1 flex-col gap-4">
         <div className="min-w-0 text-center md:text-left">
-          {playback.context && <PlayingFrom context={playback.context} />}
+          {playback.fromQueue ? (
+            <p className="truncate text-xs text-muted-foreground">Playing from your queue</p>
+          ) : (
+            playback.context && <PlayingFrom context={playback.context} />
+          )}
           <h2 id={titleId} className="truncate text-2xl font-semibold tracking-tight">
             {item.type === 'track' && item.id ? (
               <Link to="/tracks/$trackId" params={{ trackId: item.id }} className="hover:underline">

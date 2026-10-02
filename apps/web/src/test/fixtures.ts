@@ -570,6 +570,7 @@ export const playback: Playback = {
   shuffle: false,
   repeat: 'off',
   context: { type: 'playlist', uri: 'spotify:playlist:p1', name: 'Late Night Crate', imageUrl: null },
+  fromQueue: false,
   item: nowPlaying,
   disallows: ['resuming'],
 }

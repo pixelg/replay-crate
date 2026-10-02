@@ -65,6 +65,20 @@ describe('playlists', () => {
       expect(items.map((i) => i.trackId).sort()).toEqual(['b', 'c'])
     })
 
+    it('renames the context of a renamed playlist', async () => {
+      await ctx.db.insert(schema.contexts).values([
+        { uri: 'spotify:playlist:road', type: 'playlist', name: 'Picked from history', imageUrl: 'https://i.scdn.co/road-300' },
+        { uri: 'spotify:playlist:theirs', type: 'playlist', name: 'Their Mix' },
+      ])
+      serve([playlist('road', { name: 'Fresh Beats' }), playlist('theirs', { ownerId: 'someone-else', name: 'Renamed' })], {})
+      await sync()
+      const contexts = await ctx.db.select({ uri: schema.contexts.uri, name: schema.contexts.name }).from(schema.contexts).orderBy(schema.contexts.uri)
+      expect(contexts).toEqual([
+        { uri: 'spotify:playlist:road', name: 'Fresh Beats' },
+        { uri: 'spotify:playlist:theirs', name: 'Their Mix' },
+      ])
+    })
+
     it('follows pagination and keeps Spotify positions around skipped entries', async () => {
       const many = Array.from({ length: 120 }, (_, i) => playlistEntry(track(`t${i}`)))
       const local: SpotifyPlaylistItem = { ...playlistEntry(track('local')), is_local: true }

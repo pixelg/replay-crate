@@ -2289,6 +2289,10 @@
               }
             ]
           },
+          "fromQueue": {
+            "type": "boolean",
+            "description": "The item isn't part of `context`: the user queued it. Spotify keeps reporting the context, which plays on after the queue. False when that can't be told (e.g. someone else's playlist)."
+          },
           "item": {
             "$ref": "#/components/schemas/PlayerItem"
           },
@@ -2310,6 +2314,7 @@
           "shuffle",
           "repeat",
           "context",
+          "fromQueue",
           "item",
           "disallows"
         ],

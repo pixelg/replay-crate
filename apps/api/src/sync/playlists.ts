@@ -65,6 +65,16 @@ export async function syncPlaylists(
         target: [userPlaylists.userId, userPlaylists.playlistId],
         set: { position: sql`excluded.position` },
       })
+    // Contexts are described once, when first played from: keep up with renames.
+    await db.execute(sql`
+      update contexts c set name = p.name, image_url = p.image_url
+      from playlists p
+      where c.uri = 'spotify:playlist:' || p.id
+        and p.id in (${sql.join(
+          mine.map((playlist) => sql`${playlist.id}`),
+          sql`, `,
+        )})
+        and (c.name, c.image_url) is distinct from (p.name, p.image_url)`)
   }
   // Forget playlists the user deleted or unfollowed.
   await db
