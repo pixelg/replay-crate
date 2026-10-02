@@ -582,7 +582,7 @@ export const queue: PlayerQueue = {
   currentlyPlaying: nowPlaying,
   queue: [
     playerTrack('t2', 'Sunday Morning Static', ['Paper Kites Club'], 'Sunday Sessions'),
-    playerTrack('t5', 'Crate Digger', ['Needle Drop'], 'Wax Poetics'),
+    { ...playerTrack('t5', 'Crate Digger', ['Needle Drop'], 'Wax Poetics'), rating: 5 },
     {
       type: 'episode',
       id: 'e1',
