@@ -118,11 +118,7 @@ describe('playlists', () => {
 
   describe('reading', () => {
     beforeEach(async () => {
-      serve([playlist('road', { name: 'Road Trip', total: 2 }), playlist('chill', { name: 'Chill' })], {
-        road: [playlistEntry(songA), playlistEntry(songB, '2026-09-20T08:00:00Z')],
-        chill: [playlistEntry(songA)],
-      })
-      await sync()
+      // Recorded before Song C left Road Trip, so its play still counts as from there.
       ctx.spotify.getRecentlyPlayed.mockResolvedValue({
         items: [
           play(songA, '2026-09-21T11:50:00.000Z', playlistContext('road')),
@@ -133,6 +129,11 @@ describe('playlists', () => {
         cursors: null,
       })
       await ctx.app.request('/api/v1/history/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })
+      serve([playlist('road', { name: 'Road Trip', total: 2 }), playlist('chill', { name: 'Chill' })], {
+        road: [playlistEntry(songA), playlistEntry(songB, '2026-09-20T08:00:00Z')],
+        chill: [playlistEntry(songA)],
+      })
+      await sync()
     })
 
     it('lists playlists in library order with plays from each', async () => {

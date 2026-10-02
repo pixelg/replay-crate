@@ -9,8 +9,8 @@ import { and, eq, inArray } from 'drizzle-orm'
  * own), a kept playlist that changed since its items were synced may have gained it, and artists
  * and Liked Songs aren't checked.
  *
- * Spotify keeps reporting the context while items the user queued play, so false means the item
- * was queued.
+ * Spotify keeps reporting the context while items the user queued play (in playback and in
+ * recently-played), and after autoplay takes over, so false means the item came from elsewhere.
  */
 export async function inContext(db: Db, item: SpotifyPlayable, context: Pick<SpotifyContext, 'type' | 'uri'>): Promise<boolean | null> {
   const id = context.uri.split(':')[2]

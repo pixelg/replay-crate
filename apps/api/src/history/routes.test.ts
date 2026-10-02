@@ -1,6 +1,7 @@
 import { schema } from '@replay-crate/db'
 import { SpotifyApiError, SpotifyAuthError } from '@replay-crate/spotify'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { upsertCatalog } from '../sync/catalog.ts'
 import { createTestContext, paged, play, playlist, playlistContext, playlistEntry, track } from '../testing.ts'
 
 const MINUTE = 60_000
@@ -105,6 +106,39 @@ describe('history', () => {
         'spotify:user:pixelg:collection': 'Liked Songs',
         'spotify:artist:art-1': 'Artist art-1',
       })
+    })
+
+    it("drops a context the track provably isn't in: one the user queued, or autoplay chose", async () => {
+      const queued = track('q', { album: ['alb-2', 'Second Album'] })
+      await ctx.db.insert(schema.playlists).values([
+        { id: 'kept', ownerId: 'pixelg', name: 'Kept', snapshotId: 's1', itemsSnapshotId: 's1' },
+        { id: 'changed', ownerId: 'pixelg', name: 'Changed', snapshotId: 's2', itemsSnapshotId: 's1' },
+      ])
+      ctx.spotify.getRecentlyPlayed.mockResolvedValue({
+        items: [
+          play(songA, '2026-09-21T11:50:00.000Z', playlistContext('kept')),
+          play(queued, '2026-09-21T11:46:00.000Z', playlistContext('kept')),
+          play(queued, '2026-09-21T11:42:00.000Z', { type: 'album', uri: 'spotify:album:alb-1' }),
+          play(songB, '2026-09-21T11:38:00.000Z', { type: 'album', uri: 'spotify:album:alb-1' }),
+          // Can't tell: changed since its items were synced, or not the user's.
+          play(queued, '2026-09-21T11:34:00.000Z', playlistContext('changed')),
+          play(queued, '2026-09-21T11:30:00.000Z', playlistContext('theirs')),
+        ],
+        cursors: null,
+      })
+      await upsertCatalog(ctx.db, [songA])
+      await ctx.db.insert(schema.playlistItems).values({ playlistId: 'kept', position: 0, trackId: 'a' })
+
+      await sync()
+      const plays = await ctx.db.select({ trackId: schema.plays.trackId, context: schema.plays.contextUri }).from(schema.plays).orderBy(schema.plays.playedAt)
+      expect(plays.reverse()).toEqual([
+        { trackId: 'a', context: 'spotify:playlist:kept' },
+        { trackId: 'q', context: null },
+        { trackId: 'q', context: null },
+        { trackId: 'b', context: 'spotify:album:alb-1' },
+        { trackId: 'q', context: 'spotify:playlist:changed' },
+        { trackId: 'q', context: 'spotify:playlist:theirs' },
+      ])
     })
 
     it('retries a context lookup that failed transiently', async () => {

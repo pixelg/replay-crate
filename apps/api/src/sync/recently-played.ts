@@ -1,7 +1,8 @@
-import { schema } from '@replay-crate/db'
+import { schema, type Db } from '@replay-crate/db'
 import type { PlayHistoryItem, SpotifyContext } from '@replay-crate/spotify'
-import { eq, max } from 'drizzle-orm'
+import { and, eq, inArray, max } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
+import { inContext } from '../player/in-context.ts'
 import { getAccessToken } from '../spotify/access-token.ts'
 import { upsertCatalog } from './catalog.ts'
 import { resolveContexts } from './contexts.ts'
@@ -32,6 +33,19 @@ export function detectGap(lastKnown: Date | null, page: Array<{ played_at: strin
   return oldest > lastKnown ? { after: lastKnown, before: oldest } : null
 }
 
+/**
+ * What each play was played from. Spotify names the context that was on even for a track the
+ * user queued, or one autoplay chose after the context ended, so a context the track provably
+ * isn't in (see inContext) is dropped: the play counts as played on its own.
+ */
+async function playedFrom(db: Db, items: PlayHistoryItem[]): Promise<Array<SpotifyContext | null>> {
+  return Promise.all(
+    items.map(async ({ track, context }) =>
+      context && (await inContext(db, { ...track, type: 'track' }, context)) === false ? null : context,
+    ),
+  )
+}
+
 /** Records the user's latest plays. Safe to run as often as you like. */
 export async function syncRecentlyPlayed(deps: AppDeps, userId: string): Promise<SyncResult> {
   const { db, spotify } = deps
@@ -52,17 +66,27 @@ export async function syncRecentlyPlayed(deps: AppDeps, userId: string): Promise
     db,
     items.map((item) => item.track),
   )
+  // Already recorded plays are left alone, so only new ones are looked into.
+  const known = items.length
+    ? await db
+        .select({ at: schema.plays.playedAt, type: schema.plays.contextType, uri: schema.plays.contextUri })
+        .from(schema.plays)
+        .where(and(eq(schema.plays.userId, userId), inArray(schema.plays.playedAt, items.map((item) => new Date(item.played_at)))))
+    : []
+  const recorded = new Set(known.map(({ at }) => at.getTime()))
+  const fresh = items.filter((item) => !recorded.has(new Date(item.played_at).getTime()))
+  const contexts = await playedFrom(db, fresh)
 
-  const inserted = items.length
+  const inserted = fresh.length
     ? await db
         .insert(schema.plays)
         .values(
-          items.map((item) => ({
+          fresh.map((item, i) => ({
             userId,
             trackId: item.track.id,
             playedAt: new Date(item.played_at),
-            contextType: item.context?.type ?? null,
-            contextUri: item.context?.uri ?? null,
+            contextType: contexts[i]?.type ?? null,
+            contextUri: contexts[i]?.uri ?? null,
             source: 'poll' as const,
           })),
         )
@@ -70,11 +94,9 @@ export async function syncRecentlyPlayed(deps: AppDeps, userId: string): Promise
         .returning({ id: schema.plays.id })
     : []
 
-  await resolveContexts(
-    deps,
-    accessToken,
-    items.map((item) => item.context).filter((context): context is SpotifyContext => context != null),
-  )
+  // Recorded plays' contexts too: a lookup that failed for a moment is tried again.
+  const recordedContexts = known.flatMap(({ type, uri }) => (type && uri ? [{ type, uri }] : []))
+  await resolveContexts(deps, accessToken, [...contexts.filter((context): context is SpotifyContext => context != null), ...recordedContexts])
 
   const syncedAt = deps.now?.() ?? new Date()
   if (gap) {
