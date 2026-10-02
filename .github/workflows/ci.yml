@@ -39,54 +39,69 @@ jobs:
           echo "$changed"
           if echo "$changed" | grep -qvE '(\.md|^LICENSE)$'; then echo "code=true"; else echo "code=false"; fi >> "$GITHUB_OUTPUT"
 
-  check:
+  # The checks run as parallel jobs, each on its own runner: setup costs ~20 s, and one runner
+  # doing them in turn took twice as long. `check` (below) sums them up for branch protection.
+  static:
+    name: lint, typecheck, build
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     env:
       STORYBOOK_DISABLE_TELEMETRY: 1
       # Required by the web app's env schema. Public by design (PKCE), and CI never talks to Spotify.
       SPOTIFY_CLIENT_ID: ci-placeholder
     steps:
       - uses: actions/checkout@v7
-      # Uses the pnpm version pinned in package.json#packageManager.
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      # Turbo's local task cache, carried between runs: packages whose inputs haven't changed
-      # replay their typecheck/test/build results instead of running again.
-      - uses: actions/cache@v6
-        with:
-          path: .turbo/cache
-          key: turbo-${{ runner.os }}-${{ github.sha }}
-          restore-keys: turbo-${{ runner.os }}-
+      - uses: ./.github/actions/setup
       - run: pnpm lint
       - run: pnpm typecheck
       # typecheck regenerates the OpenAPI spec and the web app's types from it; both are committed.
       - name: Generated API files are up to date
         run: git diff --exit-code -- apps/api/openapi.json apps/web/src/test/api.gen.ts
-      - name: Resolve Playwright version
-        id: playwright
-        run: echo "version=$(pnpm --filter @replay-crate/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v6
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-      - name: Install Chromium for Storybook tests and E2E
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @replay-crate/web exec playwright install --with-deps chromium
-      # The browser comes from the cache; its system libraries don't.
-      - name: Install Chromium's system libraries
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @replay-crate/web exec playwright install-deps chromium
-      - run: pnpm test
       - run: pnpm build
       - run: pnpm build-storybook
+
+  unit:
+    name: API and package tests
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SPOTIFY_CLIENT_ID: ci-placeholder
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm exec turbo run test --filter='!@replay-crate/web'
+
+  stories:
+    name: web stories
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      STORYBOOK_DISABLE_TELEMETRY: 1
+      SPOTIFY_CLIENT_ID: ci-placeholder
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/chromium
+      - run: pnpm exec turbo run test --filter=@replay-crate/web
+
+  e2e:
+    name: E2E
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SPOTIFY_CLIENT_ID: ci-placeholder
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/chromium
       # Built app + API with an in-memory DB and a fake Spotify, desktop and phone sizes.
       - run: pnpm test:e2e
       - name: Upload Playwright traces
@@ -96,6 +111,18 @@ jobs:
           name: playwright-traces
           path: apps/web/test-results
           retention-days: 7
+
+  # The one result branch protection requires (with the search job): passes when every check
+  # passed or was skipped (a docs-only change), fails if any failed or was cancelled.
+  check:
+    needs: [changes, static, unit, stories, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Every check passed or was skipped
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
 
   # The search contract suite (apps/api/src/search/contract.ts) against a real Elasticsearch,
   # the engine the app uses when ELASTICSEARCH_URL is set. The check job runs it on Postgres.

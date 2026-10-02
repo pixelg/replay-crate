@@ -1,0 +1,23 @@
+name: Chromium
+description: Playwright's Chromium (cached by version) and its system libraries.
+runs:
+  using: composite
+  steps:
+    - name: Resolve Playwright version
+      id: playwright
+      shell: bash
+      run: echo "version=$(pnpm --filter @replay-crate/web exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache@v6
+      id: cache
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+    - name: Install Chromium
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: pnpm --filter @replay-crate/web exec playwright install --with-deps chromium
+    # The browser comes from the cache; its system libraries don't.
+    - name: Install Chromium's system libraries
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: pnpm --filter @replay-crate/web exec playwright install-deps chromium
