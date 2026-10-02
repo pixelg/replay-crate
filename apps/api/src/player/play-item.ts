@@ -1,8 +1,9 @@
 import { schema, type Db, type User } from '@replay-crate/db'
 import { SpotifyApiError, type SpotifyPlayable } from '@replay-crate/spotify'
-import { and, desc, eq, isNotNull } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
+import { canonicalTrackId, isCopyOf } from '../tracks/recordings.ts'
 
 // Playing one track or episode. Spotify's iPhone app takes a play of a bare URI (`uris`), answers
 // 204, stops what was playing and never starts the new item; started from a context at that item
@@ -20,6 +21,8 @@ export type PlayItemResult = { started: true } | { started: false; device: strin
 
 type Player = Pick<User, 'id' | 'playTracksFrom'>
 type PlayItem = { uri: string; user: Player; positionMs?: number; deviceId?: string }
+/** A context to start in, and the item in it to start at (the copy of the track it holds). */
+type StartAt = { context: string; offset: string }
 
 export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
@@ -31,14 +34,13 @@ export async function itemContexts(
   deps: Pick<AppDeps, 'db' | 'spotify'>,
   token: string,
   { uri, user }: { uri: string; user: Player },
-): Promise<string[]> {
+): Promise<StartAt[]> {
   const [, type, id] = uri.split(':') as [string, 'track' | 'episode', string]
   const { db, spotify } = deps
   if (type === 'episode') {
     const [known] = await db.select({ showId: schema.episodes.showId }).from(schema.episodes).where(eq(schema.episodes.id, id))
-    if (known) return [`spotify:show:${known.showId}`]
-    const episode = await spotify.getEpisode(token, id).catch(lookupFailed(uri))
-    return episode ? [`spotify:show:${episode.show.id}`] : []
+    const showId = known?.showId ?? (await spotify.getEpisode(token, id).catch(lookupFailed(uri)))?.show.id
+    return showId ? [{ context: `spotify:show:${showId}`, offset: uri }] : []
   }
 
   const playlist = user.playTracksFrom === 'playlist' ? await lastPlaylist(db, user.id, id) : null
@@ -49,31 +51,34 @@ export async function itemContexts(
     if (track) await upsertCatalog(db, [track])
     albumId = track?.album.id
   }
-  return [...(playlist ? [playlist] : []), ...(albumId ? [`spotify:album:${albumId}`] : [])]
+  return [...(playlist ? [playlist] : []), ...(albumId ? [{ context: `spotify:album:${albumId}`, offset: uri }] : [])]
 }
 
 /**
- * The playlist the user last played `trackId` from, unless it's one whose contents we keep and
- * the track has left it. Other playlists are tried; Spotify refuses if the track isn't there.
+ * The playlist the user last played `trackId`'s recording from, at the copy it holds, unless it's
+ * one whose contents we keep and the recording has left it. Other playlists are tried at the
+ * track asked for; Spotify refuses if it isn't there.
  */
-async function lastPlaylist(db: Db, userId: string, trackId: string): Promise<string | null> {
+async function lastPlaylist(db: Db, userId: string, trackId: string): Promise<StartAt | null> {
   const { plays, playlists, playlistItems } = schema
+  const recording = await canonicalTrackId(db, trackId)
   const [last] = await db
     .select({ uri: plays.contextUri })
     .from(plays)
-    .where(and(eq(plays.userId, userId), eq(plays.trackId, trackId), eq(plays.contextType, 'playlist'), isNotNull(plays.contextUri)))
+    .where(and(eq(plays.userId, userId), eq(plays.trackId, recording), eq(plays.contextType, 'playlist'), isNotNull(plays.contextUri)))
     .orderBy(desc(plays.playedAt))
     .limit(1)
   if (!last?.uri) return null
   const playlistId = last.uri.replace('spotify:playlist:', '')
   const [kept] = await db.select({ snapshot: playlists.itemsSnapshotId }).from(playlists).where(eq(playlists.id, playlistId))
-  if (!kept?.snapshot) return last.uri
-  const [still] = await db
-    .select({ position: playlistItems.position })
+  if (!kept?.snapshot) return { context: last.uri, offset: `spotify:track:${trackId}` }
+  const [held] = await db
+    .select({ trackId: playlistItems.trackId })
     .from(playlistItems)
-    .where(and(eq(playlistItems.playlistId, playlistId), eq(playlistItems.trackId, trackId)))
+    .where(and(eq(playlistItems.playlistId, playlistId), isCopyOf(playlistItems.trackId, recording)))
+    .orderBy(sql`${playlistItems.trackId} = ${trackId} desc`)
     .limit(1)
-  return still ? last.uri : null
+  return held ? { context: last.uri, offset: `spotify:track:${held.trackId}` } : null
 }
 
 /** Without a context the item can still be played on its own, which most devices start. */
@@ -88,9 +93,9 @@ export const contextRefused = (error: unknown) =>
 
 /** Tries each of the item's contexts in turn; false when Spotify took none of them. */
 async function startFromContext(deps: Pick<AppDeps, 'db' | 'spotify'>, token: string, { uri, user, positionMs, deviceId }: PlayItem) {
-  for (const context of await itemContexts(deps, token, { uri, user })) {
+  for (const { context, offset } of await itemContexts(deps, token, { uri, user })) {
     try {
-      await deps.spotify.play(token, { contextUri: context, offset: { uri }, positionMs, deviceId })
+      await deps.spotify.play(token, { contextUri: context, offset: { uri: offset }, positionMs, deviceId })
       return true
     } catch (error) {
       // A playlist the track has left, a show (Spotify only promises albums, artists and

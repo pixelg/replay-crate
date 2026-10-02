@@ -165,7 +165,9 @@ export async function expand(db: Db, changes: Change[]): Promise<Map<string, Key
     if (keys.tracksOfPlaylists.size) {
       for (const row of await rows<{ track_id: string }>(
         db,
-        sql`select distinct track_id from playlist_items where playlist_id in ${list(keys.tracksOfPlaylists)}`,
+        // A copy of a recording counts as its canonical track (whose playlists this changes).
+        sql`select distinct coalesce(t.recording_of, t.id) as track_id from playlist_items pi join tracks t on t.id = pi.track_id
+          where pi.playlist_id in ${list(keys.tracksOfPlaylists)}`,
       )) {
         keys.track.add(row.track_id)
       }
@@ -221,12 +223,16 @@ export async function expand(db: Db, changes: Change[]): Promise<Map<string, Key
   return byUser
 }
 
-/** The user's library: tracks they've played, rated, or have on a playlist. */
+/**
+ * The user's library: tracks they've played, rated, or have on a playlist. Each recording once,
+ * as its canonical track (plays and ratings are already on it; a playlist may hold another copy).
+ */
 const libraryTracks = (userId: string) => sql`(
   select track_id from plays where user_id = ${userId}
   union select track_id from track_ratings where user_id = ${userId}
-  union select pi.track_id from playlist_items pi
+  union select coalesce(t.recording_of, t.id) from playlist_items pi
     join user_playlists up on up.playlist_id = pi.playlist_id and up.user_id = ${userId}
+    join tracks t on t.id = pi.track_id
 )`
 
 /** The user's podcast library: episodes they've listened to, rated, or have on a playlist. */
@@ -318,7 +324,7 @@ const queries: Record<EntityType, (userId: string, ids: Set<string>) => SQL> = {
       (select array_agg(distinct pl.name) from playlist_items pi
         join user_playlists up on up.playlist_id = pi.playlist_id and up.user_id = ${userId}
         join playlists pl on pl.id = pi.playlist_id
-        where pi.track_id = t.id) as playlists,
+        where pi.track_id in (select c.id from tracks c where c.id = t.id or c.recording_of = t.id)) as playlists,
       (select array_agg(distinct c.name) from plays p join contexts c on c.uri = p.context_uri
         where p.user_id = ${userId} and p.track_id = t.id and c.name is not null) as contexts,
       null as track_id

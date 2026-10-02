@@ -4,6 +4,7 @@ import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
 import { getAccessToken } from '../spotify/access-token.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
+import { recordingsOf } from '../tracks/recordings.ts'
 
 const { artists, plays, trackArtists } = schema
 
@@ -33,7 +34,12 @@ export async function spotifyTop(
     const page = await spotify.getTopTracks(accessToken, timeRange)
     const topTracks = page.items.filter((t) => t.id && !t.is_local)
     await upsertCatalog(db, topTracks)
-    const ids = topTracks.map((t) => t.id!)
+    // Spotify names whichever copy of a recording it counted; our plays sit on the canonical one.
+    const recordings = await recordingsOf(
+      db,
+      topTracks.map((t) => t.id!),
+    )
+    const ids = [...new Set(recordings.values())]
     const counts = ids.length
       ? await db
           .select({ id: plays.trackId, plays: count() })
@@ -41,7 +47,8 @@ export async function spotifyTop(
           .where(and(eq(plays.userId, userId), inArray(plays.trackId, ids)))
           .groupBy(plays.trackId)
       : []
-    const byId = new Map(counts.map((row) => [row.id, row.plays]))
+    const byRecording = new Map(counts.map((row) => [row.id, row.plays]))
+    const byId = new Map([...recordings].map(([id, recording]) => [id, byRecording.get(recording) ?? 0]))
     return topTracks.map((t, index) => ({
       rank: index + 1,
       id: t.id!,

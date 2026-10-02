@@ -1,6 +1,6 @@
 import { schema, type Db } from '@replay-crate/db'
 import { pickImage, type SpotifySimplifiedArtist, type SpotifyTrack } from '@replay-crate/spotify'
-import { sql } from 'drizzle-orm'
+import { and, inArray, isNull, sql } from 'drizzle-orm'
 
 const { albumArtists, albums, artists, trackArtists, tracks } = schema
 
@@ -85,7 +85,28 @@ export async function upsertCatalog(db: Db, items: SpotifyTrack[]): Promise<void
     track.artists.filter(hasId).map((artist, position) => ({ trackId: track.id, artistId: artist.id, position })),
   )
   if (trackCredits.length) await db.insert(trackArtists).values(trackCredits).onConflictDoNothing()
+
+  await mergeRecordings(db, catalogTracks.flatMap((track) => (track.external_ids?.isrc ? [track.external_ids.isrc] : [])))
 }
+
+/**
+ * Joins new copies of a recording (another release's track with the same ISRC) to it: the
+ * recording's plays and ratings gather on one canonical track (`merge_recordings()`, migration
+ * 0025). Only ISRCs with more than one unlinked track need it, which is rarely any.
+ */
+export async function mergeRecordings(db: Db, isrcs: string[]): Promise<void> {
+  if (!isrcs.length) return
+  const unlinked = await db
+    .select({ isrc: tracks.isrc })
+    .from(tracks)
+    .where(and(inArray(tracks.isrc, [...new Set(isrcs)]), isNull(tracks.recordingOf)))
+    .groupBy(tracks.isrc)
+    .having(sql`count(*) > 1`)
+  const groups = unlinked.flatMap((row) => (row.isrc ? [row.isrc] : []))
+  if (groups.length) await db.execute(sql`select merge_recordings(${toTextArray(groups)})`)
+}
+
+const toTextArray = (values: string[]) => sql`array[${sql.join(values.map((value) => sql`${value}`), sql`, `)}]::text[]`
 
 function hasId(artist: SpotifySimplifiedArtist): boolean {
   return Boolean(artist.id)

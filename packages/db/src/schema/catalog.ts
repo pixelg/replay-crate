@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, pgTable, primaryKey, text, timestamp, type AnyPgColumn } from 'drizzle-orm/pg-core'
 
 // Shared Spotify catalog: one row per artist/album/track any user has played.
 // Ids are Spotify ids. Upserted on every sync, so names and images stay fresh.
@@ -50,17 +50,27 @@ export const albumArtists = pgTable(
   (t) => [primaryKey({ columns: [t.albumId, t.position] })],
 )
 
-export const tracks = pgTable('tracks', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  albumId: text('album_id')
-    .notNull()
-    .references(() => albums.id),
-  durationMs: integer('duration_ms').notNull(),
-  explicit: boolean('explicit').notNull().default(false),
-  isrc: text('isrc'),
-  ...timestamps,
-})
+export const tracks = pgTable(
+  'tracks',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    albumId: text('album_id')
+      .notNull()
+      .references(() => albums.id),
+    durationMs: integer('duration_ms').notNull(),
+    explicit: boolean('explicit').notNull().default(false),
+    isrc: text('isrc'),
+    /**
+     * Set on another copy of a recording (same ISRC on another release): the track that stands
+     * for them all. Plays and ratings live on that one (`merge_recordings()`, migration 0025);
+     * null on the canonical track and on tracks with no copies.
+     */
+    recordingOf: text('recording_of').references((): AnyPgColumn => tracks.id),
+    ...timestamps,
+  },
+  (t) => [index('tracks_isrc_idx').on(t.isrc), index('tracks_recording_of_idx').on(t.recordingOf)],
+)
 
 export const trackArtists = pgTable(
   'track_artists',

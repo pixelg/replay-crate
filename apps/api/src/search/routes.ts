@@ -10,6 +10,7 @@ import { IsoDateTime, jsonBody, jsonResponse, Rating } from '../lib/schemas.ts'
 import { getAccessToken } from '../spotify/access-token.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { localDay, timeZone } from '../stats/ranges.ts'
+import { recordingsOfSpotifyTracks } from '../tracks/recordings.ts'
 
 const EntityTypeSchema = z.enum(ENTITY_TYPES).openapi('SearchType')
 const Range = z.tuple([z.number().int(), z.number().int()]).openapi({ description: '[start, end) character offsets.' })
@@ -255,7 +256,9 @@ export function searchRoutes(deps: AppDeps) {
       try {
         const page = await deps.spotify.searchTracks(await getAccessToken(deps, c.var.user.id), text, limit)
         const found = page.items.filter((t): t is typeof t & { id: string } => Boolean(t.id) && !t.is_local)
-        const ids = found.map((t) => t.id)
+        // Plays of the recording, under whichever copy of it they were recorded.
+        const recordings = await recordingsOfSpotifyTracks(deps.db, found)
+        const ids = [...new Set([...recordings.values()].filter((id) => id != null))]
         const counts = ids.length
           ? await deps.db
               .select({ id: schema.plays.trackId, plays: count() })
@@ -263,7 +266,8 @@ export function searchRoutes(deps: AppDeps) {
               .where(and(eq(schema.plays.userId, c.var.user.id), inArray(schema.plays.trackId, ids)))
               .groupBy(schema.plays.trackId)
           : []
-        const plays = new Map(counts.map((row) => [row.id, row.plays]))
+        const byRecording = new Map(counts.map((row) => [row.id, row.plays]))
+        const plays = new Map(found.map((t) => [t.id, byRecording.get(recordings.get(t.id) ?? '') ?? 0]))
         return c.json(
           {
             tracks: found.map((t) => ({
