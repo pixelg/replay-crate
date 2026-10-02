@@ -48,13 +48,13 @@ export function EpisodeLibraryList({
               side={
                 <>
                   <EpisodeRating episode={episode} compactOnPhones />
-                  <div className="min-w-14 shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:min-w-24">
+                  <div className="min-w-14 shrink-0 text-right text-xs text-muted-foreground tabular-nums @2xl:min-w-24">
                     {playing ? (
-                      <p className="hidden items-center justify-end gap-1 text-primary sm:flex">
+                      <p className="hidden items-center justify-end gap-1 text-primary @2xl:flex">
                         <AudioLines aria-hidden className="size-4 motion-safe:animate-pulse" /> Now playing
                       </p>
                     ) : detail === 'listened' && lastListenedAt ? (
-                      <p className="hidden sm:block">{formatRelative(new Date(lastListenedAt), now)}</p>
+                      <p className="hidden @2xl:block">{formatRelative(new Date(lastListenedAt), now)}</p>
                     ) : null}
                     {detail === 'released' ? (
                       <p>{released ?? '—'}</p>

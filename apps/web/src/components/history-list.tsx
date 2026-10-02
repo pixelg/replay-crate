@@ -147,7 +147,7 @@ export function NowPlayingSection({
         subtitle={subtitleOf(item)}
         chips={<TrackChips context={context} playlists={(track && detail?.playlists) || []} genres={(track && detail?.track.genres) || []} />}
         // It's already playing: an empty slot where the play button goes keeps the rest in line with the rows below.
-        actions={track && !selecting && <TrackRowActions track={track} play={<span aria-hidden className="hidden size-9 sm:block" />} />}
+        actions={track && !selecting && <TrackRowActions track={track} play={<span aria-hidden className="hidden size-9 @2xl:block" />} />}
         side={
           <>
             {track && <TrackRating track={track} compactOnPhones />}
@@ -157,7 +157,7 @@ export function NowPlayingSection({
               ) : (
                 <Pause aria-hidden className="size-4 shrink-0" />
               )}
-              <span className="sr-only sm:not-sr-only">{isPlaying ? 'Playing' : 'Paused'}</span>
+              <span className="sr-only @2xl:not-sr-only">{isPlaying ? 'Playing' : 'Paused'}</span>
             </span>
           </>
         }
@@ -168,7 +168,7 @@ export function NowPlayingSection({
 }
 
 /** The right-hand time column: a steady width, so the ratings line up down the list. */
-const timeClass = 'shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:w-20'
+const timeClass = 'shrink-0 text-right text-xs text-muted-foreground tabular-nums @2xl:w-20'
 
 function GapMarker({ gap }: { gap: HistoryGap }) {
   return (

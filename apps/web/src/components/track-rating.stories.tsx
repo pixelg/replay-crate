@@ -11,7 +11,8 @@ const FETCHED_AT = 1_000
 
 /**
  * A row's rating as the app shows it: the track comes from the query cache, so a change shows
- * as soon as `useRateTrack` writes it there.
+ * as soon as `useRateTrack` writes it there. The wrapper stands in for the row, a container as
+ * wide as the screen (up to 48rem), since the rating picks its form by the row's width.
  */
 function Rated({ initial }: { initial: number | null }) {
   const { data: track, dataUpdatedAt } = useQuery({
@@ -22,7 +23,7 @@ function Rated({ initial }: { initial: number | null }) {
     staleTime: Infinity,
   })
   return (
-    <div data-fetched-at={dataUpdatedAt}>
+    <div data-fetched-at={dataUpdatedAt} className="@container flex w-[min(calc(100vw-2rem),48rem)] justify-center">
       <TrackRating track={track} compactOnPhones />
     </div>
   )
@@ -127,7 +128,7 @@ export const EscapeOrTapOutsideCloses = meta.story({
   },
 })
 
-/** From `md` up the row has room for the stars themselves. */
+/** A row of `@2xl` and up has room for the stars themselves. */
 export const OnDesktop = meta.story({
   globals: { viewport: { value: 'desktop', isRotated: false } },
   play: async ({ canvas }) => {

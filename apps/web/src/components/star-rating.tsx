@@ -71,8 +71,9 @@ type RatedTrack = { id: string; name: string; rating: number | null }
 type Rate = ReturnType<typeof useRateTrack>
 
 /**
- * The signed-in user's rating of a track, saved as it changes. With `compactOnPhones`, rows too
- * narrow for five stars show `CompactTrackRating` below `md` and the stars from `md` up.
+ * The signed-in user's rating of a track, saved as it changes. With `compactOnPhones` (inside a
+ * `TrackRow`, which is a container), rows too narrow for five stars show `CompactTrackRating`, and
+ * rows of `@2xl` and up the stars.
  */
 export function TrackRating({
   track,
@@ -118,13 +119,13 @@ function ItemRating({
       rating={track.rating}
       onChange={(rating) => rate.mutate({ trackId: track.id, rating })}
       size={size}
-      className={cn(compactOnPhones && 'hidden md:inline-flex', className)}
+      className={cn(compactOnPhones && 'hidden @2xl:inline-flex', className)}
     />
   )
   if (!compactOnPhones) return stars
   return (
     <>
-      <CompactRating track={track} rate={rate} className={cn('md:hidden', className)} />
+      <CompactRating track={track} rate={rate} className={cn('@2xl:hidden', className)} />
       {stars}
     </>
   )

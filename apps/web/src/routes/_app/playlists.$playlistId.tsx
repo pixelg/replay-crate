@@ -210,7 +210,7 @@ function PlaylistEpisodeRow({ item, playing, actions }: { item: PlaylistEpisode;
   return (
     <TrackRow
       playing={playing}
-      lead={<span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums sm:block">{item.position + 1}</span>}
+      lead={<span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums @2xl:block">{item.position + 1}</span>}
       art={<AlbumArt src={episode.thumbUrl} className="size-11" />}
       title={<EpisodeNameLink episode={episode} playing={playing} />}
       subtitle={<ShowLink show={episode.show} />}
@@ -224,7 +224,7 @@ function PlaylistEpisodeRow({ item, playing, actions }: { item: PlaylistEpisode;
       side={
         <>
           <EpisodeRating episode={episode} compactOnPhones />
-          <div className="shrink-0 text-right text-xs text-muted-foreground md:min-w-24">
+          <div className="shrink-0 text-right text-xs text-muted-foreground @2xl:min-w-24">
             {item.listens > 0 ? <p className="font-medium text-foreground">{formatListened(item.listenedMs)}</p> : <p>Not played</p>}
           </div>
         </>
@@ -254,7 +254,7 @@ function PlaylistTrackRow({ item, playing, play, actions }: { item: PlaylistTrac
     <TrackRow
       playing={playing}
       lead={
-        <span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums sm:block">{item.position + 1}</span>
+        <span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums @2xl:block">{item.position + 1}</span>
       }
       art={<AlbumArt src={track.album.thumbUrl} className="size-11" />}
       title={<TrackNameLink track={track} playing={playing} />}
@@ -265,11 +265,11 @@ function PlaylistTrackRow({ item, playing, play, actions }: { item: PlaylistTrac
         <>
           <TrackRating track={track} compactOnPhones />
           {/* A steady width, so the stars line up down the list. */}
-          <div className="shrink-0 text-right md:min-w-24">
+          <div className="shrink-0 text-right @2xl:min-w-24">
             <p className="font-semibold tabular-nums">{item.playCount}</p>
             <p className="text-xs text-muted-foreground">
               {item.playCount === 1 ? 'play' : 'plays'}
-              {item.playsHere > 0 && item.playsHere !== item.playCount && <span className="hidden sm:inline"> · {item.playsHere} here</span>}
+              {item.playsHere > 0 && item.playsHere !== item.playCount && <span className="hidden @2xl:inline"> · {item.playsHere} here</span>}
             </p>
           </div>
         </>

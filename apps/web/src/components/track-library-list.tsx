@@ -63,19 +63,19 @@ export function TrackLibraryList({
                   {/* A steady width, so the stars line up down the list. On phones, only the count (and
                       the month of the first play when that's the sort): the title needs the room, and
                       the playing row is highlighted anyway. */}
-                  <div className="min-w-14 shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:min-w-24">
+                  <div className="min-w-14 shrink-0 text-right text-xs text-muted-foreground tabular-nums @2xl:min-w-24">
                     {playing ? (
-                      <p className="hidden items-center justify-end gap-1 text-primary sm:flex">
+                      <p className="hidden items-center justify-end gap-1 text-primary @2xl:flex">
                         <AudioLines aria-hidden className="size-4 motion-safe:animate-pulse" /> Now playing
                       </p>
                     ) : (
-                      <p className="hidden sm:block">{formatRelative(new Date(lastPlayedAt), now)}</p>
+                      <p className="hidden @2xl:block">{formatRelative(new Date(lastPlayedAt), now)}</p>
                     )}
                     <p>
                       <span className="font-medium text-foreground">{playCount.toLocaleString()}</span> {playCount === 1 ? 'play' : 'plays'}
                     </p>
-                    <p className={cn('sm:block', !firstPlayedOnPhones && 'hidden')}>
-                      <span className="sr-only sm:not-sr-only">since </span>
+                    <p className={cn('@2xl:block', !firstPlayedOnPhones && 'hidden')}>
+                      <span className="sr-only @2xl:not-sr-only">since </span>
                       <time dateTime={firstPlayedAt} title={`First played ${dateFormat.format(new Date(firstPlayedAt))}`}>
                         {monthFormat.format(new Date(firstPlayedAt))}
                       </time>
