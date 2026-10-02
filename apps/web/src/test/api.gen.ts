@@ -960,7 +960,7 @@ export interface paths {
         get?: never;
         /**
          * Play or resume
-         * @description With `uris` or `contextUri`, starts playing them; with neither, resumes what was paused.
+         * @description With `item`, `uris` or `contextUri`, starts playing them; with none, resumes what was paused. Prefer `item` for a single track or episode: Spotify's iPhone app ignores a bare URI played with `uris`.
          */
         put: operations["play"];
         post?: never;
@@ -1213,6 +1213,27 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your settings */
+        get: operations["getSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change your settings
+         * @description Changes the settings given and leaves the rest.
+         */
+        patch: operations["updateSettings"];
         trace?: never;
     };
 }
@@ -1996,6 +2017,13 @@ export interface components {
             /** @description The app's id for the device, to forget it with. */
             rememberedId: number;
         };
+        /** @description Spotify took the play, but the device never started it. */
+        NotStartedError: {
+            /** @enum {string} */
+            error: "not_started";
+            /** @description The device that was asked, when Spotify said. */
+            device: string | null;
+        };
         /** @enum {string} */
         SearchType: "track" | "artist" | "album" | "playlist" | "play" | "show" | "episode";
         SpotifyTrackHit: {
@@ -2135,6 +2163,13 @@ export interface components {
                     number
                 ][][];
             };
+        };
+        Settings: {
+            /**
+             * @description Where a track played on its own starts from: its album, or the playlist it was last played from (its album when there's none). Up next is the rest of it.
+             * @enum {string}
+             */
+            playTracksFrom: "album" | "playlist";
         };
     };
     responses: never;
@@ -5671,6 +5706,11 @@ export interface operations {
                 "application/json": {
                     /** @description The device to act on. Defaults to the active one. */
                     deviceId?: string;
+                    /**
+                     * @description One track or episode, played from a context so Up next is the rest of it: a track from its album, or the playlist it was last played from (the user's `playTracksFrom` setting); an episode from its show. Answers once the device is playing it.
+                     * @example spotify:track:4uLU6hMCjMI75M1A2tKUQC
+                     */
+                    item?: string;
                     /** @description Tracks to play, as spotify:track: URIs. */
                     uris?: string[];
                     /**
@@ -5732,13 +5772,13 @@ export interface operations {
                     "application/json": components["schemas"]["NotFoundError"];
                 };
             };
-            /** @description reauth_required | no_active_device */
+            /** @description reauth_required | no_active_device | not_started */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ReauthRequiredError"] | components["schemas"]["NoActiveDeviceError"];
+                    "application/json": components["schemas"]["ReauthRequiredError"] | components["schemas"]["NoActiveDeviceError"] | components["schemas"]["NotStartedError"];
                 };
             };
             /** @description internal_error */
@@ -6786,6 +6826,101 @@ export interface operations {
                             playCount: number;
                         })[];
                     };
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    getSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Your settings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Settings"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    updateSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description Where a track played on its own starts from: its album, or the playlist it was last played from (its album when there's none). Up next is the rest of it.
+                     * @enum {string}
+                     */
+                    playTracksFrom?: "album" | "playlist";
+                };
+            };
+        };
+        responses: {
+            /** @description Your settings, changed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Settings"];
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
                 };
             };
             /** @description unauthorized */

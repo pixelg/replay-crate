@@ -17,23 +17,23 @@ export function useSearchActions() {
     })
 
   return {
-    /** Tracks, plays and episodes play on their own; artists, albums, playlists and shows play through. */
+    /** Tracks, plays and episodes play one item (from its album or show); artists, albums, playlists and shows play through. */
     play: (hit: SearchHit) => {
       const uri = hitUri(hit)
       const single = hit.type === 'track' || hit.type === 'play' || hit.type === 'episode'
-      run({ kind: 'play', ...(single ? { uris: [uri] } : { contextUri: uri }) }, `Playing “${hit.name}”`)
+      run({ kind: 'play', ...(single ? { item: uri } : { contextUri: uri }) }, `Playing “${hit.name}”`)
     },
     /** Only tracks (and plays) and episodes can be queued. */
     canQueue: (hit: SearchHit) => hit.type === 'track' || hit.type === 'play' || hit.type === 'episode',
     queue: (hit: SearchHit) => run({ kind: 'queue', uri: hitUri(hit) }, `Added “${hit.name}” to the queue`),
     describe: (hit: SearchHit) => TYPE_LABELS[hit.type].singular,
     /** A track straight from Spotify's catalogue. */
-    playTrack: (track: SpotifyTrackHit) => run({ kind: 'play', uris: [`spotify:track:${track.id}`] }, `Playing “${track.name}”`),
+    playTrack: (track: SpotifyTrackHit) => run({ kind: 'play', item: `spotify:track:${track.id}` }, `Playing “${track.name}”`),
     queueTrack: (track: SpotifyTrackHit) =>
       run({ kind: 'queue', uri: `spotify:track:${track.id}` }, `Added “${track.name}” to the queue`),
     /** An episode straight from Spotify's catalogue. */
     playEpisode: (episode: SpotifyEpisodeHit) =>
-      run({ kind: 'play', uris: [`spotify:episode:${episode.id}`] }, `Playing “${episode.name}”`),
+      run({ kind: 'play', item: `spotify:episode:${episode.id}` }, `Playing “${episode.name}”`),
     queueEpisode: (episode: SpotifyEpisodeHit) =>
       run({ kind: 'queue', uri: `spotify:episode:${episode.id}` }, `Added “${episode.name}” to the queue`),
   }

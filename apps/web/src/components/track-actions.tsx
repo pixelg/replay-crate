@@ -1,6 +1,6 @@
 import type { PlayContext } from '@replay-crate/api-client'
 import { Link } from '@tanstack/react-router'
-import { ListEnd, ListPlus, ListVideo, MoreHorizontal, Music, Play } from 'lucide-react'
+import { Disc3, ListEnd, ListPlus, ListVideo, MoreHorizontal, Music, Play } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { contextName, playableContext } from '../lib/play-context.ts'
 import { useTrackCommands } from '../lib/use-track-commands.ts'
@@ -8,8 +8,9 @@ import { AddToPlaylistDialog } from './add-to-playlist.tsx'
 import { MenuContent, MenuItem, MenuLinkItem, MenuRoot, MenuSeparator, MenuTrigger } from './ui/menu.tsx'
 
 /**
- * The "⋯" menu on a track, wherever one is listed: play it (or play from where it was played),
- * queue it, add it to a playlist, open its page. `children` adds items for the place it's in,
+ * The "⋯" menu on a track, wherever one is listed: play it (from its album or last playlist, as
+ * Settings says), play from where it's listed or was played, play from its album, queue it, add
+ * it to a playlist, open its page. `children` adds items for the place it's in,
  * such as a playlist's move and remove.
  */
 export function TrackActions({
@@ -20,8 +21,8 @@ export function TrackActions({
   hasPage = true,
   children,
 }: {
-  track: { id: string; name: string }
-  /** Where this play came from; offers "Play from …" when Spotify can start there. */
+  track: { id: string; name: string; album?: { id: string; name: string } }
+  /** Where this play came from, or the playlist it's listed in; offers "Play from …" when Spotify can start there. */
   context?: PlayContext | null
   /** Playlists the track is already on, marked as added in the dialog. */
   onPlaylists?: string[]
@@ -33,6 +34,7 @@ export function TrackActions({
   const [adding, setAdding] = useState(false)
   const commands = useTrackCommands(track)
   const playFrom = playableContext(context)
+  const album = track.album && { uri: `spotify:album:${track.album.id}`, name: track.album.name }
 
   return (
     <>
@@ -48,6 +50,12 @@ export function TrackActions({
             <MenuItem onClick={() => commands.playFrom(playFrom, contextName(playFrom))}>
               <ListVideo aria-hidden className="size-4 text-muted-foreground" />
               <span className="truncate">Play from {contextName(playFrom)}</span>
+            </MenuItem>
+          )}
+          {album && album.uri !== playFrom?.uri && (
+            <MenuItem onClick={() => commands.playFrom(album, album.name)}>
+              <Disc3 aria-hidden className="size-4 text-muted-foreground" />
+              <span className="truncate">Play from {album.name}</span>
             </MenuItem>
           )}
           <MenuItem onClick={commands.queue}>

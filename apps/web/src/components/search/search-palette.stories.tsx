@@ -186,7 +186,7 @@ export const FromSpotify = meta.story({
     await expect(dialog.getByRole('option', { name: /Rock Box/ })).toBeVisible()
     // No page for a track you've never played: choosing it plays it.
     await userEvent.click(dialog.getByRole('option', { name: /Lots of Lovin/ }))
-    await waitFor(() => expect(plays).toHaveBeenCalledWith({ uris: ['spotify:track:lots'] }))
+    await waitFor(() => expect(plays).toHaveBeenCalledWith({ item: 'spotify:track:lots' }))
   },
 })
 

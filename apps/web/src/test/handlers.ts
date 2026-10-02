@@ -67,6 +67,13 @@ export const handlers = {
     http.get('/api/v1/auth/me', ({ response }) => response(200).json(pixelg)),
     http.post('/api/v1/auth/logout', ({ response }) => response(204).empty()),
   ],
+  // Tracks play from their album until changed; a change is saved as sent.
+  settings: [
+    http.get('/api/v1/settings', ({ response }) => response(200).json({ playTracksFrom: 'album' })),
+    http.patch('/api/v1/settings', async ({ request, response }) =>
+      response(200).json({ playTracksFrom: 'album', ...(await request.json()) }),
+    ),
+  ],
   history: [
     // With `genre`, only the plays whose track has it; with `since` / `until`, only those in between.
     http.get('/api/v1/history/plays', ({ query, response }) => {

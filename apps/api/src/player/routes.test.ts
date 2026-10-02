@@ -3,7 +3,8 @@ import { SpotifyApiError } from '@replay-crate/spotify'
 import { eq, sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ReauthRequiredError } from '../spotify/access-token.ts'
-import { createTestContext, tokens, track } from '../testing.ts'
+import { upsertCatalog } from '../sync/catalog.ts'
+import { createTestContext, episode, tokens, track } from '../testing.ts'
 
 const ORIGIN = 'http://127.0.0.1:5173'
 
@@ -280,6 +281,132 @@ describe('player', () => {
         body: '{}',
       })
       expect(res.status).toBe(403)
+    })
+  })
+
+  describe('playing one item', () => {
+    const side = track('side', { album: ['dusty', 'Dusty Grooves'] })
+    const userId = async () => (await ctx.db.select({ id: schema.users.id }).from(schema.users))[0]!.id
+    /** A play of `played` from `playlistId` on Spotify, as a sync records it. */
+    const playedFrom = async (playlistId: string, played = song, at = '2026-09-20T10:00:00Z') => {
+      await upsertCatalog(ctx.db, [played])
+      await ctx.db.insert(schema.plays).values({
+        userId: await userId(),
+        trackId: played.id!,
+        playedAt: new Date(at),
+        contextType: 'playlist',
+        contextUri: `spotify:playlist:${playlistId}`,
+        source: 'poll',
+      })
+    }
+    const playTracksFrom = async (from: 'album' | 'playlist') =>
+      ctx.db.update(schema.users).set({ playTracksFrom: from }).where(eq(schema.users.id, await userId()))
+
+    beforeEach(() => {
+      ctx.library.remember([song, side])
+    })
+
+    it('plays a track from its album, so Up next is the rest of it', async () => {
+      expect((await send('PUT', '/play', { item: 'spotify:track:song' })).status).toBe(204)
+      expect(ctx.spotify.play).toHaveBeenCalledWith('access-1', {
+        contextUri: 'spotify:album:dusty',
+        offset: { uri: 'spotify:track:song' },
+        positionMs: undefined,
+        deviceId: undefined,
+      })
+      expect(ctx.player.state).toMatchObject({ isPlaying: true, item: { id: 'song' }, context: { uri: 'spotify:album:dusty' } })
+      // A track Replay Crate hadn't seen joins the catalog on the way.
+      const [known] = await ctx.db.select().from(schema.tracks).where(eq(schema.tracks.id, 'song'))
+      expect(known).toMatchObject({ albumId: 'dusty' })
+    })
+
+    it('starts on a phone that ignores bare URIs', async () => {
+      ctx.player.nowPlaying(side)
+      await send('PUT', '/device', { deviceId: 'phone', play: true })
+      expect((await send('PUT', '/play', { item: 'spotify:track:song' })).status).toBe(204)
+      expect(ctx.player.state).toMatchObject({ activeDeviceId: 'phone', isPlaying: true, item: { id: 'song' } })
+    })
+
+    it('plays a track from the playlist it was last played from, when the user chose that', async () => {
+      ctx.library.add('mix', [side, song])
+      await playedFrom('older', song, '2026-09-01T10:00:00Z')
+      await playedFrom('mix')
+      // Albums by default…
+      expect((await send('PUT', '/play', { item: 'spotify:track:song' })).status).toBe(204)
+      expect(ctx.player.state.context).toMatchObject({ uri: 'spotify:album:dusty' })
+
+      // …and the last playlist on request.
+      await playTracksFrom('playlist')
+      expect((await send('PUT', '/play', { item: 'spotify:track:song' })).status).toBe(204)
+      expect(ctx.player.state).toMatchObject({ item: { id: 'song' }, context: { uri: 'spotify:playlist:mix' }, upcoming: [] })
+    })
+
+    it('falls back to the album when the track has left that playlist, or Spotify refuses it', async () => {
+      await playTracksFrom('playlist')
+      // A playlist whose contents Replay Crate keeps, without the track any more: not tried.
+      await playedFrom('kept')
+      await ctx.db.insert(schema.playlists).values({ id: 'kept', ownerId: 'me', name: 'Kept', snapshotId: 's1', itemsSnapshotId: 's1' })
+      expect((await send('PUT', '/play', { item: 'spotify:track:song' })).status).toBe(204)
+      expect(ctx.spotify.play).toHaveBeenCalledTimes(1)
+      expect(ctx.player.state.context).toMatchObject({ uri: 'spotify:album:dusty' })
+
+      // Someone else's playlist: tried, and Spotify doesn't know it any more.
+      await playedFrom('gone', song, '2026-09-25T10:00:00Z')
+      ctx.spotify.play.mockClear()
+      expect((await send('PUT', '/play', { item: 'spotify:track:song' })).status).toBe(204)
+      expect(ctx.spotify.play.mock.calls.map(([, request]) => request.contextUri)).toEqual(['spotify:playlist:gone', 'spotify:album:dusty'])
+      expect(ctx.player.state.context).toMatchObject({ uri: 'spotify:album:dusty' })
+    })
+
+    it("counts the album's own copy of the recording as started", async () => {
+      // One recording on two releases: the album Replay Crate has the track on now lists its own
+      // copy, under another id, and Spotify plays that.
+      const isrc = { external_ids: { isrc: 'GBMYF1800060' } }
+      const asked = { ...track('asked', { name: 'Cocaine Sunday', album: ['sensitive', 'Sensitive G'] }), ...isrc }
+      const copy = { ...track('copy', { name: 'Cocaine Sunday', album: ['sensitive', 'Sensitive G'] }), ...isrc }
+      await upsertCatalog(ctx.db, [asked])
+      ctx.library.remember([{ ...asked, album: { ...asked.album, id: 'single' } }, copy])
+      ctx.player.nowPlaying(side)
+
+      expect((await send('PUT', '/play', { item: 'spotify:track:asked' })).status).toBe(204)
+      expect(ctx.player.state).toMatchObject({ isPlaying: true, item: { id: 'copy' }, context: { uri: 'spotify:album:sensitive' } })
+      expect(ctx.spotify.getPlaybackState).toHaveBeenCalledTimes(1)
+    })
+
+    it('resumes an episode from its show', async () => {
+      const ep = episode('ep1', { show: ['gray', 'The Gray Area'] })
+      ctx.library.addEpisodes(ep, episode('ep2', { show: ['gray', 'The Gray Area'] }))
+      expect((await send('PUT', '/play', { item: 'spotify:episode:ep1', positionMs: 27_000 })).status).toBe(204)
+      expect(ctx.spotify.play).toHaveBeenCalledWith('access-1', {
+        contextUri: 'spotify:show:gray',
+        offset: { uri: 'spotify:episode:ep1' },
+        positionMs: 27_000,
+        deviceId: undefined,
+      })
+      expect(ctx.player.state).toMatchObject({ isPlaying: true, item: { id: 'ep1' }, progressMs: 27_000 })
+    })
+
+    it("plays the item on its own when there's no context to start from", async () => {
+      ctx.spotify.getTrack.mockRejectedValueOnce(new SpotifyApiError(404, 'Non existing id', undefined, 'UNKNOWN'))
+      expect((await send('PUT', '/play', { item: 'spotify:track:mystery' })).status).toBe(204)
+      expect(ctx.spotify.play).toHaveBeenCalledWith('access-1', { uris: ['spotify:track:mystery'], positionMs: undefined, deviceId: undefined })
+    })
+
+    it("says so when the device doesn't start it", async () => {
+      ctx.spotify.getTrack.mockRejectedValueOnce(new SpotifyApiError(404, 'Non existing id', undefined, 'UNKNOWN'))
+      ctx.player.nowPlaying(side)
+      await send('PUT', '/device', { deviceId: 'phone', play: true })
+      const res = await send('PUT', '/play', { item: 'spotify:track:mystery' })
+      expect(res.status).toBe(409)
+      expect(await json(res)).toEqual({ error: 'not_started', device: 'Phone' })
+      expect(ctx.spotify.getPlaybackState).toHaveBeenCalledTimes(4)
+    })
+
+    it('takes an item or tracks, not both', async () => {
+      const res = await send('PUT', '/play', { item: 'spotify:track:song', uris: ['spotify:track:a'] })
+      expect(res.status).toBe(400)
+      expect(await json(res)).toMatchObject({ error: 'invalid_request', issues: [{ path: 'item' }] })
+      expect((await send('PUT', '/play', { item: 'spotify:album:dusty' })).status).toBe(400)
     })
   })
 

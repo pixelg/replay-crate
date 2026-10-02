@@ -85,6 +85,7 @@ export async function createTestContext() {
     redirectUri: REDIRECT_URI,
     cronSecret: CRON_SECRET,
     now: () => current,
+    sleep: async () => {},
     search: createPostgresSearchIndex(db),
     lastfm,
     musicbrainz,

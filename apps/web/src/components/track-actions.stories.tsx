@@ -61,6 +61,7 @@ export const Menu = meta.story({
     const menu = await openMenu(canvas, userEvent)
     await expect(menu.getByRole('menuitem', { name: 'Play' })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: 'Play from Late Night Crate' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Play from Dusty Grooves' })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: 'Add to queue' })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: 'Add to playlist…' })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: 'Go to track' })).toHaveAttribute('href', '/tracks/t1')
@@ -70,7 +71,7 @@ export const Menu = meta.story({
 export const Plays = meta.story({
   play: async ({ canvas, userEvent }) => {
     await userEvent.click((await openMenu(canvas, userEvent)).getByRole('menuitem', { name: 'Play' }))
-    await waitFor(() => expect(requests).toHaveBeenCalledWith('play', { uris: ['spotify:track:t1'] }))
+    await waitFor(() => expect(requests).toHaveBeenCalledWith('play', { item: 'spotify:track:t1' }))
     const toast = await screen.findByText('Playing “Brass Monkey Business”')
     await waitFor(() => expect(toast).toBeVisible())
   },
@@ -82,6 +83,39 @@ export const PlaysFromWhereItWasPlayed = meta.story({
     await waitFor(() =>
       expect(requests).toHaveBeenCalledWith('play', { contextUri: 'spotify:playlist:p1', offset: { uri: 'spotify:track:t1' } }),
     )
+  },
+})
+
+export const PlaysFromItsAlbum = meta.story({
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click((await openMenu(canvas, userEvent)).getByRole('menuitem', { name: 'Play from Dusty Grooves' }))
+    await waitFor(() =>
+      expect(requests).toHaveBeenCalledWith('play', { contextUri: 'spotify:album:album-t1', offset: { uri: 'spotify:track:t1' } }),
+    )
+    const toast = await screen.findByText('Playing “Brass Monkey Business” from Dusty Grooves')
+    await waitFor(() => expect(toast).toBeVisible())
+  },
+})
+
+/** Played from its album already: one "Play from" for it, not two. */
+export const PlayedFromItsAlbum = meta.story({
+  args: { context: { type: 'album', uri: 'spotify:album:album-t1', name: 'Dusty Grooves', imageUrl: null } },
+  play: async ({ canvas, userEvent }) => {
+    const menu = await openMenu(canvas, userEvent)
+    await expect(menu.getAllByRole('menuitem', { name: /Play from/ })).toHaveLength(1)
+  },
+})
+
+/** Spotify took the play but the phone never started it. */
+export const DeviceDidNotStart = meta.story({
+  beforeEach({ msw }) {
+    msw.use(http.put('/api/v1/player/play', ({ response }) => response(409).json({ error: 'not_started', device: 'iPhone' })))
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click((await openMenu(canvas, userEvent)).getByRole('menuitem', { name: 'Play' }))
+    const toast = await screen.findByText("It didn't start")
+    await waitFor(() => expect(toast).toBeVisible())
+    await expect(screen.getByText("Spotify took it, but iPhone didn't start playing. Open Spotify there and try again.")).toBeVisible()
   },
 })
 
@@ -122,13 +156,13 @@ export const AddsToPlaylist = meta.story({
   },
 })
 
-/** Artist contexts and Liked Songs can't start from a given track, so there's no "Play from". */
+/** Artist contexts and Liked Songs can't start from a given track: only the album is offered. */
 export const NoPlayFromForArtists = meta.story({
   args: { context: { type: 'artist', uri: 'spotify:artist:x', name: 'The Loop Collective', imageUrl: null } },
   play: async ({ canvas, userEvent }) => {
     const menu = await openMenu(canvas, userEvent)
     await expect(menu.getByRole('menuitem', { name: 'Play' })).toBeVisible()
-    await expect(menu.queryByRole('menuitem', { name: /Play from/ })).toBeNull()
+    await expect(menu.getAllByRole('menuitem', { name: /Play from/ }).map((item) => item.textContent)).toEqual(['Play from Dusty Grooves'])
   },
 })
 

@@ -8,18 +8,16 @@ import { MenuContent, MenuItem, MenuRoot, MenuSeparator, MenuTrigger } from './u
 
 /** The "⋯" menu on a playlist track: the usual track actions, then reorder (in playlist order only) and remove. */
 export function PlaylistTrackActions({
-  trackId,
-  trackName,
-  playlistName,
+  track,
+  playlist,
   moves,
   canReorder,
   disabled,
   onMove,
   onRemove,
 }: {
-  trackId: string
-  trackName: string
-  playlistName: string
+  track: { id: string; name: string; album: { id: string; name: string } }
+  playlist: { id: string; name: string }
   moves: MoveTargets
   /** Moving only makes sense while the list shows the playlist's own order. */
   canReorder: boolean
@@ -30,10 +28,14 @@ export function PlaylistTrackActions({
   const [confirming, setConfirming] = useState(false)
   return (
     <>
-      <TrackActions track={{ id: trackId, name: trackName }} disabled={disabled}>
+      <TrackActions
+        track={track}
+        context={{ type: 'playlist', uri: `spotify:playlist:${playlist.id}`, name: playlist.name, imageUrl: null }}
+        disabled={disabled}
+      >
         <PlaylistItems moves={moves} canReorder={canReorder} onMove={onMove} onRemove={() => setConfirming(true)} />
       </TrackActions>
-      <RemoveDialog open={confirming} onOpenChange={setConfirming} name={trackName} playlistName={playlistName} onRemove={onRemove} />
+      <RemoveDialog open={confirming} onOpenChange={setConfirming} name={track.name} playlistName={playlist.name} onRemove={onRemove} />
     </>
   )
 }

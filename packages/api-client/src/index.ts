@@ -81,6 +81,26 @@ export async function completeLogin(
   return expectOk(await send(endpoint, () => api.auth.callback.$post({ json: body })), endpoint)
 }
 
+export type Settings = InferResponseType<ApiClient['settings']['$get'], 200>
+export type PlayTracksFrom = Settings['playTracksFrom']
+
+/** The user's settings, the same on every device. */
+export const settingsQueryOptions = (api: ApiClient) =>
+  queryOptions({
+    queryKey: ['settings'],
+    queryFn: async (): Promise<Settings> => {
+      const endpoint = 'GET /api/v1/settings'
+      return expectOk(await send(endpoint, () => api.settings.$get()), endpoint)
+    },
+    staleTime: 5 * 60_000,
+  })
+
+/** Changes the settings given; returns them all. */
+export async function updateSettings(api: ApiClient, changes: Partial<Settings>): Promise<Settings> {
+  const endpoint = 'PATCH /api/v1/settings'
+  return expectOk(await send(endpoint, () => api.settings.$patch({ json: changes })), endpoint)
+}
+
 export async function logout(api: ApiClient): Promise<void> {
   const endpoint = 'POST /api/v1/auth/logout'
   const res = await send(endpoint, () => api.auth.logout.$post())

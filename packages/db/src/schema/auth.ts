@@ -8,6 +8,9 @@ const timestamps = {
     .$onUpdate(() => new Date()),
 }
 
+export const PLAY_TRACKS_FROM = ['album', 'playlist'] as const
+export type PlayTracksFrom = (typeof PLAY_TRACKS_FROM)[number]
+
 /** One row per Spotify account that has connected. Tokens are AES-GCM encrypted by the API. */
 export const users = pgTable('users', {
   /** Spotify user id. */
@@ -26,6 +29,11 @@ export const users = pgTable('users', {
   playlistsSyncedAt: timestamp('playlists_synced_at', { withTimezone: true }),
   /** When the shows the user saved on Spotify were last read. */
   showsSyncedAt: timestamp('shows_synced_at', { withTimezone: true }),
+  /**
+   * Where a track played on its own starts from (Spotify's iPhone app won't start a bare track):
+   * its album, or the playlist it was last played from.
+   */
+  playTracksFrom: text('play_tracks_from').$type<PlayTracksFrom>().notNull().default('album'),
   ...timestamps,
 })
 

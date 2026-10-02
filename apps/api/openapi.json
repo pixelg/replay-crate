@@ -53,6 +53,10 @@
     {
       "name": "Genres",
       "description": "Artists' genres (from Last.fm and MusicBrainz) across your plays."
+    },
+    {
+      "name": "Settings",
+      "description": "Your settings, the same on every device."
     }
   ],
   "components": {
@@ -2639,6 +2643,29 @@
           }
         ]
       },
+      "NotStartedError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "not_started"
+            ]
+          },
+          "device": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The device that was asked, when Spotify said."
+          }
+        },
+        "required": [
+          "error",
+          "device"
+        ],
+        "description": "Spotify took the play, but the device never started it."
+      },
       "SearchType": {
         "type": "string",
         "enum": [
@@ -3167,6 +3194,22 @@
           "trackId",
           "score",
           "highlights"
+        ]
+      },
+      "Settings": {
+        "type": "object",
+        "properties": {
+          "playTracksFrom": {
+            "type": "string",
+            "enum": [
+              "album",
+              "playlist"
+            ],
+            "description": "Where a track played on its own starts from: its album, or the playlist it was last played from (its album when there's none). Up next is the rest of it."
+          }
+        },
+        "required": [
+          "playTracksFrom"
         ]
       }
     },
@@ -9225,7 +9268,7 @@
         ],
         "operationId": "play",
         "summary": "Play or resume",
-        "description": "With `uris` or `contextUri`, starts playing them; with neither, resumes what was paused.",
+        "description": "With `item`, `uris` or `contextUri`, starts playing them; with none, resumes what was paused. Prefer `item` for a single track or episode: Spotify's iPhone app ignores a bare URI played with `uris`.",
         "security": [
           {
             "session": []
@@ -9245,6 +9288,12 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "The device to act on. Defaults to the active one."
+                  },
+                  "item": {
+                    "type": "string",
+                    "pattern": "^spotify:(track|episode):[A-Za-z0-9]+$",
+                    "description": "One track or episode, played from a context so Up next is the rest of it: a track from its album, or the playlist it was last played from (the user's `playTracksFrom` setting); an episode from its show. Answers once the device is playing it.",
+                    "example": "spotify:track:4uLU6hMCjMI75M1A2tKUQC"
                   },
                   "uris": {
                     "type": "array",
@@ -9355,7 +9404,7 @@
             }
           },
           "409": {
-            "description": "reauth_required | no_active_device",
+            "description": "reauth_required | no_active_device | not_started",
             "content": {
               "application/json": {
                 "schema": {
@@ -9365,6 +9414,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/NoActiveDeviceError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NotStartedError"
                     }
                   ]
                 }
@@ -11033,6 +11085,133 @@
                   "required": [
                     "genres"
                   ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "getSettings",
+        "summary": "Your settings",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Your settings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Settings"
+        ],
+        "operationId": "updateSettings",
+        "summary": "Change your settings",
+        "description": "Changes the settings given and leaves the rest.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "playTracksFrom": {
+                    "type": "string",
+                    "enum": [
+                      "album",
+                      "playlist"
+                    ],
+                    "description": "Where a track played on its own starts from: its album, or the playlist it was last played from (its album when there's none). Up next is the rest of it."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Your settings, changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
                 }
               }
             }

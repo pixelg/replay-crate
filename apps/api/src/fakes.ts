@@ -198,8 +198,22 @@ export function createFakeLibrary() {
       savedShows.unshift({ added_at: '2026-09-01T00:00:00Z', show })
       for (const e of showEpisodes) episodes.set(e.id, e)
     },
-    /** A playlist's tracks (and episodes) by `spotify:playlist:` URI, as the player plays them. */
-    contextTracks: (uri: string) => store.get(uri.replace('spotify:playlist:', ''))?.entries,
+    /**
+     * What the player plays for a context URI: a playlist's tracks (and episodes), the known
+     * tracks of an album, or the known episodes of a show.
+     */
+    contextTracks: (uri: string): Array<SpotifyTrack | SpotifyEpisode> | undefined => {
+      const [, type, id] = uri.split(':')
+      if (type === 'album') {
+        const albumTracks = [...catalog.values()].filter((t) => t.album.id === id)
+        return albumTracks.length ? albumTracks : undefined
+      }
+      if (type === 'show') {
+        const showEpisodes = [...episodes.values()].filter((e) => e.show.id === id)
+        return showEpisodes.length ? showEpisodes : undefined
+      }
+      return store.get(id ?? '')?.entries
+    },
     /** Seeds a playlist the user owns; episodes in it become known too. */
     add(id: string, tracks: Array<SpotifyTrack | SpotifyEpisode>, name = `Playlist ${id}`) {
       for (const item of tracks) {

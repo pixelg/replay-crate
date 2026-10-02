@@ -149,7 +149,7 @@ export function expectedPlayback(playback: Playback, command: PlayerCommand, fet
       return { ...here, isPlaying: false }
     case 'play':
       // Only a plain resume is predictable.
-      return command.uris || command.contextUri ? playback : { ...here, isPlaying: true }
+      return command.item || command.uris || command.contextUri ? playback : { ...here, isPlaying: true }
     case 'seek':
       return { ...here, progressMs: command.positionMs }
     case 'shuffle':

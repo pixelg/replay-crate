@@ -249,7 +249,7 @@ function FromSpotify({ q }: { q: string }) {
         {tracks.map((track) => (
           <li key={track.id} className="flex items-center gap-2 py-2">
             <SpotifyTrackSummary track={track} />
-            <TrackActions track={track} hasPage={track.playCount > 0} />
+            <TrackActions track={{ id: track.id, name: track.name }} hasPage={track.playCount > 0} />
           </li>
         ))}
       </ol>

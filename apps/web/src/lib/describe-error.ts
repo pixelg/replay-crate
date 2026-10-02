@@ -103,6 +103,10 @@ export function describeError(error: unknown): ErrorDescription {
     if (error.code === 'premium_required') {
       return api('premium', 'Spotify Premium needed', 'Spotify only lets apps control playback on Premium accounts.', 'home')
     }
+    if (error.code === 'not_started') {
+      const device = error.device ?? 'the device'
+      return api('refused', "It didn't start", `Spotify took it, but ${device} didn't start playing. Open Spotify there and try again.`, 'retry')
+    }
     if (error.code === 'command_refused') {
       return api('refused', "Spotify couldn't do that", refusal(error.reason), 'retry')
     }

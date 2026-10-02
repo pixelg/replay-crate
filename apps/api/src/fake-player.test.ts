@@ -111,8 +111,18 @@ describe('fake player', () => {
     await expect(p.getPlaybackState(T)).resolves.toBeNull()
     expect(await reasonOf(p.play(T, { uris: ['spotify:track:a'] }))).toBe('404 NO_ACTIVE_DEVICE')
     // Naming a device works anyway, and makes it active.
-    await p.play(T, { uris: ['spotify:track:a'], deviceId: 'phone' })
-    expect(await p.getPlaybackState(T)).toMatchObject({ device: { id: 'phone' }, is_playing: true })
+    await p.play(T, { uris: ['spotify:track:a'], deviceId: 'laptop' })
+    expect(await p.getPlaybackState(T)).toMatchObject({ device: { id: 'laptop' }, is_playing: true })
+  })
+
+  it("stops but never starts a bare URI on the phone, like Spotify's iPhone app", async () => {
+    const { p, player } = setup()
+    player.nowPlaying(track('a'))
+    await p.transferPlayback(T, 'phone', { play: true })
+    await p.play(T, { uris: ['spotify:track:b'] })
+    expect(await p.getPlaybackState(T)).toMatchObject({ device: { id: 'phone' }, item: { id: 'a' }, is_playing: false })
+    // The device list doesn't show the quirk.
+    expect((await p.getDevices(T)).find((d) => d.id === 'phone')).not.toHaveProperty('startsOnlyContexts')
   })
 
   it('fails every call without Premium', async () => {

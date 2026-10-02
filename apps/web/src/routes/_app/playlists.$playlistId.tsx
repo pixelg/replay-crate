@@ -134,9 +134,8 @@ function PlaylistPage() {
                   play={<PlayTrackButton track={item.track} from={{ uri: playlistUri, name: playlist.name }} />}
                   actions={
                     <PlaylistTrackActions
-                      trackId={item.track.id}
-                      trackName={item.track.name}
-                      playlistName={playlist.name}
+                      track={item.track}
+                      playlist={playlist}
                       moves={moveTargets(trackPositions, trackPositions.indexOf(item.position))}
                       canReorder={sort === 'order'}
                       disabled={edit.isPending}
