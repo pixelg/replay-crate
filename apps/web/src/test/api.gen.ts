@@ -1981,6 +1981,8 @@ export interface components {
                 thumbUrl: string | null;
             };
             artists: components["schemas"]["ArtistRef"][];
+            /** @description Its artists' genres, the first artist's first, at most three. Empty until the artists' lookups are done. */
+            genres: components["schemas"]["GenreRef"][];
             rating: components["schemas"]["Rating"];
         };
         PlayerEpisode: {

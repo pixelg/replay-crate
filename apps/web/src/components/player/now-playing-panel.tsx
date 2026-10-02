@@ -5,6 +5,7 @@ import { Pause, Play, Repeat, Repeat1, Shuffle, SkipBack, SkipForward, Volume2, 
 import { cn } from 'cn'
 import { useId, useState } from 'react'
 import { AlbumArt } from '../album-art.tsx'
+import { GenreChips } from '../genre-chips.tsx'
 import { Slider } from '../ui/slider.tsx'
 import { TrackRating } from '../star-rating.tsx'
 import { useIsLibraryPlaylist } from '../../lib/use-library-playlist.ts'
@@ -57,6 +58,7 @@ export function NowPlayingPanel({
             )}
           </h2>
           <p className="truncate text-muted-foreground">{subtitleOf(item)}</p>
+          {item.type === 'track' && <GenreChips genres={item.genres} className="mt-2 justify-center md:justify-start" />}
           {item.type === 'track' && item.id && (
             <TrackRating track={{ ...item, id: item.id }} size="md" className="mt-2" />
           )}

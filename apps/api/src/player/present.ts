@@ -2,7 +2,8 @@ import { z } from '@hono/zod-openapi'
 import { schema, type Db, type PlayerDevice } from '@replay-crate/db'
 import { pickImage, type SpotifyDevice, type SpotifyPlaybackState, type SpotifyPlayable } from '@replay-crate/spotify'
 import { eq } from 'drizzle-orm'
-import { ArtistRef, ContextRef, IsoDateTime, Rating } from '../lib/schemas.ts'
+import { loadArtistGenres, TRACK_GENRES, type GenreRef as Genre } from '../genres/queries.ts'
+import { ArtistRef, ContextRef, GenreRef, IsoDateTime, Rating } from '../lib/schemas.ts'
 import { loadRatings } from '../tracks/ratings.ts'
 import { inContext } from './in-context.ts'
 
@@ -40,6 +41,9 @@ const TrackItem = z
     explicit: z.boolean(),
     album: z.object({ id: z.string(), name: z.string(), imageUrl: z.string().nullable(), thumbUrl: z.string().nullable() }),
     artists: z.array(ArtistRef),
+    genres: z.array(GenreRef).openapi({
+      description: "Its artists' genres, the first artist's first, at most three. Empty until the artists' lookups are done.",
+    }),
     rating: Rating,
   })
   .openapi('PlayerTrack')
@@ -122,8 +126,10 @@ export function toRememberedDevice(remembered: PlayerDevice): z.infer<typeof Lis
   }
 }
 
-/** `ratings` holds the user's ratings by track id (see loadRatings). */
-export function toItem(item: SpotifyPlayable, ratings: ReadonlyMap<string, number>): z.infer<typeof PlayerItem> {
+/** What the app adds to Spotify's items: the user's ratings by track id, and genres by artist id. */
+export type ItemLookups = { ratings: ReadonlyMap<string, number>; genres: ReadonlyMap<string, Genre[]> }
+
+export function toItem(item: SpotifyPlayable, { ratings, genres }: ItemLookups): z.infer<typeof PlayerItem> {
   if (item.type === 'episode') {
     return {
       type: 'episode',
@@ -151,8 +157,19 @@ export function toItem(item: SpotifyPlayable, ratings: ReadonlyMap<string, numbe
       thumbUrl: pickImage(item.album.images, 64),
     },
     artists: item.artists.map(({ id, name }) => ({ id, name })),
+    genres: trackGenres(item.artists, genres),
     rating: item.id ? (ratings.get(item.id) ?? null) : null,
   }
+}
+
+/** Like loadTrackGenres, but from Spotify's artists: a track new to the catalog has none linked yet. */
+function trackGenres(artists: ReadonlyArray<{ id: string }>, byArtist: ItemLookups['genres']): Genre[] {
+  const picked: Genre[] = []
+  for (const genre of artists.flatMap((artist) => byArtist.get(artist.id) ?? [])) {
+    if (picked.length === TRACK_GENRES) break
+    if (!picked.some((known) => known.id === genre.id)) picked.push(genre)
+  }
+  return picked
 }
 
 export async function toPlayback(db: Db, userId: string, state: SpotifyPlaybackState): Promise<z.infer<typeof Playback>> {
@@ -174,18 +191,26 @@ export async function toPlayback(db: Db, userId: string, state: SpotifyPlaybackS
     repeat: state.repeat_state,
     context,
     fromQueue,
-    item: state.item ? toItem(state.item, await ratingsFor(db, userId, [state.item])) : null,
+    item: state.item ? toItem(state.item, await lookupsFor(db, userId, [state.item])) : null,
     disallows: Object.entries(state.actions?.disallows ?? {})
       .filter(([, disallowed]) => disallowed)
       .map(([action]) => action),
   }
 }
 
-/** The user's ratings of the tracks among `items` (episodes can't be rated). */
-export function ratingsFor(db: Db, userId: string, items: SpotifyPlayable[]) {
-  return loadRatings(
-    db,
-    userId,
-    items.flatMap((item) => (item.type === 'track' && item.id ? [item.id] : [])),
-  )
+/** The user's ratings of the tracks among `items` and their artists' genres (episodes have neither). */
+export async function lookupsFor(db: Db, userId: string, items: SpotifyPlayable[]): Promise<ItemLookups> {
+  const tracks = items.flatMap((item) => (item.type === 'track' ? [item] : []))
+  const [ratings, genres] = await Promise.all([
+    loadRatings(
+      db,
+      userId,
+      tracks.flatMap((track) => (track.id ? [track.id] : [])),
+    ),
+    loadArtistGenres(
+      db,
+      tracks.flatMap((track) => track.artists.map((artist) => artist.id)),
+    ),
+  ])
+  return { ratings, genres }
 }
