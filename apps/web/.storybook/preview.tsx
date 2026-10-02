@@ -54,6 +54,17 @@ export default definePreview({
   ],
   parameters: {
     // Accessibility violations fail the story's test.
-    a11y: { test: 'error' },
+    a11y: {
+      test: 'error',
+      config: {
+        rules: [
+          // Base UI's focus guards (visually hidden `aria-hidden` spans with tabindex 0 either side of
+          // a popup) pass focus on as soon as they get it, through a React handler axe can't see. axe
+          // passes them while the popup counts as a modal, but they can outlive it by a moment as it
+          // closes, and a check in that gap flaked stories that pick from a menu or select (#231).
+          { id: 'aria-hidden-focus', selector: '[aria-hidden="true"]:not([data-base-ui-focus-guard])' },
+        ],
+      },
+    },
   },
 })
