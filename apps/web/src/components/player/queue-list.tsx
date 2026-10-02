@@ -34,12 +34,15 @@ export function QueueList({
             {/* Like a list row: the first two genres, on one line. */}
             {item.type === 'track' && <GenreChips genres={item.genres} max={2} className="mt-1 flex-nowrap" />}
           </div>
-          {item.type === 'track' && item.rating !== null && <QueuedRating rating={item.rating} />}
-          {onPlayNow && isPlayable(item) && (
-            <IconButton label={`Play ${item.name} now`} disabled={disabled} onClick={() => onPlayNow(item, index)} className="shrink-0">
-              <Play aria-hidden className="size-4" />
-            </IconButton>
-          )}
+          {/* One column down the right: the play button, the rating under it. */}
+          <div className="flex w-9 shrink-0 flex-col items-center">
+            {onPlayNow && isPlayable(item) && (
+              <IconButton label={`Play ${item.name} now`} disabled={disabled} onClick={() => onPlayNow(item, index)}>
+                <Play aria-hidden className="size-4" />
+              </IconButton>
+            )}
+            {item.type === 'track' && item.rating !== null && <QueuedRating rating={item.rating} />}
+          </div>
         </li>
       ))}
     </ol>
@@ -49,7 +52,7 @@ export function QueueList({
 /** The user's rating as a bare number: Up next shows it but isn't where tracks get rated. */
 function QueuedRating({ rating }: { rating: number }) {
   return (
-    <span title={`Your rating: ${rating} of 5`} className="shrink-0 text-sm font-medium tabular-nums">
+    <span title={`Your rating: ${rating} of 5`} className="text-sm leading-none font-medium tabular-nums">
       <span aria-hidden>{rating}</span>
       <span className="sr-only">Rated {rating} of 5</span>
     </span>
