@@ -1,0 +1,20 @@
+name: Set up
+description: pnpm, Node and the workspace's dependencies, plus this job's Turbo cache.
+runs:
+  using: composite
+  steps:
+    # Uses the pnpm version pinned in package.json#packageManager.
+    - uses: pnpm/action-setup@v6
+    - uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+      shell: bash
+    # Turbo's local task cache, carried between runs: packages whose inputs haven't changed
+    # replay their results instead of running again. One per job, since a key can't be rewritten.
+    - uses: actions/cache@v6
+      with:
+        path: .turbo/cache
+        key: turbo-${{ github.job }}-${{ runner.os }}-${{ github.sha }}
+        restore-keys: turbo-${{ github.job }}-${{ runner.os }}-
