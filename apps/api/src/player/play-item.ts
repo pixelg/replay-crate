@@ -1,5 +1,5 @@
 import { schema, type Db, type User } from '@replay-crate/db'
-import { SpotifyApiError } from '@replay-crate/spotify'
+import { SpotifyApiError, type SpotifyPlayable } from '@replay-crate/spotify'
 import { and, desc, eq, isNotNull } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
@@ -102,6 +102,21 @@ async function startFromContext(deps: Pick<AppDeps, 'db' | 'spotify'>, token: st
 }
 
 /**
+ * Whether what's playing is `uri`. A track can come back as another copy of the same recording:
+ * an album started at a track may play its own release's copy (another id, same ISRC), or Spotify
+ * relinks it (`linked_from`).
+ */
+export async function sameRecording(db: Db, uri: string): Promise<(item: SpotifyPlayable) => boolean> {
+  const [, type, id] = uri.split(':')
+  const [known] =
+    type === 'track' ? await db.select({ isrc: schema.tracks.isrc }).from(schema.tracks).where(eq(schema.tracks.id, id!)) : []
+  const isrc = known?.isrc
+  return (item) =>
+    item.uri === uri ||
+    (item.type === 'track' && (item.linked_from?.uri === uri || (isrc != null && item.external_ids?.isrc === isrc)))
+}
+
+/**
  * Plays `uri` (a track or episode) from its context at `positionMs`, then watches the player
  * until it's playing there. Spotify's refusals of the device are thrown as they come.
  */
@@ -109,10 +124,11 @@ export async function playItem(deps: Pick<AppDeps, 'db' | 'spotify' | 'sleep'>, 
   const { spotify, sleep: wait = sleep } = deps
   const { uri, positionMs, deviceId } = request
   if (!(await startFromContext(deps, token, request))) await spotify.play(token, { uris: [uri], positionMs, deviceId })
+  const isRequested = await sameRecording(deps.db, uri)
 
   let device: string | null = null
   let elapsed = 0
-  // What each look saw, for the log: Spotify's state can lag the device.
+  // What each look saw, for the log.
   const seen: string[] = []
   for (const delay of START_CHECK_DELAYS_MS) {
     await wait(delay)
@@ -121,7 +137,7 @@ export async function playItem(deps: Pick<AppDeps, 'db' | 'spotify' | 'sleep'>, 
     const item = state?.item
     seen.push(`+${elapsed}ms ${item?.uri ?? 'nothing'} ${state?.is_playing ? 'playing' : 'paused'}`)
     device = state?.device.name ?? device
-    if (state?.is_playing && item?.uri === uri) {
+    if (state?.is_playing && item && isRequested(item)) {
       console.info(`[player] ${device ?? 'device'} started ${uri}: ${seen.join(', ')}`)
       return { started: true }
     }

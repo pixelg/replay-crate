@@ -25,6 +25,8 @@ export type SpotifyTrack = {
   explicit: boolean
   is_local: boolean
   external_ids?: { isrc?: string }
+  /** Set when Spotify played another copy of the track asked for (track relinking): the one asked for. */
+  linked_from?: { id: string; uri: string }
   album: SpotifySimplifiedAlbum
   artists: SpotifySimplifiedArtist[]
 }

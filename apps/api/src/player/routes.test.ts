@@ -358,6 +358,21 @@ describe('player', () => {
       expect(ctx.player.state.context).toMatchObject({ uri: 'spotify:album:dusty' })
     })
 
+    it("counts the album's own copy of the recording as started", async () => {
+      // One recording on two releases: the album Replay Crate has the track on now lists its own
+      // copy, under another id, and Spotify plays that.
+      const isrc = { external_ids: { isrc: 'GBMYF1800060' } }
+      const asked = { ...track('asked', { name: 'Cocaine Sunday', album: ['sensitive', 'Sensitive G'] }), ...isrc }
+      const copy = { ...track('copy', { name: 'Cocaine Sunday', album: ['sensitive', 'Sensitive G'] }), ...isrc }
+      await upsertCatalog(ctx.db, [asked])
+      ctx.library.remember([{ ...asked, album: { ...asked.album, id: 'single' } }, copy])
+      ctx.player.nowPlaying(side)
+
+      expect((await send('PUT', '/play', { item: 'spotify:track:asked' })).status).toBe(204)
+      expect(ctx.player.state).toMatchObject({ isPlaying: true, item: { id: 'copy' }, context: { uri: 'spotify:album:sensitive' } })
+      expect(ctx.spotify.getPlaybackState).toHaveBeenCalledTimes(1)
+    })
+
     it('resumes an episode from its show', async () => {
       const ep = episode('ep1', { show: ['gray', 'The Gray Area'] })
       ctx.library.addEpisodes(ep, episode('ep2', { show: ['gray', 'The Gray Area'] }))

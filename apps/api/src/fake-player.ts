@@ -119,6 +119,16 @@ export function createFakePlayer({
     state.activeDeviceId = found.id
     return found
   }
+  /**
+   * Where `uri` is in a context. Like Spotify, a track the context doesn't list may be found as
+   * the context's own copy of the same recording (same ISRC), which then plays under its own id.
+   */
+  function offsetOf(list: SpotifyPlayable[], uri: string) {
+    const exact = list.findIndex((item) => item.uri === uri)
+    if (exact >= 0 || !uri.startsWith('spotify:track:')) return exact
+    const isrc = resolveTrack(uri).external_ids?.isrc
+    return isrc ? list.findIndex((item) => item.type === 'track' && item.external_ids?.isrc === isrc) : -1
+  }
   function needsItem() {
     if (!state.item) throw failure(403, 'NO_SPECIFIC_TRACK', 'Nothing to play')
   }
@@ -169,7 +179,7 @@ export function createFakePlayer({
         needsItem()
         return changed({ isPlaying: true })
       }
-      const start = !offset ? 0 : 'position' in offset ? offset.position : list.findIndex((item) => item.uri === offset.uri)
+      const start = !offset ? 0 : 'position' in offset ? offset.position : offsetOf(list, offset.uri)
       if (start < 0 || start >= list.length) throw failure(404, 'UNKNOWN', 'Offset out of range')
       changed({
         item: list[start]!,
