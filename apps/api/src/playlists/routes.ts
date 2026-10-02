@@ -5,6 +5,7 @@ import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { loadTrackGenres } from '../genres/queries.ts'
 import { loadTrackArtists } from '../history/queries.ts'
+import { recordingId } from '../tracks/recordings.ts'
 import { latestAddedFirst } from './queries.ts'
 import { EpisodeSummary, loadEpisodeSummaries } from '../podcasts/present.ts'
 import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
@@ -281,6 +282,8 @@ export function playlistRoutes(deps: AppDeps) {
             position: playlistItems.position,
             addedAt: playlistItems.addedAt,
             trackId: tracks.id,
+            // Plays and other playlists count the recording, whichever copy this playlist holds.
+            recording: recordingId,
             trackName: tracks.name,
             durationMs: tracks.durationMs,
             explicit: tracks.explicit,
@@ -294,9 +297,10 @@ export function playlistRoutes(deps: AppDeps) {
           .where(eq(playlistItems.playlistId, playlistId))
           .orderBy(asc(playlistItems.position))
 
-        const trackIdsHere = db
-          .select({ trackId: playlistItems.trackId })
+        const recordingsHere = db
+          .select({ recording: recordingId })
           .from(playlistItems)
+          .innerJoin(tracks, eq(tracks.id, playlistItems.trackId))
           .where(eq(playlistItems.playlistId, playlistId))
 
         const stats = await db
@@ -309,25 +313,26 @@ export function playlistRoutes(deps: AppDeps) {
             lastPlayedAt: max(plays.playedAt),
           })
           .from(plays)
-          .where(and(eq(plays.userId, user.id), inArray(plays.trackId, trackIdsHere)))
+          .where(and(eq(plays.userId, user.id), inArray(plays.trackId, recordingsHere)))
           .groupBy(plays.trackId)
         const statsByTrack = new Map(stats.map((row) => [row.trackId, row]))
 
         // The playlist each track went into most recently first, like everywhere else rows list them.
         const alsoOn = await db
-          .select({ trackId: playlistItems.trackId, id: playlists.id, name: playlists.name })
+          .select({ recording: recordingId, id: playlists.id, name: playlists.name })
           .from(playlistItems)
+          .innerJoin(tracks, eq(tracks.id, playlistItems.trackId))
           .innerJoin(
             userPlaylists,
             and(eq(userPlaylists.playlistId, playlistItems.playlistId), eq(userPlaylists.userId, user.id)),
           )
           .innerJoin(playlists, eq(playlists.id, playlistItems.playlistId))
-          .where(and(ne(playlistItems.playlistId, playlistId), inArray(playlistItems.trackId, trackIdsHere)))
-          .groupBy(playlistItems.trackId, playlists.id, playlists.name, userPlaylists.position)
+          .where(and(ne(playlistItems.playlistId, playlistId), inArray(recordingId, recordingsHere)))
+          .groupBy(recordingId, playlists.id, playlists.name, userPlaylists.position)
           .orderBy(...latestAddedFirst())
         const alsoOnByTrack = new Map<string, Array<{ id: string; name: string }>>()
-        for (const { trackId, id, name } of alsoOn) {
-          alsoOnByTrack.set(trackId, [...(alsoOnByTrack.get(trackId) ?? []), { id, name }])
+        for (const { recording, id, name } of alsoOn) {
+          alsoOnByTrack.set(recording, [...(alsoOnByTrack.get(recording) ?? []), { id, name }])
         }
 
         const artistsByTrack = await loadTrackArtists(
@@ -387,7 +392,7 @@ export function playlistRoutes(deps: AppDeps) {
               itemsSynced: meta.itemsSnapshotId != null,
             },
             items: items.map((item) => {
-              const trackStats = statsByTrack.get(item.trackId)
+              const trackStats = statsByTrack.get(item.recording)
               return {
                 position: item.position,
                 addedAt: item.addedAt?.toISOString() ?? null,
@@ -404,7 +409,7 @@ export function playlistRoutes(deps: AppDeps) {
                 playCount: trackStats?.playCount ?? 0,
                 playsHere: trackStats?.playsHere ?? 0,
                 lastPlayedAt: toIso(trackStats?.lastPlayedAt),
-                alsoOn: alsoOnByTrack.get(item.trackId) ?? [],
+                alsoOn: alsoOnByTrack.get(item.recording) ?? [],
               }
             }),
             episodes: episodeRows.map((row) => ({

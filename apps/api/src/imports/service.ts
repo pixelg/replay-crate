@@ -73,10 +73,11 @@ export async function promote(db: Db, trackIds?: string[]): Promise<void> {
     select ip.user_id, ip.track_id, ip.played_at, ip.ms_played, 'import'
     from import_plays ip
     where exists (select 1 from tracks t where t.id = ip.track_id) ${onlyTracks}
+      -- A copy of a recording lands on its canonical track (a trigger), so compare recordings.
       and not exists (
         select 1 from plays p
         where p.user_id = ip.user_id
-          and p.track_id = ip.track_id
+          and p.track_id = track_recording(ip.track_id)
           and p.played_at between ip.played_at - interval '${sql.raw(DUPLICATE_WINDOW)}'
                               and ip.played_at + interval '${sql.raw(DUPLICATE_WINDOW)}'
       )

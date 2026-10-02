@@ -9,6 +9,7 @@ import { loadArtistGenres, loadTrackGenres } from '../genres/queries.ts'
 import { ArtistRef, ContextRef, GenreRef, IsoDateTime, jsonBody, jsonResponse, PlaylistRef, Rating } from '../lib/schemas.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { clearRating, loadRatings, rateTrack } from './ratings.ts'
+import { canonicalTrackId, isCopyOf } from './recordings.ts'
 import { decodeCursor, listTracks, TRACK_SORTS } from './library.ts'
 
 const { albums, contexts, playlistItems, playlists, plays, tracks, userPlaylists } = schema
@@ -181,7 +182,8 @@ export function trackRoutes(deps: AppDeps) {
     })
     .openapi({ ...getTrack, middleware: auth }, async (c) => {
       const user = c.var.user
-      const { id: trackId } = c.req.valid('param')
+      // Another copy of a recording (a link from a playlist or what's playing) shows the recording.
+      const trackId = await canonicalTrackId(db, c.req.valid('param').id)
 
       const [track] = await db
         .select({
@@ -256,7 +258,7 @@ export function trackRoutes(deps: AppDeps) {
           and(eq(userPlaylists.playlistId, playlistItems.playlistId), eq(userPlaylists.userId, user.id)),
         )
         .innerJoin(playlists, eq(playlists.id, playlistItems.playlistId))
-        .where(eq(playlistItems.trackId, trackId))
+        .where(isCopyOf(playlistItems.trackId, trackId))
         .orderBy(asc(userPlaylists.position))
 
       return c.json(

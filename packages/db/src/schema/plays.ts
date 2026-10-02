@@ -12,9 +12,12 @@ export const plays = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    /** The recording's canonical track (`tracks.recording_of` resolved by a trigger). */
     trackId: text('track_id')
       .notNull()
       .references(() => tracks.id),
+    /** The copy Spotify reported, when it isn't `trackId`. */
+    playedTrackId: text('played_track_id').references(() => tracks.id),
     playedAt: timestamp('played_at', { withTimezone: true }).notNull(),
     /** Known for imported plays; the recently-played API doesn't report it. */
     msPlayed: integer('ms_played'),
