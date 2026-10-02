@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { strToU8, zipSync } from 'fflate'
 import { expect, fn, screen, waitFor, within } from 'storybook/test'
 import { createAppRouter } from './router.ts'
+import { Route as StatsRoute } from './routes/_app/stats.tsx'
 import {
   calendarYears,
   devices,
@@ -261,10 +262,16 @@ export const SettingsDarkOnPhone = meta.story({
 })
 
 export const NavigatesBetweenPages = meta.story({
+  async beforeEach() {
+    // The Stats route is code-split and pulls in Recharts, which a cold CI runner can take several
+    // seconds to load. Load its chunk first (the router's own split, under the test's timeout),
+    // so the wait below covers the navigation, not the download.
+    await StatsRoute.options.component?.preload?.()
+  },
   play: async ({ canvas, userEvent }) => {
     const nav = await canvas.findByRole('navigation', { name: 'Main' })
     await userEvent.click(await within(nav).findByRole('link', { name: 'Stats' }))
-    // The Stats route is code-split and pulls in Recharts, which a cold CI runner can take over a second to load.
+    // Still the loader's requests and a first render of the charts, like the other stories that open Stats.
     await expect(await canvas.findByRole('heading', { level: 1, name: 'Stats' }, { timeout: 5_000 })).toBeVisible()
   },
 })
