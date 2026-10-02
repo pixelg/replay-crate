@@ -39,7 +39,36 @@ export const Playing = meta.story({
     await expect(region.getByRole('link', { name: 'Brass Monkey Business' })).toHaveAttribute('href', '/tracks/t1')
     await expect(region.getByText('The Loop Collective, MC Vinyl')).toBeVisible()
     await expect(region.getByRole('button', { name: 'Pause' })).toBeEnabled()
+    await expect(region.getByRole('button', { name: 'Back 15 seconds' })).toBeEnabled()
+    await expect(region.getByRole('button', { name: 'Forward 15 seconds' })).toBeEnabled()
     await expect(region.getByRole('progressbar', { name: 'Playback position' })).toHaveAttribute('aria-valuetext', '1:21 of 3:33')
+  },
+})
+
+const seeks = fn()
+const startMs = pausedPlayback.progressMs ?? 0
+
+/** Jumps 15 seconds from where playback is (paused, so it stays put between). */
+export const Jumps = meta.story({
+  beforeEach({ msw }) {
+    seeks.mockClear()
+    let progressMs = startMs
+    msw.use(
+      http.get('/api/v1/player', ({ response }) => response(200).json({ playback: { ...pausedPlayback, progressMs } })),
+      http.put('/api/v1/player/seek', async ({ request, response }) => {
+        const body = await request.json()
+        seeks(body)
+        progressMs = body.positionMs
+        return response(204).empty()
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const region = within(await player(canvas))
+    await userEvent.click(await region.findByRole('button', { name: 'Forward 15 seconds' }))
+    await waitFor(() => expect(seeks).toHaveBeenLastCalledWith({ positionMs: startMs + 15_000 }))
+    await userEvent.click(region.getByRole('button', { name: 'Back 15 seconds' }))
+    await waitFor(() => expect(seeks).toHaveBeenLastCalledWith({ positionMs: startMs }))
   },
 })
 
@@ -202,6 +231,8 @@ export const PhoneBar = meta.story({
   play: async ({ canvas }) => {
     const region = within(await player(canvas))
     await expect(region.getByRole('button', { name: 'Pause' })).toBeVisible()
+    await expect(region.getByRole('button', { name: 'Back 15 seconds' })).toBeVisible()
+    await expect(region.getByRole('button', { name: 'Forward 15 seconds' })).toBeVisible()
     await expect(region.queryByRole('button', { name: 'Next' })).toBeNull()
     // The whole bar opens the player page.
     await expect(region.getByRole('link', { name: 'Brass Monkey Business' })).toHaveAttribute('href', '/player')

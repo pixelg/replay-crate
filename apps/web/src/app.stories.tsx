@@ -1477,9 +1477,11 @@ export const PlayerJumpsSeconds = meta.story({
     )
   },
   play: async ({ canvas, userEvent }) => {
-    await userEvent.click(await canvas.findByRole('button', { name: 'Back 15 seconds' }))
+    // The panel's buttons: the mini player has the same ones.
+    const panel = within(await within(await canvas.findByRole('main')).findByRole('region', { name: 'Brass Monkey Business' }))
+    await userEvent.click(await panel.findByRole('button', { name: 'Back 15 seconds' }))
     await waitFor(() => expect(playerRequests).toHaveBeenLastCalledWith('seek', { positionMs: 66_000 }))
-    await userEvent.click(canvas.getByRole('button', { name: 'Forward 15 seconds' }))
+    await userEvent.click(panel.getByRole('button', { name: 'Forward 15 seconds' }))
     await waitFor(() => expect(playerRequests).toHaveBeenLastCalledWith('seek', { positionMs: 81_000 }))
   },
 })
