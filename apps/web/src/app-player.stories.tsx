@@ -87,6 +87,10 @@ export const Player = meta.story({
     const queued = (name: string) => within(main.getByRole('link', { name }).closest('li')!)
     await expect(queued('Sunday Morning Static').getAllByRole('link').slice(1).map((link) => link.textContent)).toEqual(['indie pop', 'dream pop'])
     await expect(queued('Crate Digger').queryByRole('list', { name: 'Genres' })).toBeNull()
+    // Ratings as a bare number: no stars, since Up next isn't where tracks get rated.
+    await expect(queued('Crate Digger').getByText('Rated 5 of 5')).toBeInTheDocument()
+    await expect(queued('Crate Digger').queryByRole('button', { name: /^Rating/ })).toBeNull()
+    await expect(queued('Sunday Morning Static').queryByText(/^Rated/)).toBeNull()
     await expect(await main.findByText(/^Playing here/)).toBeVisible()
     await expect(main.getByRole('button', { name: `Play on ${devices[1]!.name}` })).toBeEnabled()
     // Player is in the sidebar and marked as the current page.

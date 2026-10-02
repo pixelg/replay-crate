@@ -16,6 +16,7 @@ import {
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { api } from './api.ts'
+import { playlistIdOf } from './play-context.ts'
 
 const PLAYBACK_KEY = playbackQueryOptions(api).queryKey
 
@@ -80,6 +81,19 @@ export function usePlayingEpisodeId() {
     useQuery({
       ...playbackQueryOptions(api),
       select: (playback) => (playback?.isPlaying && playback.item?.type === 'episode' ? playback.item.id : null),
+    }).data ?? null
+  )
+}
+
+/**
+ * The id of the playlist playing right now (not paused, and not a queued item between its
+ * tracks), or null; re-renders only when it changes.
+ */
+export function usePlayingPlaylistId() {
+  return (
+    useQuery({
+      ...playbackQueryOptions(api),
+      select: (playback) => (playback?.isPlaying && !playback.fromQueue ? playlistIdOf(playback.context) : null),
     }).data ?? null
   )
 }
