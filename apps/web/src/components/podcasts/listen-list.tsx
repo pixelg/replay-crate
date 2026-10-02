@@ -17,7 +17,7 @@ const headingClass =
   'sticky top-[calc(3.5rem+var(--now-playing-height,0px))] z-[1] -mx-4 bg-background/95 px-4 py-2 text-sm font-semibold backdrop-blur md:-mx-8 md:px-8'
 
 /** The right-hand column: a steady width, so the ratings line up down the list. */
-const timeClass = 'shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:w-24'
+const timeClass = 'shrink-0 text-right text-xs text-muted-foreground tabular-nums @2xl:w-24'
 
 /** Podcast listens under sticky day headings (the day each ended), newest first. */
 export function ListenList({
@@ -117,7 +117,7 @@ export function EpisodeNowPlaying({
             ) : (
               <Pause aria-hidden className="size-4 shrink-0" />
             )}
-            <span className="sr-only sm:not-sr-only">{isPlaying ? 'Playing' : 'Paused'}</span>
+            <span className="sr-only @2xl:not-sr-only">{isPlaying ? 'Playing' : 'Paused'}</span>
           </span>
         }
       />
