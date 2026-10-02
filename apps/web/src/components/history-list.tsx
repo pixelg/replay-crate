@@ -74,7 +74,7 @@ export function HistoryList({
           <h2 id={`day-${group.day}`} className={headingClass}>
             {formatDayLabel(group.date, now)}
           </h2>
-          <ol className="flex flex-col">
+          <ol className="flex flex-col divide-y divide-border">
             {group.items.map((entry) =>
               entry.kind === 'play' ? (
                 <li key={entry.play.playedAt}>
