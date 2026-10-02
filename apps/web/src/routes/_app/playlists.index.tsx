@@ -13,6 +13,7 @@ import { buttonClasses } from '../../components/ui/button-classes.ts'
 import { Button } from '../../components/ui/button.tsx'
 import { api } from '../../lib/api.ts'
 import { getMode, useMode, type Mode } from '../../lib/mode.ts'
+import { usePlayingPlaylistId } from '../../lib/use-player.ts'
 import { cn } from 'cn'
 import { pageOfItems, pageSearch, resizedPage, storedPageSize, storePageSize } from '../../lib/page-size.ts'
 import { usePlaylistSync } from '../../lib/use-playlist-sync.ts'
@@ -34,6 +35,7 @@ function PlaylistsPage() {
   const mode = useMode()
   const { data } = useSuspenseQuery(playlistsQueryOptions(api, containsOf(mode)))
   const { sync, isSyncing, progress, error: syncError } = usePlaylistSync()
+  const playingId = usePlayingPlaylistId()
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
   const size = search.size ?? storedPageSize('playlists')
@@ -88,7 +90,7 @@ function PlaylistsPage() {
           <ul className="grid gap-x-6 sm:grid-cols-2">
             {pageOfItems(data.playlists, page, size).map((playlist) => (
               <li key={playlist.id}>
-                <PlaylistRow playlist={playlist} mode={mode} />
+                <PlaylistRow playlist={playlist} mode={mode} playing={playlist.id === playingId} />
               </li>
             ))}
           </ul>
@@ -111,7 +113,7 @@ function PlaylistsPage() {
   )
 }
 
-function PlaylistRow({ playlist, mode }: { playlist: PlaylistSummary; mode: Mode }) {
+function PlaylistRow({ playlist, mode, playing }: { playlist: PlaylistSummary; mode: Mode; playing: boolean }) {
   // What the playlist holds, as the mode counts it; the other kind joins in when there's both.
   const counted =
     mode === 'podcasts'
@@ -121,11 +123,13 @@ function PlaylistRow({ playlist, mode }: { playlist: PlaylistSummary; mode: Mode
     <Link
       to="/playlists/$playlistId"
       params={{ playlistId: playlist.id }}
-      className="group flex items-center gap-3 rounded-lg py-2"
+      // Marked like a track row when Spotify is playing from it.
+      aria-current={playing || undefined}
+      className={cn('group flex items-center gap-3 rounded-lg py-2', playing && '-mx-2 bg-accent px-2')}
     >
       <AlbumArt src={playlist.thumbUrl} className="size-14" />
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium group-hover:underline">{playlist.name}</p>
+        <p className={cn('truncate font-medium group-hover:underline', playing && 'text-primary')}>{playlist.name}</p>
         <p className="flex items-center gap-1 truncate text-sm text-muted-foreground">
           {counted.filter(Boolean).join(' and ')}
           {playlist.collaborative && (
@@ -135,6 +139,13 @@ function PlaylistRow({ playlist, mode }: { playlist: PlaylistSummary; mode: Mode
             </>
           )}
           {!playlist.owned && ` · by ${playlist.ownerName ?? 'someone else'}`}
+        </p>
+        <p className="truncate text-xs text-muted-foreground">
+          {playing
+            ? 'Playing now'
+            : playlist.lastPlayedFrom
+              ? `Last played ${formatRelative(new Date(playlist.lastPlayedFrom))}`
+              : 'Never played'}
         </p>
       </div>
       <div className="shrink-0 text-right">

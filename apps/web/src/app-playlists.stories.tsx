@@ -1,7 +1,7 @@
 import preview from '#storybook/preview'
 import { HttpResponse } from 'msw'
 import { expect, fn, screen, waitFor, within } from 'storybook/test'
-import { playlistDetail, playlistsList, rulePreview } from './test/fixtures.ts'
+import { pausedPlayback, playlistDetail, playlistsList, rulePreview } from './test/fixtures.ts'
 import { defaultHandlers, http } from './test/handlers.ts'
 import { App } from './test/app-story.tsx'
 import { pick, playerRequests, preloadRoutes, recordPlays, requests, rowsOf } from './test/app-story-helpers.ts'
@@ -25,6 +25,26 @@ export const Playlists = meta.story({
     await expect(await canvas.findByRole('heading', { level: 1, name: 'Playlists' })).toBeVisible()
     await expect(canvas.getByText('Late Night Crate')).toBeVisible()
     await expect(canvas.getByText('318')).toBeVisible()
+    // When each was last played from; the one playing now is marked instead.
+    const row = (name: string) => canvas.getByText(name).closest('a')!
+    await waitFor(() => expect(row('Late Night Crate')).toHaveAttribute('aria-current', 'true'))
+    await expect(row('Late Night Crate')).toHaveTextContent('Playing now')
+    await expect(row('Boom Bap Essentials')).not.toHaveAttribute('aria-current')
+    await expect(row('Boom Bap Essentials')).toHaveTextContent(/Last played (yesterday|2 days ago)/)
+    await expect(row('Road Trip (with Sam)')).toHaveTextContent('Never played')
+  },
+})
+
+/** Paused: nothing is marked, and the playlist shows when it was last played like the rest. */
+export const PlaylistsWhilePaused = meta.story({
+  args: { path: '/playlists' },
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/player', () => HttpResponse.json({ playback: pausedPlayback })))
+  },
+  play: async ({ canvas }) => {
+    const row = (await canvas.findByText('Late Night Crate')).closest('a')!
+    await waitFor(() => expect(row).toHaveTextContent(/Last played \d+ minutes ago/))
+    await expect(row).not.toHaveAttribute('aria-current')
   },
 })
 
