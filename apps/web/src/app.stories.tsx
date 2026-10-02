@@ -1643,9 +1643,16 @@ export const PlaylistRowHasTrackActions = meta.story({
     await userEvent.click(await canvas.findByRole('button', { name: 'Actions for Sunday Morning Static' }))
     const menu = await screen.findByRole('menu')
     await waitFor(() => expect(menu).toBeVisible())
-    // The shared items first, then the playlist's own.
+    // The shared items first (playing from this playlist or the track's album among them), then the playlist's own.
     const items = within(menu).getAllByRole('menuitem').map((item) => item.textContent?.trim())
-    await expect(items.slice(0, 4)).toEqual(['Play', 'Add to queue', 'Add to playlist…', 'Go to track'])
+    await expect(items.slice(0, 6)).toEqual([
+      'Play',
+      'Play from Late Night Crate',
+      'Play from Sunday Sessions',
+      'Add to queue',
+      'Add to playlist…',
+      'Go to track',
+    ])
     await expect(items).toContain('Remove from playlist…')
   },
 })

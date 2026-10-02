@@ -111,11 +111,21 @@ export async function playItem(deps: Pick<AppDeps, 'db' | 'spotify' | 'sleep'>, 
   if (!(await startFromContext(deps, token, request))) await spotify.play(token, { uris: [uri], positionMs, deviceId })
 
   let device: string | null = null
+  let elapsed = 0
+  // What each look saw, for the log: Spotify's state can lag the device.
+  const seen: string[] = []
   for (const delay of START_CHECK_DELAYS_MS) {
     await wait(delay)
+    elapsed += delay
     const state = await spotify.getPlaybackState(token)
-    if (state?.is_playing && state.item?.uri === uri) return { started: true }
+    const item = state?.item
+    seen.push(`+${elapsed}ms ${item?.uri ?? 'nothing'} ${state?.is_playing ? 'playing' : 'paused'}`)
     device = state?.device.name ?? device
+    if (state?.is_playing && item?.uri === uri) {
+      console.info(`[player] ${device ?? 'device'} started ${uri}: ${seen.join(', ')}`)
+      return { started: true }
+    }
   }
+  console.warn(`[player] ${device ?? 'device'} didn't show ${uri} playing: ${seen.join(', ')}`)
   return { started: false, device }
 }
