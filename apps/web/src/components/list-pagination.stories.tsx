@@ -1,7 +1,7 @@
 import preview from '#storybook/preview'
 import type { PageSize } from '@replay-crate/core'
 import { createMemoryHistory, createRootRoute, createRouter, Link, RouterProvider } from '@tanstack/react-router'
-import { expect, fn, screen, within } from 'storybook/test'
+import { expect, fn, screen, waitFor, within } from 'storybook/test'
 import { ListPagination } from './list-pagination.tsx'
 
 const meta = preview.meta({
@@ -68,6 +68,8 @@ export const PicksASize = meta.story({
     await expect(options).toEqual(['5', '10', '15', '20', '25', '30', 'All'])
     await userEvent.click(screen.getByRole('option', { name: '5' }))
     await expect(args.onSizeChange).toHaveBeenCalledWith(5)
+    // The a11y check runs once the story ends: let the list finish closing first.
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull())
   },
 })
 
