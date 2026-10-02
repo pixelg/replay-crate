@@ -152,12 +152,12 @@ export const handlers = {
   ],
   genres: [http.get('/api/v1/genres', ({ response }) => response(200).json({ genres }))],
   playlists: [
-    // With `contains`, as the API filters: playlists holding that kind, and empty ones.
+    // With `contains`, as the API filters: only playlists holding that kind.
     http.get('/api/v1/playlists', ({ query, response }) => {
       const contains = query.get('contains')
       const kept = playlistsList.playlists.filter((playlist) => {
-        if (contains === 'tracks') return playlist.trackCount > 0 || playlist.episodeCount === 0
-        if (contains === 'episodes') return playlist.episodeCount > 0 || playlist.trackCount === 0
+        if (contains === 'tracks') return playlist.trackCount > 0
+        if (contains === 'episodes') return playlist.episodeCount > 0
         return true
       })
       return response(200).json({ ...playlistsList, playlists: kept })

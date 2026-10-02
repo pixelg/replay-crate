@@ -532,7 +532,7 @@ export interface paths {
         };
         /**
          * Your playlists
-         * @description In your Spotify order, with how often you play from each. `contains=tracks` leaves out playlists that hold only podcast episodes, `contains=episodes` keeps only those with an episode; empty playlists are in both.
+         * @description In your Spotify order, with how often you play from each. `contains=tracks` keeps only playlists with a track, `contains=episodes` only those with a podcast episode (empty ones, or ones of only local files, are in neither).
          */
         get: operations["listPlaylists"];
         put?: never;

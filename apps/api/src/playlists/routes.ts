@@ -47,8 +47,8 @@ const list = createRoute({
   operationId: 'listPlaylists',
   summary: 'Your playlists',
   description:
-    'In your Spotify order, with how often you play from each. `contains=tracks` leaves out playlists that hold only ' +
-    'podcast episodes, `contains=episodes` keeps only those with an episode; empty playlists are in both.',
+    'In your Spotify order, with how often you play from each. `contains=tracks` keeps only playlists with a track, ' +
+    '`contains=episodes` only those with a podcast episode (empty ones, or ones of only local files, are in neither).',
   security: signedIn,
   request: {
     query: z.object({ contains: z.enum(['tracks', 'episodes']).optional().openapi({ description: 'What the playlists should hold.' }) }),
@@ -230,8 +230,8 @@ export function playlistRoutes(deps: AppDeps) {
         const kept = rows.filter((row) => {
           const tracksIn = Number(row.trackCount ?? 0)
           const episodesIn = Number(row.episodeCount ?? 0)
-          if (contains === 'tracks') return tracksIn > 0 || episodesIn === 0
-          if (contains === 'episodes') return episodesIn > 0 || tracksIn === 0
+          if (contains === 'tracks') return tracksIn > 0
+          if (contains === 'episodes') return episodesIn > 0
           return true
         })
         const latest = (a: Date | string | null, b: Date | string | null) => {
