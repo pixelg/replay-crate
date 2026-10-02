@@ -104,7 +104,9 @@ describe('history', () => {
         'spotify:playlist:pl-1': 'Road Trip',
         'spotify:playlist:algorithmic': null,
         'spotify:user:pixelg:collection': 'Liked Songs',
-        'spotify:artist:art-1': 'Artist art-1',
+        // Looked up as "Artist art-1", then renamed by the catalog's copy of the artist (the
+        // tracks credit art-1 as "Band"): contexts follow the catalog.
+        'spotify:artist:art-1': 'Band',
       })
     })
 

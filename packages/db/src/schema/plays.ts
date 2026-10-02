@@ -36,7 +36,9 @@ export const plays = pgTable(
 
 /**
  * Display info for play contexts, keyed by URI. Resolved once per URI; `name` stays null
- * when Spotify won't tell us (e.g. its own algorithmic playlists 404 for new apps).
+ * when Spotify won't tell us (e.g. its own algorithmic playlists 404 for new apps). A
+ * playlist, album or artist renamed in its own table updates its row here (trigger,
+ * migration 0026).
  */
 export const contexts = pgTable('contexts', {
   uri: text('uri').primaryKey(),
