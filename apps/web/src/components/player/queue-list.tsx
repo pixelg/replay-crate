@@ -1,11 +1,12 @@
 import type { PlayerItem } from '@replay-crate/api-client'
 import { Play } from 'lucide-react'
 import { AlbumArt } from '../album-art.tsx'
+import { GenreChips } from '../genre-chips.tsx'
 import { IconButton } from './icon-button.tsx'
 import { isPlayable, subtitleOf, thumbOf } from './items.ts'
 import { TrackNameLink } from '../track-name-link.tsx'
 
-/** What Spotify will play next: the user's queue, then the rest of the context. */
+/** What Spotify will play next: the user's queue, then the rest of the context, tracks with their genres. */
 export function QueueList({
   items,
   onPlayNow,
@@ -30,6 +31,8 @@ export function QueueList({
               <p className="truncate font-medium">{item.name}</p>
             )}
             <p className="truncate text-xs text-muted-foreground">{subtitleOf(item)}</p>
+            {/* Like a list row: the first two genres, on one line. */}
+            {item.type === 'track' && <GenreChips genres={item.genres} max={2} className="mt-1 flex-nowrap" />}
           </div>
           {onPlayNow && isPlayable(item) && (
             <IconButton label={`Play ${item.name} now`} disabled={disabled} onClick={() => onPlayNow(item, index)} className="shrink-0">

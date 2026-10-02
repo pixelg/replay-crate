@@ -83,6 +83,10 @@ export const Player = meta.story({
     await expect(panel.getByRole('slider', { name: 'Volume' })).toHaveAttribute('aria-valuetext', '70%')
     // Up next and the devices, the active one first.
     await expect(await main.findByText('The History of the Breakbeat')).toBeVisible()
+    // Queued tracks with their genres, when their artists have any.
+    const queued = (name: string) => within(main.getByRole('link', { name }).closest('li')!)
+    await expect(queued('Sunday Morning Static').getAllByRole('link').slice(1).map((link) => link.textContent)).toEqual(['indie pop', 'dream pop'])
+    await expect(queued('Crate Digger').queryByRole('list', { name: 'Genres' })).toBeNull()
     await expect(await main.findByText(/^Playing here/)).toBeVisible()
     await expect(main.getByRole('button', { name: `Play on ${devices[1]!.name}` })).toBeEnabled()
     // Player is in the sidebar and marked as the current page.
