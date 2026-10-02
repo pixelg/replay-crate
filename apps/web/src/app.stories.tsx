@@ -1377,6 +1377,21 @@ export const Player = meta.story({
   },
 })
 
+/** A track the user queued: Spotify still reports the playlist, which plays on after the queue. */
+export const PlayerPlayingFromQueue = meta.story({
+  args: { path: '/player' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/player', ({ response }) => response(200).json({ playback: { ...playback, fromQueue: true } })))
+  },
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    const panel = within(await main.findByRole('region', { name: 'Brass Monkey Business' }))
+    await expect(await panel.findByText(/^Playing from/)).toHaveTextContent('Playing from your queue')
+    await expect(panel.queryByRole('link', { name: 'Late Night Crate' })).toBeNull()
+  },
+})
+
 /** A track played on its own: Spotify pads Up next with it, over and over, though none will play. */
 export const PlayerUpNextLeavesOutPadding = meta.story({
   args: { path: '/player' },

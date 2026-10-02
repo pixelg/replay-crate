@@ -30,6 +30,7 @@ const playback = (overrides: Partial<Playback> = {}): Playback => ({
   shuffle: false,
   repeat: 'off',
   context: null,
+  fromQueue: false,
   item: {
     type: 'track',
     id: 't1',

@@ -73,6 +73,47 @@ describe('player', () => {
       await send('PUT', '/play', { contextUri: 'spotify:playlist:mix' })
       const { playback } = await json(await get(''))
       expect(playback.context).toEqual({ type: 'playlist', uri: 'spotify:playlist:mix', name: 'Late Night Crate', imageUrl: null })
+      expect(playback.fromQueue).toBe(false)
+    })
+
+    it('says when the item was queued rather than played from the context it reports', async () => {
+      const [one, two, queued] = [track('one'), track('two'), track('queued')]
+      ctx.library.add('kept', [one!, two!])
+      ctx.library.add('theirs', [one!, two!])
+      ctx.library.remember([queued!])
+      await upsertCatalog(ctx.db, [one!, two!, queued!])
+      await ctx.db.insert(schema.playlists).values({ id: 'kept', ownerId: 'me', name: 'Kept', snapshotId: 's1', itemsSnapshotId: 's1' })
+      await ctx.db.insert(schema.playlistItems).values([one!, two!].map((t, position) => ({ playlistId: 'kept', position, trackId: t.id! })))
+      const fromQueue = async () => (await json(await get(''))).playback.fromQueue
+
+      await send('PUT', '/play', { contextUri: 'spotify:playlist:kept', offset: { position: 0 } })
+      expect(await fromQueue()).toBe(false)
+      await send('POST', '/queue', { uri: 'spotify:track:queued' })
+      await send('POST', '/next')
+      expect(ctx.player.state.context).toMatchObject({ uri: 'spotify:playlist:kept' })
+      expect(await fromQueue()).toBe(true)
+      await send('POST', '/next')
+      expect(await fromQueue()).toBe(false)
+
+      // Changed since its items were synced: it may hold the track now.
+      await ctx.db.update(schema.playlists).set({ snapshotId: 's2' })
+      await send('POST', '/queue', { uri: 'spotify:track:queued' })
+      await send('POST', '/next')
+      expect(await fromQueue()).toBe(false)
+
+      // Someone else's playlist can't be looked into.
+      await send('PUT', '/play', { contextUri: 'spotify:playlist:theirs', offset: { position: 0 } })
+      await send('POST', '/queue', { uri: 'spotify:track:queued' })
+      await send('POST', '/next')
+      expect(await fromQueue()).toBe(false)
+
+      // An album holds its own tracks.
+      await send('PUT', '/play', { item: 'spotify:track:one' })
+      expect(ctx.player.state.context?.type).toBe('album')
+      expect(await fromQueue()).toBe(false)
+      await send('POST', '/queue', { uri: 'spotify:track:queued' })
+      await send('POST', '/next')
+      expect(await fromQueue()).toBe(true)
     })
   })
 

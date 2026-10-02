@@ -1,7 +1,6 @@
-import { schema, type Db } from '@replay-crate/db'
 import type { SpotifyPlayable } from '@replay-crate/spotify'
-import { and, eq } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
+import { inContext } from './in-context.ts'
 import { contextRefused, sameRecording, sleep, START_CHECK_DELAYS_MS, type PlayItemResult } from './play-item.ts'
 
 // Playing an item from Up next. Spotify can't jump ahead in its queue, and its iPhone app won't
@@ -25,33 +24,6 @@ const placeOf = (queue: SpotifyPlayable[], uri: string, index: number) =>
   queue[index]?.uri === uri ? index : queue.findIndex((item) => item.uri === uri)
 
 /**
- * Whether `item` is part of the context: a track of the album, or an item of a playlist whose
- * contents Replay Crate keeps. Other playlists can't be looked into (Spotify only shows the
- * user's own), so their items are skipped to.
- */
-async function inContext(db: Db, item: SpotifyPlayable, context: { type: string; uri: string }): Promise<boolean> {
-  const id = context.uri.split(':')[2]
-  if (!id) return false
-  if (context.type === 'album') return item.type === 'track' && item.album.id === id
-  const [kept] = await db.select({ snapshot: schema.playlists.itemsSnapshotId }).from(schema.playlists).where(eq(schema.playlists.id, id))
-  if (!kept?.snapshot || !item.id) return false
-  const { playlistItems, playlistEpisodes } = schema
-  const [found] =
-    item.type === 'track'
-      ? await db
-          .select({ position: playlistItems.position })
-          .from(playlistItems)
-          .where(and(eq(playlistItems.playlistId, id), eq(playlistItems.trackId, item.id)))
-          .limit(1)
-      : await db
-          .select({ position: playlistEpisodes.position })
-          .from(playlistEpisodes)
-          .where(and(eq(playlistEpisodes.playlistId, id), eq(playlistEpisodes.episodeId, item.id)))
-          .limit(1)
-  return Boolean(found)
-}
-
-/**
  * Plays the item at `index` in Up next (looked for again if the queue has moved), then watches
  * the player until it's playing. A lagging state can't be told from a lost skip, so skips aren't
  * resent (that could overshoot). Spotify's refusals of the device are thrown as they come.
@@ -68,7 +40,7 @@ export async function playFromQueue(deps: Deps, token: string, { uri, index, dev
   const context = state?.context
   // The very next item is one skip either way, and that leaves the queue alone.
   const fromContext =
-    at > 0 && context && !state.shuffle_state && OFFSET_CONTEXTS.has(context.type) && (await inContext(deps.db, queue[at]!, context))
+    at > 0 && context && !state.shuffle_state && OFFSET_CONTEXTS.has(context.type) && (await inContext(deps.db, queue[at]!, context)) === true
   if (fromContext) {
     try {
       await spotify.play(token, { contextUri: context.uri, offset: { uri }, deviceId })

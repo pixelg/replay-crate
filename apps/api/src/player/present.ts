@@ -4,6 +4,7 @@ import { pickImage, type SpotifyDevice, type SpotifyPlaybackState, type SpotifyP
 import { eq } from 'drizzle-orm'
 import { ArtistRef, ContextRef, IsoDateTime, Rating } from '../lib/schemas.ts'
 import { loadRatings } from '../tracks/ratings.ts'
+import { inContext } from './in-context.ts'
 
 // The player's view of Spotify objects: camelCase, images picked, only what the app shows.
 
@@ -67,6 +68,10 @@ export const Playback = z
     shuffle: z.boolean(),
     repeat: z.enum(['off', 'track', 'context']),
     context: ContextRef.nullable().openapi({ description: 'What the item plays from; named when the app knows it.' }),
+    fromQueue: z.boolean().openapi({
+      description:
+        "The item isn't part of `context`: the user queued it. Spotify keeps reporting the context, which plays on after the queue. False when that can't be told (e.g. someone else's playlist).",
+    }),
     item: PlayerItem.nullable().openapi({ description: 'Null for ads, and when nothing is loaded.' }),
     disallows: z.array(z.string()).openapi({
       description: "Controls Spotify won't allow right now, e.g. skipping_prev on a context's first track.",
@@ -152,12 +157,14 @@ export function toItem(item: SpotifyPlayable, ratings: ReadonlyMap<string, numbe
 
 export async function toPlayback(db: Db, userId: string, state: SpotifyPlaybackState): Promise<z.infer<typeof Playback>> {
   let context: z.infer<typeof ContextRef> | null = null
+  let fromQueue = false
   if (state.context) {
     const [known] = await db
       .select({ name: schema.contexts.name, imageUrl: schema.contexts.imageUrl })
       .from(schema.contexts)
       .where(eq(schema.contexts.uri, state.context.uri))
     context = { type: state.context.type, uri: state.context.uri, name: known?.name ?? null, imageUrl: known?.imageUrl ?? null }
+    fromQueue = state.item ? (await inContext(db, state.item, state.context)) === false : false
   }
   return {
     device: toDevice(state.device),
@@ -166,6 +173,7 @@ export async function toPlayback(db: Db, userId: string, state: SpotifyPlaybackS
     shuffle: state.shuffle_state,
     repeat: state.repeat_state,
     context,
+    fromQueue,
     item: state.item ? toItem(state.item, await ratingsFor(db, userId, [state.item])) : null,
     disallows: Object.entries(state.actions?.disallows ?? {})
       .filter(([, disallowed]) => disallowed)

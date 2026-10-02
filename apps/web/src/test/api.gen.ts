@@ -1939,6 +1939,8 @@ export interface components {
             /** @enum {string} */
             repeat: "off" | "track" | "context";
             context: components["schemas"]["ContextRef"] & unknown;
+            /** @description The item isn't part of `context`: the user queued it. Spotify keeps reporting the context, which plays on after the queue. False when that can't be told (e.g. someone else's playlist). */
+            fromQueue: boolean;
             item: components["schemas"]["PlayerItem"];
             /**
              * @description Controls Spotify won't allow right now, e.g. skipping_prev on a context's first track.
