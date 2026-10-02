@@ -15,6 +15,7 @@ export const TAGS = [
   { name: 'Player', description: 'Spotify playback: state, controls, queue and devices.' },
   { name: 'Search', description: 'Searching your library: tracks, artists, albums, playlists and plays.' },
   { name: 'Genres', description: "Artists' genres (from Last.fm and MusicBrainz) across your plays." },
+  { name: 'Settings', description: 'Your settings, the same on every device.' },
 ] as const
 export type Tag = (typeof TAGS)[number]['name']
 
@@ -111,6 +112,12 @@ const ERRORS = {
         }),
       })
       .openapi('CommandRefusedError', { description: 'Spotify refused the command for the current device or item.' }),
+  },
+  not_started: {
+    status: 409,
+    schema: errorBody('not_started')
+      .extend({ device: z.string().nullable().openapi({ description: 'The device that was asked, when Spotify said.' }) })
+      .openapi('NotStartedError', { description: 'Spotify took the play, but the device never started it.' }),
   },
   internal_error: {
     status: 500,

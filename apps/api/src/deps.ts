@@ -104,4 +104,6 @@ export type AppDeps = {
   lastfm?: LastfmGateway
   musicbrainz?: MusicBrainzGateway
   now?: () => Date
+  /** Waits between looks at the player after a play. Tests pass one that doesn't. */
+  sleep?: (ms: number) => Promise<void>
 }

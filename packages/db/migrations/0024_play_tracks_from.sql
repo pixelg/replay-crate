@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "play_tracks_from" text DEFAULT 'album' NOT NULL;

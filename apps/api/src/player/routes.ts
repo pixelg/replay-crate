@@ -6,13 +6,14 @@ import type { Context } from 'hono'
 import { missingScopes } from '../auth/me.ts'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
-import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
+import { createRouter, errorResponses, signedIn, type ErrorCode } from '../lib/openapi.ts'
 import { jsonBody, jsonResponse } from '../lib/schemas.ts'
 import { getAccessToken } from '../spotify/access-token.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { recordObservation } from '../podcasts/listens.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
 import { forgetDevice, rememberDevices, rememberedDevices } from './devices.ts'
+import { ITEM_URI, playItem, type PlayItemResult } from './play-item.ts'
 import { ListedDevice, Playback, Queue, ratingsFor, toItem, toListedDevice, toPlayback, toRememberedDevice } from './present.ts'
 
 /** Scopes the player needs; users who connected before it existed lack them. */
@@ -33,7 +34,6 @@ const PLAYER_ERRORS = [
   'command_refused',
 ] as const
 const readErrors = errorResponses(...PLAYER_ERRORS)
-const commandErrors = errorResponses('invalid_request', ...PLAYER_ERRORS)
 
 const read = <const P extends string, S extends z.ZodType>(path: P, operationId: string, summary: string, response: S, description?: string) =>
   createRoute({
@@ -48,13 +48,14 @@ const read = <const P extends string, S extends z.ZodType>(path: P, operationId:
   })
 
 /** A playback command: a JSON body, 204 once Spotify has passed it to the device. */
-const command = <const M extends 'put' | 'post', const P extends string, B extends z.ZodObject>(
+const command = <const M extends 'put' | 'post', const P extends string, B extends z.ZodObject, const X extends Exclude<ErrorCode, 'internal_error'> = never>(
   method: M,
   path: P,
   operationId: string,
   summary: string,
   body: B,
   description?: string,
+  extraErrors: X[] = [],
 ) =>
   createRoute({
     method,
@@ -65,7 +66,7 @@ const command = <const M extends 'put' | 'post', const P extends string, B exten
     description,
     security: signedIn,
     request: { body: jsonBody(body) },
-    responses: { 204: { description: 'Sent to the device.' }, ...commandErrors },
+    responses: { 204: { description: 'Sent to the device.' }, ...errorResponses<'invalid_request' | (typeof PLAYER_ERRORS)[number] | X>('invalid_request', ...PLAYER_ERRORS, ...extraErrors) },
   })
 
 const getPlayback = read(
@@ -100,17 +101,28 @@ const play = command(
   '/player/play',
   'play',
   'Play or resume',
-  z.object({
-    deviceId,
-    uris: z.array(z.string()).min(1).max(100).optional().openapi({ description: 'Tracks to play, as spotify:track: URIs.' }),
-    contextUri: z.string().optional().openapi({ description: 'An album, playlist or artist to play.', example: 'spotify:playlist:37i9dQZF1DXcBWIGoYBM5M' }),
-    offset: z
-      .union([z.object({ position: z.number().int().min(0) }), z.object({ uri: z.string() })])
-      .optional()
-      .openapi({ description: 'Where in `uris` or the context to start.' }),
-    positionMs: z.number().int().min(0).optional(),
-  }),
-  'With `uris` or `contextUri`, starts playing them; with neither, resumes what was paused.',
+  z
+    .object({
+      deviceId,
+      item: z.string().regex(ITEM_URI).optional().openapi({
+        description:
+          "One track or episode, played from a context so Up next is the rest of it: a track from its album, or the playlist it was last played from (the user's `playTracksFrom` setting); an episode from its show. Answers once the device is playing it.",
+        example: 'spotify:track:4uLU6hMCjMI75M1A2tKUQC',
+      }),
+      uris: z.array(z.string()).min(1).max(100).optional().openapi({ description: 'Tracks to play, as spotify:track: URIs.' }),
+      contextUri: z.string().optional().openapi({ description: 'An album, playlist or artist to play.', example: 'spotify:playlist:37i9dQZF1DXcBWIGoYBM5M' }),
+      offset: z
+        .union([z.object({ position: z.number().int().min(0) }), z.object({ uri: z.string() })])
+        .optional()
+        .openapi({ description: 'Where in `uris` or the context to start.' }),
+      positionMs: z.number().int().min(0).optional(),
+    })
+    .refine((body) => !body.item || (!body.uris && !body.contextUri && !body.offset), {
+      path: ['item'],
+      message: '`item` plays on its own: leave out `uris`, `contextUri` and `offset`.',
+    }),
+  'With `item`, `uris` or `contextUri`, starts playing them; with none, resumes what was paused. Prefer `item` for a single track or episode: Spotify\'s iPhone app ignores a bare URI played with `uris`.',
+  ['not_started'],
 )
 const pause = command('put', '/player/pause', 'pause', 'Pause', z.object({ deviceId }))
 const next = command('post', '/player/next', 'skipToNext', 'Skip to the next item', z.object({ deviceId }))
@@ -247,9 +259,15 @@ export function playerRoutes(deps: AppDeps) {
       })
 
       .openapi({ ...play, middleware: auth }, async (c) => {
-        const { deviceId: target, ...request } = c.req.valid('json')
-        const result = await withSpotify(c, (token) => spotify.play(token, { ...request, deviceId: target }))
-        return result.response ?? c.body(null, 204)
+        const { deviceId: target, item, ...request } = c.req.valid('json')
+        const result = await withSpotify(c, (token) =>
+          item
+            ? playItem(deps, token, { uri: item, user: c.var.user, positionMs: request.positionMs, deviceId: target })
+            : spotify.play(token, { ...request, deviceId: target }).then((): PlayItemResult => ({ started: true })),
+        )
+        if (result.response) return result.response
+        if (!result.value.started) return c.json({ error: 'not_started' as const, device: result.value.device }, 409)
+        return c.body(null, 204)
       })
       .openapi({ ...pause, middleware: auth }, async (c) => {
         const result = await withSpotify(c, (token) => spotify.pause(token, c.req.valid('json')))

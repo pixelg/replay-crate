@@ -24,11 +24,18 @@ type PlayerGateway = Pick<
   | 'transferPlayback'
 >
 
-export type FakeDevice = Omit<SpotifyDevice, 'is_active' | 'is_private_session' | 'is_restricted'> & { id: string }
+export type FakeDevice = Omit<SpotifyDevice, 'is_active' | 'is_private_session' | 'is_restricted'> & {
+  id: string
+  /**
+   * Like Spotify's iPhone app: a play of bare URIs (no context) is answered 204 and stops what
+   * was playing, but the new item never starts. Not part of what Spotify reports.
+   */
+  startsOnlyContexts?: boolean
+}
 
 export const fakeDevices = (): FakeDevice[] => [
   { id: 'laptop', name: 'Laptop', type: 'Computer', volume_percent: 70, supports_volume: true },
-  { id: 'phone', name: 'Phone', type: 'Smartphone', volume_percent: 100, supports_volume: false },
+  { id: 'phone', name: 'Phone', type: 'Smartphone', volume_percent: 100, supports_volume: false, startsOnlyContexts: true },
 ]
 
 export type FakePlayerOptions = {
@@ -91,9 +98,14 @@ export function createFakePlayer({
     Object.assign(state, { positionMs: progress(), since: now(), changedAt: now() }, updates)
   }
   const device = (id: string) => devices.find((d) => d.id === id)
-  const toDevice = (d: FakeDevice): SpotifyDevice => ({
-    ...d,
-    is_active: d.id === state.activeDeviceId,
+  // Only what Spotify reports (the quirks stay ours).
+  const toDevice = ({ id, name, type, volume_percent, supports_volume }: FakeDevice): SpotifyDevice => ({
+    id,
+    name,
+    type,
+    volume_percent,
+    supports_volume,
+    is_active: id === state.activeDeviceId,
     is_private_session: false,
     is_restricted: false,
   })
@@ -142,7 +154,8 @@ export function createFakePlayer({
       return devices.map(toDevice)
     },
     play: async (_token, { deviceId, uris, contextUri, offset, positionMs = 0 }) => {
-      target(deviceId)
+      const playsOn = target(deviceId)
+      if (uris && !contextUri && playsOn.startsOnlyContexts) return changed({ isPlaying: false })
       let list: SpotifyPlayable[] | undefined
       if (contextUri) {
         const tracks = resolveContext(contextUri)

@@ -218,6 +218,27 @@ export const TogglesThemeFromSidebar = meta.story({
   },
 })
 
+export const ChoosesWhereTracksPlayFrom = meta.story({
+  args: { path: '/settings' },
+  beforeEach({ msw }) {
+    playerRequests.mockClear()
+    msw.use(
+      http.patch('/api/v1/settings', async ({ request, response }) => {
+        const changes = await request.json()
+        playerRequests('settings', changes)
+        return response(200).json({ playTracksFrom: 'album', ...changes })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const choice = within(await canvas.findByRole('group', { name: 'Play tracks from' }))
+    await expect(choice.getByRole('button', { name: 'Album' })).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(choice.getByRole('button', { name: 'Last playlist' }))
+    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('settings', { playTracksFrom: 'playlist' }))
+    await expect(choice.getByRole('button', { name: 'Last playlist' })).toHaveAttribute('aria-pressed', 'true')
+  },
+})
+
 export const HistoryDark = meta.story({
   globals: { theme: 'dark', viewport: { value: 'desktop', isRotated: false } },
   play: async ({ canvas }) => {
@@ -1605,7 +1626,7 @@ export const HistoryPlaysFromContext = meta.story({
     await waitFor(() => expect(toast).toBeVisible())
 
     // Liked Songs can't start at a given track, and a play from search has no context at all: those
-    // rows play the track on its own.
+    // rows play the track as one item (the API starts it from its album or last playlist).
     const main = within(canvas.getByRole('main'))
     await expect(main.getByRole('button', { name: /^Play A Very Long Track Title/ })).toHaveAccessibleName(/Small Screens$/)
     await expect(main.getByRole('button', { name: 'Play Searched And Played' })).toBeVisible()
@@ -1893,7 +1914,7 @@ export const TracksPlays = meta.story({
   play: async ({ canvas, userEvent }) => {
     const main = within(await canvas.findByRole('main'))
     await userEvent.click(await main.findByRole('button', { name: 'Play Brass Monkey Business' }))
-    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('play', { uris: ['spotify:track:t1'] }))
+    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('play', { item: 'spotify:track:t1' }))
     // Select mode has checkboxes instead.
     await userEvent.click(main.getByRole('button', { name: 'Select' }))
     await expect(main.queryByRole('button', { name: /^Play / })).toBeNull()
@@ -1965,7 +1986,7 @@ export const TrackPagePlaysAndQueues = meta.story({
   play: async ({ canvas, userEvent }) => {
     const main = within(await canvas.findByRole('main'))
     await userEvent.click(await main.findByRole('button', { name: 'Play' }))
-    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('play', { uris: ['spotify:track:t1'] }))
+    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('play', { item: 'spotify:track:t1' }))
     const playing = await screen.findByText('Playing “Brass Monkey Business”')
     await waitFor(() => expect(playing).toBeVisible())
 
