@@ -4,7 +4,7 @@ import { eq, sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ReauthRequiredError } from '../spotify/access-token.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
-import { createTestContext, episode, tokens, track } from '../testing.ts'
+import { createTestContext, episode, paged, playlist, playlistEntry, tokens, track } from '../testing.ts'
 
 const ORIGIN = 'http://127.0.0.1:5173'
 
@@ -74,6 +74,19 @@ describe('player', () => {
       const { playback } = await json(await get(''))
       expect(playback.context).toEqual({ type: 'playlist', uri: 'spotify:playlist:mix', name: 'Late Night Crate', imageUrl: null })
       expect(playback.fromQueue).toBe(false)
+    })
+
+    it("names a renamed playlist by its new name once it's synced", async () => {
+      ctx.library.add('mix', [song], 'Late Night Crate')
+      await ctx.db.insert(schema.contexts).values({ uri: 'spotify:playlist:mix', type: 'playlist', name: 'Picked from history' })
+      ctx.spotify.getMyPlaylists.mockImplementation(async (_token, offset) =>
+        paged([playlist('mix', { name: 'Fresh Beats', total: 1 })])(offset),
+      )
+      ctx.spotify.getPlaylistItems.mockImplementation(async (_token, _id, offset) => paged([playlistEntry(song)])(offset))
+      expect((await ctx.app.request('/api/v1/playlists/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })).status).toBe(200)
+
+      await send('PUT', '/play', { contextUri: 'spotify:playlist:mix' })
+      expect((await json(await get(''))).playback.context).toMatchObject({ name: 'Fresh Beats' })
     })
 
     it('says when the item was queued rather than played from the context it reports', async () => {
