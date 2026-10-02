@@ -28,7 +28,10 @@ export const FirstPage = meta.story({
     const pages = within(canvas.getByRole('navigation', { name: 'Pages' }))
     await expect(pages.getByRole('link', { name: 'Page 1' })).toHaveAttribute('aria-current', 'page')
     await expect(pages.getByRole('link', { name: 'Page 62' })).toBeVisible()
+    // Nowhere further back to go.
     await expect(pages.queryByRole('link', { name: 'Previous page' })).toBeNull()
+    await expect(pages.queryByRole('link', { name: 'First page' })).toBeNull()
+    await expect(pages.getByRole('link', { name: 'Last page' })).toHaveAttribute('href', '/?page=62')
     await expect(pages.getByText('More pages')).toBeInTheDocument()
   },
 })
@@ -41,6 +44,19 @@ export const MiddlePage = meta.story({
     // First, neighbours, last, with an ellipsis either side.
     for (const page of [1, 29, 30, 31, 62]) await expect(pages.getByRole('link', { name: `Page ${page}` })).toBeVisible()
     await expect(pages.getAllByText('More pages')).toHaveLength(2)
+    await expect(pages.getByRole('link', { name: 'First page' })).toHaveAttribute('href', '/?page=1')
+    await expect(pages.getByRole('link', { name: 'Last page' })).toHaveAttribute('href', '/?page=62')
+  },
+})
+
+export const LastPage = meta.story({
+  args: { page: 62 },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText('1,221–1,234 of 1,234')).toBeVisible()
+    const pages = within(canvas.getByRole('navigation', { name: 'Pages' }))
+    await expect(pages.queryByRole('link', { name: 'Next page' })).toBeNull()
+    await expect(pages.queryByRole('link', { name: 'Last page' })).toBeNull()
+    await expect(pages.getByRole('link', { name: 'First page' })).toHaveAttribute('href', '/?page=1')
   },
 })
 
@@ -78,5 +94,9 @@ export const Phone = meta.story({
   globals: { viewport: { value: 'mobile2', isRotated: false } },
   play: async ({ canvas }) => {
     await expect(await canvas.findByText('Page 3 of 62')).toBeVisible()
+    // The numbers are hidden on a phone, so first and last are the way to the ends.
+    const pages = within(canvas.getByRole('navigation', { name: 'Pages' }))
+    await expect(pages.getByRole('link', { name: 'First page' })).toBeVisible()
+    await expect(pages.getByRole('link', { name: 'Last page' })).toBeVisible()
   },
 })

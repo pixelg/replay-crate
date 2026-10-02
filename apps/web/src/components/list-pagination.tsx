@@ -5,7 +5,9 @@ import {
   Pagination,
   PaginationContent,
   PaginationEllipsis,
+  PaginationFirst,
   PaginationItem,
+  PaginationLast,
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
@@ -15,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 const toItems = (sizes: readonly PageSize[]) => sizes.map((size) => ({ value: String(size), label: size === 'all' ? 'All' : String(size) }))
 
 /**
- * Under a list: which items are showing, links to the other pages, and how many to show per
+ * Under a list: which items are showing, links to the other pages (first and last too), and how many to show per
  * page. With `All`, only the size picker shows; the list keeps its own "Load more".
  * Page links are real links (`linkTo`), so they can be opened in a new tab and preload on hover.
  */
@@ -58,6 +60,13 @@ export function ListPagination({
           <PaginationContent>
             <PaginationItem>
               {page > 1 ? (
+                <PaginationFirst render={linkTo(1)} />
+              ) : (
+                <PaginationFirst render={<span />} aria-disabled data-disabled="" />
+              )}
+            </PaginationItem>
+            <PaginationItem>
+              {page > 1 ? (
                 <PaginationPrevious render={linkTo(page - 1)} />
               ) : (
                 <PaginationPrevious render={<span />} aria-disabled data-disabled="" />
@@ -83,6 +92,13 @@ export function ListPagination({
                 <PaginationNext render={linkTo(page + 1)} />
               ) : (
                 <PaginationNext render={<span />} aria-disabled data-disabled="" />
+              )}
+            </PaginationItem>
+            <PaginationItem>
+              {page < pages ? (
+                <PaginationLast render={linkTo(pages)} />
+              ) : (
+                <PaginationLast render={<span />} aria-disabled data-disabled="" />
               )}
             </PaginationItem>
           </PaginationContent>

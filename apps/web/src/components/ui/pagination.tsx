@@ -1,7 +1,7 @@
 import { mergeProps } from '@base-ui/react/merge-props'
 import { useRender } from '@base-ui/react/use-render'
 import { cn } from 'cn'
-import { ChevronLeftIcon, ChevronRightIcon, MoreHorizontalIcon } from 'lucide-react'
+import { ChevronLeftIcon, ChevronRightIcon, ChevronsLeftIcon, ChevronsRightIcon, MoreHorizontalIcon } from 'lucide-react'
 import type { ComponentProps } from 'react'
 import { buttonClasses } from './button-classes.ts'
 
@@ -40,6 +40,16 @@ function PaginationLink({ className, isActive, render, ...props }: PaginationLin
   })
 }
 
+// Icon-only: the name is text, since a disabled one is a plain <span> that can't take aria-label.
+function PaginationFirst({ className, ...props }: PaginationLinkProps) {
+  return (
+    <PaginationLink title="First page" className={className} {...props}>
+      <ChevronsLeftIcon aria-hidden className="size-4" />
+      <span className="sr-only">First page</span>
+    </PaginationLink>
+  )
+}
+
 function PaginationPrevious({ className, ...props }: PaginationLinkProps) {
   return (
     <PaginationLink aria-label="Previous page" className={cn('gap-1 pl-1.5', className)} {...props}>
@@ -54,6 +64,15 @@ function PaginationNext({ className, ...props }: PaginationLinkProps) {
     <PaginationLink aria-label="Next page" className={cn('gap-1 pr-1.5', className)} {...props}>
       <span className="hidden sm:block">Next</span>
       <ChevronRightIcon aria-hidden className="size-4" />
+    </PaginationLink>
+  )
+}
+
+function PaginationLast({ className, ...props }: PaginationLinkProps) {
+  return (
+    <PaginationLink title="Last page" className={className} {...props}>
+      <ChevronsRightIcon aria-hidden className="size-4" />
+      <span className="sr-only">Last page</span>
     </PaginationLink>
   )
 }
@@ -75,7 +94,9 @@ export {
   Pagination,
   PaginationContent,
   PaginationEllipsis,
+  PaginationFirst,
   PaginationItem,
+  PaginationLast,
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
