@@ -8,6 +8,7 @@ import { describeError } from '../lib/describe-error.ts'
 import { usePlayback, usePlayerControls, useQueue } from '../lib/use-player.ts'
 import { AlbumArt } from './album-art.tsx'
 import { IconButton } from './player/icon-button.tsx'
+import { JumpButton } from './player/jump-button.tsx'
 import { imageOf, subtitleOf, thumbOf } from './player/items.ts'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from './ui/hover-card.tsx'
 import { TrackRating } from './star-rating.tsx'
@@ -32,7 +33,7 @@ export function MiniPlayer({ className }: { className?: string }) {
       {item?.type === 'track' && item.id && (
         <TrackRating track={{ ...item, id: item.id }} className="hidden shrink-0 lg:inline-flex" />
       )}
-      <Transport playback={playback} send={player.send} />
+      <Transport playback={playback} progressMs={progressMs} send={player.send} />
       {item && (
         <p className="hidden shrink-0 text-xs text-muted-foreground tabular-nums lg:block">
           {formatDuration(progressMs)}
@@ -47,7 +48,7 @@ export function MiniPlayer({ className }: { className?: string }) {
   )
 }
 
-/** The phone bar: art, title and play/pause, with the position along its top edge. */
+/** The phone bar: art, title, play/pause between 15-second jumps, with the position along its top edge. */
 export function MiniPlayerBar() {
   const player = useMiniPlayer()
   // Nothing to control: leave the space to the page.
@@ -60,9 +61,13 @@ export function MiniPlayerBar() {
       className="relative flex h-14 items-center gap-3 border-t border-border bg-card px-4"
     >
       <ProgressLine progressMs={progressMs} durationMs={item.durationMs} className="absolute inset-x-0 top-0" />
-      {/* The title's link covers the bar; play/pause sits above it. */}
+      {/* The title's link covers the bar; the controls sit above it. */}
       <NowPlaying item={item} message={player.message} opens="player" />
-      <PlayPause playback={playback} send={player.send} className="relative z-10" />
+      <div className="relative z-10 flex shrink-0 items-center gap-1">
+        <JumpButton direction="back" playback={playback} progressMs={progressMs} send={player.send} iconClassName="size-5" />
+        <PlayPause playback={playback} send={player.send} />
+        <JumpButton direction="forward" playback={playback} progressMs={progressMs} send={player.send} iconClassName="size-5" />
+      </div>
     </section>
   )
 }
@@ -211,10 +216,19 @@ function UpNext({ item }: { item: PlayerItem }) {
   )
 }
 
-function Transport({ playback, send }: { playback: Playback; send: (command: PlayerCommand) => void }) {
+function Transport({
+  playback,
+  progressMs,
+  send,
+}: {
+  playback: Playback
+  progressMs: number
+  send: (command: PlayerCommand) => void
+}) {
   const disallowed = new Set(playback.disallows)
   return (
     <div className="flex shrink-0 items-center gap-1">
+      <JumpButton direction="back" playback={playback} progressMs={progressMs} send={send} iconClassName="size-5" />
       <IconButton label="Previous" disabled={disallowed.has('skipping_prev')} onClick={() => send({ kind: 'previous' })}>
         <SkipBack aria-hidden className="size-4" />
       </IconButton>
@@ -222,6 +236,7 @@ function Transport({ playback, send }: { playback: Playback; send: (command: Pla
       <IconButton label="Next" disabled={disallowed.has('skipping_next')} onClick={() => send({ kind: 'next' })}>
         <SkipForward aria-hidden className="size-4" />
       </IconButton>
+      <JumpButton direction="forward" playback={playback} progressMs={progressMs} send={send} iconClassName="size-5" />
     </div>
   )
 }
