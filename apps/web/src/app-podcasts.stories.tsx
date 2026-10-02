@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { expect, screen, waitFor, within } from 'storybook/test'
 import { setMode } from './lib/mode.ts'
 import { createAppRouter } from './router.ts'
+import { Route as StatsRoute } from './routes/_app/stats.tsx'
 import { episodePlayback } from './test/fixtures.ts'
 import { defaultHandlers, http } from './test/handlers.ts'
 
@@ -37,6 +38,15 @@ const meta = preview.meta({
 /** Starts the story in podcast mode, as a device that last picked it would. */
 const inPodcastMode = () => {
   setMode('podcasts')
+}
+
+/**
+ * The Stats route is code-split and pulls in Recharts, which a cold CI runner can take several
+ * seconds to load. Load its chunk before the story (the router's own split, under the test's
+ * timeout), so the stories' waits cover the page, not the download.
+ */
+const preloadStats = async () => {
+  await StatsRoute.options.component?.preload?.()
 }
 
 export const SwitchesHistoryToPodcasts = meta.story({
@@ -200,7 +210,10 @@ export const SettingsPicksTheMode = meta.story({
 
 export const PodcastStats = meta.story({
   args: { path: '/stats' },
-  beforeEach: inPodcastMode,
+  async beforeEach() {
+    inPodcastMode()
+    await preloadStats()
+  },
   play: async ({ canvas, userEvent }) => {
     const main = within(await canvas.findByRole('main'))
     await expect(await main.findByRole('heading', { level: 1, name: 'Stats' }, { timeout: 5_000 })).toBeVisible()
@@ -221,6 +234,7 @@ export const PodcastStats = meta.story({
 
 export const StatsKeepTheirRangeAcrossModes = meta.story({
   args: { path: '/stats?range=90d' },
+  beforeEach: preloadStats,
   play: async ({ canvas, userEvent }) => {
     const main = within(await canvas.findByRole('main'))
     await expect(await main.findByText('Who you listened to', undefined, { timeout: 5_000 })).toBeVisible()
