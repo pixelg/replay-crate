@@ -1460,6 +1460,30 @@ export const PlayerSeeks = meta.story({
   },
 })
 
+/** Jumps 15 seconds back and forward from where playback is (paused, so it stays put between). */
+export const PlayerJumpsSeconds = meta.story({
+  args: { path: '/player' },
+  beforeEach({ msw }) {
+    playerRequests.mockClear()
+    let progressMs = playback.progressMs
+    msw.use(
+      http.get('/api/v1/player', ({ response }) => response(200).json({ playback: { ...playback, isPlaying: false, progressMs } })),
+      http.put('/api/v1/player/seek', async ({ request, response }) => {
+        const body = await request.json()
+        playerRequests('seek', body)
+        progressMs = body.positionMs
+        return response(204).empty()
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(await canvas.findByRole('button', { name: 'Back 15 seconds' }))
+    await waitFor(() => expect(playerRequests).toHaveBeenLastCalledWith('seek', { positionMs: 66_000 }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Forward 15 seconds' }))
+    await waitFor(() => expect(playerRequests).toHaveBeenLastCalledWith('seek', { positionMs: 81_000 }))
+  },
+})
+
 export const PlayerNothingActive = meta.story({
   args: { path: '/player' },
   beforeEach({ msw }) {

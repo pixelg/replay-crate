@@ -11,6 +11,7 @@ import { useIsLibraryPlaylist } from '../../lib/use-library-playlist.ts'
 import { playlistIdOf } from '../../lib/play-context.ts'
 import { IconButton } from './icon-button.tsx'
 import { imageOf, subtitleOf } from './items.ts'
+import { SkipSecondsIcon } from './skip-seconds-icon.tsx'
 
 /** The value of a one-thumb slider (Base UI passes a number or an array). */
 const thumb = (value: number | readonly number[]) => (typeof value === 'number' ? value : (value[0] ?? 0))
@@ -18,7 +19,13 @@ const thumb = (value: number | readonly number[]) => (typeof value === 'number' 
 const NEXT_REPEAT: Record<RepeatMode, RepeatMode> = { off: 'context', context: 'track', track: 'off' }
 const REPEAT_LABEL: Record<RepeatMode, string> = { off: 'Repeat: off', context: 'Repeat: all', track: 'Repeat: this track' }
 
-/** The player page's main panel: big art, what's playing, seek, transport, shuffle, repeat, volume. */
+/** How far the back and forward buttons jump. */
+const JUMP_MS = 15_000
+
+/**
+ * The player page's main panel: big art, what's playing, seek, transport (with jumps of 15 s back
+ * and forward), shuffle, repeat, volume.
+ */
 export function NowPlayingPanel({
   playback,
   item,
@@ -66,6 +73,13 @@ export function NowPlayingPanel({
           >
             <Shuffle aria-hidden className="size-4" />
           </IconButton>
+          <IconButton
+            label="Back 15 seconds"
+            disabled={disallowed.has('seeking')}
+            onClick={() => send({ kind: 'seek', positionMs: Math.max(0, Math.round(progressMs) - JUMP_MS) })}
+          >
+            <SkipSecondsIcon aria-hidden direction="back" seconds={JUMP_MS / 1_000} className="size-6" />
+          </IconButton>
           <IconButton label="Previous" disabled={disallowed.has('skipping_prev')} onClick={() => send({ kind: 'previous' })}>
             <SkipBack aria-hidden className="size-5" />
           </IconButton>
@@ -79,6 +93,14 @@ export function NowPlayingPanel({
           </IconButton>
           <IconButton label="Next" disabled={disallowed.has('skipping_next')} onClick={() => send({ kind: 'next' })}>
             <SkipForward aria-hidden className="size-5" />
+          </IconButton>
+          <IconButton
+            label="Forward 15 seconds"
+            disabled={disallowed.has('seeking')}
+            // Up to the end, where Spotify moves on to the next item.
+            onClick={() => send({ kind: 'seek', positionMs: Math.min(item.durationMs, Math.round(progressMs) + JUMP_MS) })}
+          >
+            <SkipSecondsIcon aria-hidden direction="forward" seconds={JUMP_MS / 1_000} className="size-6" />
           </IconButton>
           <IconButton
             label={REPEAT_LABEL[playback.repeat]}
