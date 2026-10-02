@@ -10383,6 +10383,154 @@
         }
       }
     },
+    "/api/v1/player/queue/play": {
+      "post": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "playFromQueue",
+        "summary": "Play an item from Up next",
+        "description": "Gets there without a bare URI (which Spotify's iPhone app ignores): an item of the playing album, or of a playlist whose contents Replay Crate keeps, plays from that context when shuffle is off, keeping the user's queue; anything else is skipped to, keeping Up next as it was. Answers once the device is playing it (not_started when it doesn't show there in time); not_found when it has left Up next.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The device to act on. Defaults to the active one."
+                  },
+                  "uri": {
+                    "type": "string",
+                    "pattern": "^spotify:(track|episode):[A-Za-z0-9]+$",
+                    "description": "The track or episode.",
+                    "example": "spotify:track:4uLU6hMCjMI75M1A2tKUQC"
+                  },
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Where it is in Up next (the queue's `queue`), counting from 0."
+                  }
+                },
+                "required": [
+                  "uri",
+                  "index"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Sent to the device."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden | premium_required | missing_scopes | command_refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForbiddenError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PremiumRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MissingScopesError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandRefusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | no_active_device | not_started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoActiveDeviceError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NotStartedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/player/device": {
       "put": {
         "tags": [

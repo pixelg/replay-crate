@@ -99,6 +99,8 @@ export type PlayerCommand =
   | ({ kind: 'repeat'; state: RepeatMode } & Target)
   | ({ kind: 'volume'; percent: number } & Target)
   | ({ kind: 'queue'; uri: string } & Target)
+  /** Plays the item at `index` in Up next (see `upNext()`), with what follows it there. */
+  | ({ kind: 'playQueued'; uri: string; index: number } & Target)
   | { kind: 'transfer'; deviceId: string; play?: boolean }
 
 /** The request for a command, and how errors name it. */
@@ -125,6 +127,11 @@ function commandRequest(api: ApiClient, command: PlayerCommand): [endpoint: stri
       return ['PUT /api/v1/player/volume', () => player.volume.$put({ json: { deviceId: command.deviceId, percent: command.percent } })]
     case 'queue':
       return ['POST /api/v1/player/queue', () => player.queue.$post({ json: { deviceId: command.deviceId, uri: command.uri } })]
+    case 'playQueued':
+      return [
+        'POST /api/v1/player/queue/play',
+        () => player.queue.play.$post({ json: { deviceId: command.deviceId, uri: command.uri, index: command.index } }),
+      ]
     case 'transfer':
       return ['PUT /api/v1/player/device', () => player.device.$put({ json: { deviceId: command.deviceId, play: command.play } })]
   }

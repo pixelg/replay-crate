@@ -1403,16 +1403,16 @@ export const PlayerPlaysNow = meta.story({
   args: { path: '/player' },
   globals: { viewport: { value: 'desktop', isRotated: false } },
   beforeEach({ msw }) {
-    msw.use(...recordPlayerCommands(), http.put('/api/v1/player/play', async ({ request, response }) => {
-      playerRequests('play', await request.json())
+    msw.use(...recordPlayerCommands(), http.post('/api/v1/player/queue/play', async ({ request, response }) => {
+      playerRequests('playQueued', await request.json())
       return response(204).empty()
     }))
   },
   play: async ({ canvas, userEvent }) => {
     const main = within(await canvas.findByRole('main'))
-    // Spotify can't skip ahead in its queue: the item plays now, and what was after it follows.
+    // The item and its place in Up next: the API gets there from the context or by skipping.
     await userEvent.click(await main.findByRole('button', { name: 'Play Crate Digger now' }))
-    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('play', { uris: ['spotify:track:t5', 'spotify:episode:e1'] }))
+    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('playQueued', { uri: 'spotify:track:t5', index: 1 }))
   },
 })
 
