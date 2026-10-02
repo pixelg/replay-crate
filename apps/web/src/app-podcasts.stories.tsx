@@ -1,25 +1,12 @@
 import preview from '#storybook/preview'
-import { useQueryClient } from '@tanstack/react-query'
-import { createMemoryHistory, RouterProvider } from '@tanstack/react-router'
 import { HttpResponse } from 'msw'
-import { useState } from 'react'
 import { expect, screen, waitFor, within } from 'storybook/test'
 import { setMode } from './lib/mode.ts'
-import { createAppRouter } from './router.ts'
-import { Route as StatsRoute } from './routes/_app/stats.tsx'
+import type { createAppRouter } from './router.ts'
 import { episodePlayback } from './test/fixtures.ts'
 import { defaultHandlers, http } from './test/handlers.ts'
-
-/** The whole app (real route tree + shell) at a given URL, keeping its router to check where it went. */
-function App({ path, onRouter }: { path: string; onRouter?: (router: ReturnType<typeof createAppRouter>) => void }) {
-  const queryClient = useQueryClient()
-  const [router] = useState(() => {
-    const created = createAppRouter({ queryClient, history: createMemoryHistory({ initialEntries: [path] }) })
-    onRouter?.(created)
-    return created
-  })
-  return <RouterProvider router={router} />
-}
+import { App } from './test/app-story.tsx'
+import { preloadRoutes } from './test/app-story-helpers.ts'
 
 let router: ReturnType<typeof createAppRouter> | undefined
 const pathname = () => router?.state.location.pathname
@@ -30,23 +17,15 @@ const meta = preview.meta({
   args: { path: '/history', onRouter: (created) => (router = created) },
   parameters: { layout: 'fullscreen' },
   globals: { viewport: { value: 'desktop', isRotated: false } },
-  beforeEach({ msw }) {
+  async beforeEach({ msw }) {
     msw.use(...defaultHandlers)
+    await preloadRoutes()
   },
 })
 
 /** Starts the story in podcast mode, as a device that last picked it would. */
 const inPodcastMode = () => {
   setMode('podcasts')
-}
-
-/**
- * The Stats route is code-split and pulls in Recharts, which a cold CI runner can take several
- * seconds to load. Load its chunk before the story (the router's own split, under the test's
- * timeout), so the stories' waits cover the page, not the download.
- */
-const preloadStats = async () => {
-  await StatsRoute.options.component?.preload?.()
 }
 
 export const SwitchesHistoryToPodcasts = meta.story({
@@ -210,10 +189,7 @@ export const SettingsPicksTheMode = meta.story({
 
 export const PodcastStats = meta.story({
   args: { path: '/stats' },
-  async beforeEach() {
-    inPodcastMode()
-    await preloadStats()
-  },
+  beforeEach: inPodcastMode,
   play: async ({ canvas, userEvent }) => {
     const main = within(await canvas.findByRole('main'))
     await expect(await main.findByRole('heading', { level: 1, name: 'Stats' }, { timeout: 5_000 })).toBeVisible()
@@ -234,7 +210,6 @@ export const PodcastStats = meta.story({
 
 export const StatsKeepTheirRangeAcrossModes = meta.story({
   args: { path: '/stats?range=90d' },
-  beforeEach: preloadStats,
   play: async ({ canvas, userEvent }) => {
     const main = within(await canvas.findByRole('main'))
     await expect(await main.findByText('Who you listened to', undefined, { timeout: 5_000 })).toBeVisible()
