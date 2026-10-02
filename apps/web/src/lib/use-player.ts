@@ -192,7 +192,7 @@ export function useForgetDevice() {
 function refetchAfter(queryClient: QueryClient, kinds: Iterable<PlayerCommand['kind']>) {
   const sent = [...kinds]
   void queryClient.invalidateQueries({ queryKey: PLAYBACK_KEY, exact: true })
-  if (sent.some((kind) => kind === 'next' || kind === 'previous' || kind === 'play' || kind === 'queue')) {
+  if (sent.some((kind) => kind === 'next' || kind === 'previous' || kind === 'play' || kind === 'queue' || kind === 'playQueued')) {
     void queryClient.invalidateQueries({ queryKey: ['player', 'queue'] })
   }
   if (sent.some((kind) => kind === 'transfer' || kind === 'volume')) {

@@ -21,7 +21,7 @@ export type PlayItemResult = { started: true } | { started: false; device: strin
 type Player = Pick<User, 'id' | 'playTracksFrom'>
 type PlayItem = { uri: string; user: Player; positionMs?: number; deviceId?: string }
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
 /**
  * Where to start `uri` from, best first: a track's last playlist (when the user plays tracks from
@@ -83,7 +83,7 @@ const lookupFailed = (uri: string) => (error: unknown) => {
 }
 
 /** A refusal of the context itself (not of the device): the next context, or the item alone, may still play. */
-const contextRefused = (error: unknown) =>
+export const contextRefused = (error: unknown) =>
   error instanceof SpotifyApiError && (error.status === 400 || (error.status === 404 && error.reason !== 'NO_ACTIVE_DEVICE'))
 
 /** Tries each of the item's contexts in turn; false when Spotify took none of them. */

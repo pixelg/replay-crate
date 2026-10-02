@@ -158,6 +158,8 @@ describe('responses match the spec', () => {
     await call('GET', '/player')
     await call('GET', '/player/queue')
     await call('GET', '/player/devices')
+    await call('POST', '/player/queue/play', {}, { uri: 'spotify:track:b', index: 0 })
+    await call('POST', '/player/queue/play', {}, { uri: 'spotify:track:gone', index: 0 })
     // A podcast episode, played across two looks at the player so there's a listen.
     ctx.library.addEpisodes(episode('talk', { show: ['pod', 'The Pod'] }))
     await call('PUT', '/player/play', {}, { uris: ['spotify:episode:talk'] })

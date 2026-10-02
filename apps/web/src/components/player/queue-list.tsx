@@ -12,8 +12,8 @@ export function QueueList({
   disabled,
 }: {
   items: PlayerItem[]
-  /** Offers "Play now" on each item Spotify can start (not local files); gets it and what follows. */
-  onPlayNow?: (from: PlayerItem[]) => void
+  /** Offers "Play now" on each item Spotify can start (not local files); gets it and its place in `items`. */
+  onPlayNow?: (item: PlayerItem, index: number) => void
   disabled?: boolean
 }) {
   if (!items.length) return <p className="text-sm text-muted-foreground">Nothing queued after this.</p>
@@ -32,7 +32,7 @@ export function QueueList({
             <p className="truncate text-xs text-muted-foreground">{subtitleOf(item)}</p>
           </div>
           {onPlayNow && isPlayable(item) && (
-            <IconButton label={`Play ${item.name} now`} disabled={disabled} onClick={() => onPlayNow(items.slice(index))} className="shrink-0">
+            <IconButton label={`Play ${item.name} now`} disabled={disabled} onClick={() => onPlayNow(item, index)} className="shrink-0">
               <Play aria-hidden className="size-4" />
             </IconButton>
           )}
