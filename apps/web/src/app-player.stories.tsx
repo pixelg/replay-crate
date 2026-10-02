@@ -73,6 +73,10 @@ export const Player = meta.story({
     // One of your playlists: a link to it.
     await expect(panel.getByText(/^Playing from/)).toHaveTextContent('Playing from Late Night Crate')
     await expect(await panel.findByRole('link', { name: 'Late Night Crate' })).toHaveAttribute('href', '/playlists/p1')
+    // Its genres, each a link to History filtered to it.
+    const genres = within(panel.getByRole('list', { name: 'Genres' }))
+    await expect(genres.getAllByRole('link').map((link) => link.textContent)).toEqual(['hip hop', 'boom bap', 'jazz'])
+    await expect(genres.getByRole('link', { name: 'hip hop' })).toHaveAttribute('href', expect.stringMatching(/^\/history\?genre=/))
     await expect(panel.getByRole('slider', { name: 'Seek' })).toHaveAttribute('aria-valuetext', expect.stringMatching(/^1:2\d of 3:33$/))
     // The position counts up; the length beside it stays put.
     await expect(panel.getByText('3:33')).toBeVisible()

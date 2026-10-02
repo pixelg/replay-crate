@@ -15,7 +15,7 @@ import { upsertCatalog } from '../sync/catalog.ts'
 import { forgetDevice, rememberDevices, rememberedDevices } from './devices.ts'
 import { playFromQueue } from './play-from-queue.ts'
 import { ITEM_URI, playItem, type PlayItemResult } from './play-item.ts'
-import { ListedDevice, Playback, Queue, ratingsFor, toItem, toListedDevice, toPlayback, toRememberedDevice } from './present.ts'
+import { ListedDevice, Playback, Queue, lookupsFor, toItem, toListedDevice, toPlayback, toRememberedDevice } from './present.ts'
 
 /** Scopes the player needs; users who connected before it existed lack them. */
 const PLAYER_SCOPES = ['user-read-playback-state', 'user-read-currently-playing', 'user-modify-playback-state']
@@ -241,11 +241,11 @@ export function playerRoutes(deps: AppDeps) {
         const result = await withSpotify(c, (token) => spotify.getQueue(token))
         if (result.response) return result.response
         const { currently_playing, queue } = result.value
-        const ratings = await ratingsFor(db, c.var.user.id, [...(currently_playing ? [currently_playing] : []), ...queue])
+        const lookups = await lookupsFor(db, c.var.user.id, [...(currently_playing ? [currently_playing] : []), ...queue])
         return c.json(
           {
-            currentlyPlaying: currently_playing ? toItem(currently_playing, ratings) : null,
-            queue: queue.map((item) => toItem(item, ratings)),
+            currentlyPlaying: currently_playing ? toItem(currently_playing, lookups) : null,
+            queue: queue.map((item) => toItem(item, lookups)),
           },
           200,
         )

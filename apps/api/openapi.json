@@ -2445,6 +2445,13 @@
               "$ref": "#/components/schemas/ArtistRef"
             }
           },
+          "genres": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GenreRef"
+            },
+            "description": "Its artists' genres, the first artist's first, at most three. Empty until the artists' lookups are done."
+          },
           "rating": {
             "$ref": "#/components/schemas/Rating"
           }
@@ -2458,6 +2465,7 @@
           "explicit",
           "album",
           "artists",
+          "genres",
           "rating"
         ]
       },

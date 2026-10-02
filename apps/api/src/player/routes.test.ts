@@ -67,6 +67,20 @@ describe('player', () => {
       expect((await ctx.app.request('/api/v1/tracks/song', { headers: { Cookie: cookie } })).status).toBe(200)
     })
 
+    it("gives a track its artists' genres, the first artist's first", async () => {
+      const duet = track('duet', { artists: [['loop', 'The Loop Collective'], ['kites', 'Paper Kites Club']] })
+      await upsertCatalog(ctx.db, [duet])
+      await ctx.giveGenres('loop', ['hip hop', 'funk'])
+      await ctx.giveGenres('kites', ['funk', 'indie pop', 'jazz'])
+      ctx.player.nowPlaying(duet, { upcoming: [track('solo', { artists: [['someone', 'Somebody']] })] })
+      const { playback } = await json(await get(''))
+      expect(playback.item.genres.map((genre: { name: string }) => genre.name)).toEqual(['hip hop', 'funk', 'indie pop'])
+      const queue = await json(await get('/queue'))
+      expect(queue.currentlyPlaying.genres).toHaveLength(3)
+      // Not looked up yet.
+      expect(queue.queue[0]).toMatchObject({ id: 'solo', genres: [] })
+    })
+
     it('names the context when the app knows it', async () => {
       ctx.library.add('mix', [song], 'Late Night Crate')
       await ctx.db.insert(schema.contexts).values({ uri: 'spotify:playlist:mix', type: 'playlist', name: 'Late Night Crate' })

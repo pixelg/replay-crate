@@ -559,6 +559,7 @@ const playerTrack = (id: string, name: string, artists: string[], album: string)
   explicit: false,
   album: { id: `album-${id}`, name: album, imageUrl: null, thumbUrl: null },
   artists: artists.map((artist, i) => ({ id: `${id}-artist-${i}`, name: artist })),
+  genres: trackGenres[id] ?? [],
 })
 
 export const nowPlaying = playerTrack('t1', 'Brass Monkey Business', ['The Loop Collective', 'MC Vinyl'], 'Dusty Grooves')
