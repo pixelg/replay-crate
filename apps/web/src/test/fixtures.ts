@@ -549,9 +549,9 @@ export const devices: Device[] = [
   rememberedDevice(5, null, 'Car Stereo', 'Automobile', dayAt(12, 8)),
 ]
 
-const playerTrack = (id: string, name: string, artists: string[], album: string): PlayerItem => ({
+const playerTrack = (id: string, name: string, artists: string[], album: string, rating = ratingOf(id)): PlayerItem => ({
   type: 'track',
-  rating: ratingOf(id),
+  rating,
   id,
   uri: `spotify:track:${id}`,
   name,
@@ -582,7 +582,7 @@ export const queue: PlayerQueue = {
   currentlyPlaying: nowPlaying,
   queue: [
     playerTrack('t2', 'Sunday Morning Static', ['Paper Kites Club'], 'Sunday Sessions'),
-    { ...playerTrack('t5', 'Crate Digger', ['Needle Drop'], 'Wax Poetics'), rating: 5 },
+    playerTrack('t5', 'Crate Digger', ['Needle Drop'], 'Wax Poetics', 5),
     {
       type: 'episode',
       id: 'e1',
