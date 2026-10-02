@@ -58,8 +58,8 @@ describe('episode playlists', () => {
     const { playlists } = await get('/playlists')
     expect(playlists.find((p: { id: string }) => p.id === 'mix')).toMatchObject({ itemCount: 4, trackCount: 2, episodeCount: 2 })
     const names = async (contains: string) => (await get(`/playlists?contains=${contains}`)).playlists.map((p: { id: string }) => p.id).toSorted()
-    expect(await names('tracks')).toEqual(['empty', 'mix', 'songs'])
-    expect(await names('episodes')).toEqual(['empty', 'mix', 'pods'])
+    expect(await names('tracks')).toEqual(['mix', 'songs'])
+    expect(await names('episodes')).toEqual(['mix', 'pods'])
   })
 
   it('adds, moves and removes episodes', async () => {

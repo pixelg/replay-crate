@@ -24,7 +24,7 @@ export const Route = createFileRoute('/_app/playlists/')({
   component: PlaylistsPage,
 })
 
-/** Music mode lists playlists with tracks, podcast mode those with episodes (empty ones in both). */
+/** Music mode lists playlists with tracks, podcast mode those with episodes (empty ones in neither). */
 const containsOf = (mode: Mode) => (mode === 'podcasts' ? 'episodes' : 'tracks')
 
 /** Re-sync automatically when the last full sync is older than this. */
@@ -104,7 +104,7 @@ function PlaylistsPage() {
         <EmptyState icon={ListMusic} title={isSyncing ? 'Fetching your playlists…' : mode === 'podcasts' ? 'No podcast playlists yet' : 'No playlists yet'}>
           {mode === 'podcasts'
             ? 'Playlists you own or collaborate on that hold podcast episodes show up here. Make one from your listening with New playlist.'
-            : 'Playlists you own or collaborate on show up here.'}
+            : 'Playlists you own or collaborate on that hold tracks show up here.'}
         </EmptyState>
       )}
     </>

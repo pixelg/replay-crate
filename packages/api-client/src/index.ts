@@ -236,7 +236,7 @@ export async function syncNow(api: ApiClient): Promise<SyncResult> {
   return expectOk(await send(endpoint, () => api.history.sync.$post()), endpoint)
 }
 
-/** The user's playlists; with `contains`, only those holding tracks (or episodes), and empty ones. */
+/** The user's playlists; with `contains`, only those holding tracks (or episodes). */
 export const playlistsQueryOptions = (api: ApiClient, contains?: 'tracks' | 'episodes') =>
   queryOptions({
     queryKey: ['playlists', 'list', contains ?? null],

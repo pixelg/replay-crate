@@ -53,7 +53,7 @@ export function AddEpisodeToPlaylist({ episode, compact = false }: { episode: { 
  * Picks a playlist to add `trackIds` (or `episodeIds`) to, one or a selection, leaving the dialog
  * open so several playlists can get them. Opened by a button, a menu item or a selection bar.
  * Tracks are offered the playlists that hold tracks, episodes those that hold episodes (and both
- * the empty ones).
+ * the empty ones, which the Playlists page leaves out).
  */
 export function AddToPlaylistDialog({
   open,
@@ -74,13 +74,17 @@ export function AddToPlaylistDialog({
 }) {
   const [filter, setFilter] = useState('')
   const [added, setAdded] = useState<string[]>([])
-  const { data, isPending } = useQuery({ ...playlistsQueryOptions(api, episodeIds ? 'episodes' : 'tracks'), enabled: open })
+  const { data, isPending } = useQuery({ ...playlistsQueryOptions(api), enabled: open })
   const edit = usePlaylistEdit()
 
   const playlists = useMemo(() => {
     const term = filter.trim().toLowerCase()
-    return (data?.playlists ?? []).filter((playlist) => playlist.name.toLowerCase().includes(term))
-  }, [data, filter])
+    return (data?.playlists ?? []).filter(
+      (playlist) =>
+        ((episodeIds ? playlist.episodeCount : playlist.trackCount) > 0 || playlist.itemCount === 0) &&
+        playlist.name.toLowerCase().includes(term),
+    )
+  }, [data, filter, episodeIds])
   // A track Replay Crate hasn't recorded yet (just started playing) is on none of them.
   const lookUp = open && onPlaylists === undefined && !episodeIds && trackIds.length === 1
   const { data: detail } = useQuery({ ...trackQueryOptions(api, trackIds[0] ?? ''), enabled: lookUp, retry: false })
