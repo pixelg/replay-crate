@@ -2,6 +2,7 @@ import type { EpisodeSummary } from '@replay-crate/api-client'
 import { Link } from '@tanstack/react-router'
 import { Check, ListEnd, Play, RotateCcw } from 'lucide-react'
 import { cn } from 'cn'
+import type { ReactNode } from 'react'
 import { formatListened } from '../../lib/podcast-format.ts'
 import { AddEpisodeToPlaylist } from '../add-to-playlist.tsx'
 import { useEpisodeCommands } from '../../lib/use-track-commands.ts'
@@ -30,15 +31,25 @@ export function ShowLink({ show, className }: { show: { id: string; name: string
 
 /**
  * How far into the episode the user is: a thin bar with "12 of 48 min left", or Finished. Nothing
- * for an episode never played.
+ * for an episode never played. `children` follow on the same line (podcast History's time
+ * listened, on phones).
  */
-export function EpisodeProgress({ episode, className }: { episode: Pick<EpisodeSummary, 'name' | 'durationMs' | 'progress'>; className?: string }) {
+export function EpisodeProgress({
+  episode,
+  className,
+  children,
+}: {
+  episode: Pick<EpisodeSummary, 'name' | 'durationMs' | 'progress'>
+  className?: string
+  children?: ReactNode
+}) {
   const { progress, durationMs } = episode
-  if (!progress) return null
+  if (!progress) return children ? <p className={cn('mt-1 text-xs text-muted-foreground', className)}>{children}</p> : null
   if (progress.fullyPlayed) {
     return (
       <p className={cn('mt-1 flex items-center gap-1 text-xs text-muted-foreground', className)}>
         <Check aria-hidden className="size-3.5 text-primary" /> Finished
+        {children}
       </p>
     )
   }
@@ -49,9 +60,13 @@ export function EpisodeProgress({ episode, className }: { episode: Pick<EpisodeS
         value={durationMs ? Math.min(100, (progress.resumePositionMs / durationMs) * 100) : 0}
         aria-label={`Progress in ${episode.name}`}
         aria-valuetext={`${formatListened(left)} left`}
-        className="w-24 shrink-0 sm:w-32"
+        className="w-24 min-w-8 sm:w-32"
       />
-      <span className="text-xs text-muted-foreground tabular-nums">{formatListened(left)} left</span>
+      {/* In a tight row the bar gives way (down to a stub) before the text is cut short. */}
+      <span className="max-w-[calc(100%-2.5rem)] shrink-0 truncate text-xs text-muted-foreground tabular-nums">
+        {formatListened(left)} left
+        {children}
+      </span>
     </div>
   )
 }
