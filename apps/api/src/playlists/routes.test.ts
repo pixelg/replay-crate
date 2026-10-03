@@ -166,6 +166,7 @@ describe('playlists', () => {
       expect(body.items).toEqual([
         expect.objectContaining({
           position: 0,
+          recordingId: 'a',
           track: expect.objectContaining({ id: 'a', name: 'Song A' }),
           playCount: 3,
           playsHere: 2,

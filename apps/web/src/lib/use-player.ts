@@ -205,11 +205,27 @@ export function useForgetDevice() {
   })
 }
 
+/**
+ * Fetches Up next again after the playlist playing changed (a move, an add or a removal), and
+ * once more a little later, as Spotify takes a moment to play the new order. Other playlists
+ * don't touch it, so their edits cost no calls.
+ */
+export function refreshUpNextAfterEdit(queryClient: QueryClient, playlistId: string) {
+  const playback = queryClient.getQueryData<Playback | null>(PLAYBACK_KEY)
+  if (playlistIdOf(playback?.context) !== playlistId) return
+  const refetch = () => void queryClient.invalidateQueries({ queryKey: ['player', 'queue'] })
+  refetch()
+  setTimeout(refetch, SETTLE_MS[1])
+}
+
+/** Commands that change Up next: what plays next, or the order it plays in. */
+const QUEUE_CHANGERS = new Set<PlayerCommand['kind']>(['next', 'previous', 'play', 'queue', 'playQueued', 'shuffle', 'repeat'])
+
 /** Fetches playback again after commands, and the queue or devices when they touch them. */
 function refetchAfter(queryClient: QueryClient, kinds: Iterable<PlayerCommand['kind']>) {
   const sent = [...kinds]
   void queryClient.invalidateQueries({ queryKey: PLAYBACK_KEY, exact: true })
-  if (sent.some((kind) => kind === 'next' || kind === 'previous' || kind === 'play' || kind === 'queue' || kind === 'playQueued')) {
+  if (sent.some((kind) => QUEUE_CHANGERS.has(kind))) {
     void queryClient.invalidateQueries({ queryKey: ['player', 'queue'] })
   }
   if (sent.some((kind) => kind === 'transfer' || kind === 'volume')) {

@@ -1,10 +1,13 @@
 import preview from '#storybook/preview'
 import { HttpResponse } from 'msw'
 import { expect, fn, screen, waitFor, within } from 'storybook/test'
-import { pausedPlayback, playlistDetail, playlistsList, rulePreview } from './test/fixtures.ts'
+import { manyPlays, pausedPlayback, playlistDetail, plays, playlistsList, queue, rulePreview } from './test/fixtures.ts'
 import { defaultHandlers, http } from './test/handlers.ts'
 import { App } from './test/app-story.tsx'
+import type { createAppRouter } from './router.ts'
 import { pick, playerRequests, preloadRoutes, recordPlays, requests, rowsOf } from './test/app-story-helpers.ts'
+
+let router: ReturnType<typeof createAppRouter> | undefined
 
 // Playlists, and making or adding to one from History.
 const meta = preview.meta({
@@ -105,7 +108,8 @@ export const PlaylistSortedByPlays = meta.story({
     const alsoOn = within(firstRow.getByRole('list', { name: 'Also on' }))
     await expect(alsoOn.getAllByRole('link').map((link) => link.textContent)).toEqual(['Boom Bap Essentials', 'Road Trip (with Sam)'])
     await userEvent.click(alsoOn.getByRole('button', { name: '1 more playlist' }))
-    await expect(await screen.findByRole('link', { name: 'Gym' })).toHaveAttribute('href', '/playlists/p4')
+    // Opening where this track is.
+    await expect(await screen.findByRole('link', { name: 'Gym' })).toHaveAttribute('href', '/playlists/p4?track=t1')
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Gym' })).toBeNull())
     await expect(firstRow.getByRole('link', { name: 'hip hop' })).toBeVisible()
@@ -192,12 +196,61 @@ export const PlaylistMovesTrackToTop = meta.story({
         requests(await request.json())
         return HttpResponse.json({ ok: true })
       }),
+      http.get('/api/v1/player/queue', ({ response }) => {
+        requests('queue')
+        return response(200).json(queue)
+      }),
     )
   },
   play: async ({ canvas, userEvent }) => {
+    // Up next shows in the header, for this playlist, which is playing.
+    await waitFor(() => expect(requests).toHaveBeenCalledWith('queue'))
+    const asked = () => requests.mock.calls.filter(([what]) => what === 'queue').length
+    const before = asked()
     await userEvent.click(await canvas.findByRole('button', { name: 'Actions for Searched And Played' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Move to top' }))
     await waitFor(() => expect(requests).toHaveBeenCalledWith({ from: 3, to: 0 }))
+    // Up next plays the new order, so it's fetched again.
+    await waitFor(() => expect(asked()).toBeGreaterThan(before))
+  },
+})
+
+/**
+ * A playlist chip on a History row opens the playlist where that track is: on its page, scrolled
+ * to it and marked. The playlist holds another copy of the recording, which counts.
+ */
+export const HistoryPlaylistChipOpensAtTheTrack = meta.story({
+  args: { onRouter: (created) => (router = created) },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    const filler = manyPlays(30).map((play, position) => ({ ...playlistDetail.items[1]!, position, recordingId: play.track.id, track: play.track }))
+    // 26th of 30: page 2 at the default 20 a page.
+    filler[25] = { ...filler[25]!, recordingId: 't1', track: { ...plays[0]!.track, id: 't1-lp' } }
+    msw.use(
+      http.get('/api/v1/playlists/{id}', ({ response }) =>
+        response(200).json({ ...playlistDetail, playlist: { ...playlistDetail.playlist, id: 'p2', name: 'Boom Bap Essentials', itemCount: 30 }, items: filler }),
+      ),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    const today = within((await main.findByRole('heading', { name: 'Today' })).closest('section')!)
+    const row = within(today.getAllByRole('listitem')[0]!)
+    await userEvent.click(row.getByRole('link', { name: 'Boom Bap Essentials' }))
+
+    await expect(await canvas.findByRole('heading', { level: 1, name: 'Boom Bap Essentials' })).toBeVisible()
+    const marked = await waitFor(() => {
+      const element = document.querySelector<HTMLElement>('[data-marked]')
+      expect(element).not.toBeNull()
+      return element!
+    })
+    await expect(within(marked).getByRole('link', { name: 'Brass Monkey Business' })).toBeVisible()
+    // On its page, and in view; the link's track leaves the URL, so paging on works as usual.
+    await waitFor(() => expect(router?.state.location.search).toEqual({ page: 2 }))
+    const box = marked.getBoundingClientRect()
+    await expect(box.top >= 0 && box.bottom <= window.innerHeight).toBe(true)
+    // The mark fades after a moment.
+    await waitFor(() => expect(marked).not.toHaveAttribute('data-marked'), { timeout: 5_000 })
   },
 })
 

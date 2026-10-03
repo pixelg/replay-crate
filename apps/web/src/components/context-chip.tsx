@@ -17,17 +17,21 @@ const kinds: Record<string, { icon: LucideIcon; fallback: string }> = {
  * Where a play came from: a playlist, album, artist page, Liked Songs... Given the `track` that
  * was played, an album or playlist gets a play button that starts it at that track, so Up next
  * is the real rest of it. One of the user's playlists links to its page (`mine` says it is one,
- * without looking). The `text` variant has no background, for a row's one line of details.
+ * without looking), opened at `openAt` (else `track`) when that's on it. The `text` variant has no
+ * background, for a row's one line of details.
  */
 export function ContextChip({
   context,
   track,
+  openAt = track?.id,
   mine = false,
   variant = 'chips',
   className,
 }: {
   context: PlayContext
   track?: { id: string; name: string }
+  /** A track id: the playlist's page opens where that track is, scrolled to it. */
+  openAt?: string
   mine?: boolean
   variant?: 'chips' | 'text'
   className?: string
@@ -54,6 +58,7 @@ export function ContextChip({
       <Link
         to="/playlists/$playlistId"
         params={{ playlistId }}
+        search={openAt ? { track: openAt } : {}}
         className={cn(
           chipClass,
           text ? 'hover:underline' : 'hover:bg-accent',

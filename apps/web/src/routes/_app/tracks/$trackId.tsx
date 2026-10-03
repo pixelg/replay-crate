@@ -109,6 +109,7 @@ function TrackPage() {
                 <Link
                   to="/playlists/$playlistId"
                   params={{ playlistId: playlist.id }}
+                  search={{ track: track.id }}
                   className="flex items-center gap-3 py-2 hover:underline"
                 >
                   <AlbumArt src={playlist.thumbUrl} className="size-10" />
@@ -128,7 +129,7 @@ function TrackPage() {
                 <time dateTime={play.playedAt} className="text-sm tabular-nums">
                   {dateTimeFormat.format(new Date(play.playedAt))}
                 </time>
-                {play.context && <ContextChip context={play.context} />}
+                {play.context && <ContextChip context={play.context} openAt={track.id} />}
               </li>
             ))}
           </ol>

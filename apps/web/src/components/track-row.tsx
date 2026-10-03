@@ -104,15 +104,18 @@ export function TrackRow({
  * play came from and the user's playlists holding the track (each a link). In a narrow row they're
  * one line of text instead, which shortens before anything else does: one genre and one place,
  * each with a "+N" for the rest. `full` (an `open` row) shows
- * the chips at every width, all of its genres and playlists. Nothing when there are none.
+ * the chips at every width, all of its genres and playlists. Nothing when there are none. Given
+ * the `trackId`, its playlists open where it is.
  */
 export function TrackChips({
+  trackId,
   context = null,
   playlists = [],
   playlistsLabel,
   genres = [],
   full = false,
 }: {
+  trackId?: string
   context?: PlayContext | null
   playlists?: Array<{ id: string; name: string }>
   playlistsLabel?: string
@@ -126,7 +129,13 @@ export function TrackChips({
         <GenreChips genres={genres} max={full ? undefined : 2} className={cn('mt-1', !full && 'flex-nowrap')} />
         {(context || playlists.length > 0) && (
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
-            <PlayedFromChips context={context} playlists={playlists} label={playlistsLabel} shown={full ? playlists.length : undefined} />
+            <PlayedFromChips
+              context={context}
+              playlists={playlists}
+              track={trackId}
+              label={playlistsLabel}
+              shown={full ? playlists.length : undefined}
+            />
           </div>
         )}
       </div>
@@ -134,7 +143,7 @@ export function TrackChips({
         <div className="mt-0.5 flex min-w-0 items-center gap-2 overflow-hidden text-xs whitespace-nowrap @2xl:hidden">
           {/* The genres keep up to three fifths of the line; the place the play came from shortens first. */}
           <GenreChips genres={genres} max={1} variant="text" className="max-w-3/5 shrink-0" />
-          <PlayedFromChips context={context} playlists={playlists} label={playlistsLabel} shown={1} variant="text" />
+          <PlayedFromChips context={context} playlists={playlists} track={trackId} label={playlistsLabel} shown={1} variant="text" />
         </div>
       )}
     </>

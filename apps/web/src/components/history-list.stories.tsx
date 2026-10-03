@@ -43,7 +43,8 @@ export const PlaylistsOfEachTrack = meta.story({
     // Played from Late Night Crate, which holds it: first, then Boom Bap Essentials.
     const yoursFromCrate = within(fromCrate!.getByRole('list', { name: 'On your playlists' }))
     await expect(yoursFromCrate.getAllByRole('link').map((link) => link.textContent)).toEqual(['Late Night Crate', 'Boom Bap Essentials'])
-    await expect(yoursFromCrate.getByRole('link', { name: 'Boom Bap Essentials' })).toHaveAttribute('href', '/playlists/p2')
+    // Each opens where the track is on it.
+    await expect(yoursFromCrate.getByRole('link', { name: 'Boom Bap Essentials' })).toHaveAttribute('href', '/playlists/p2?track=t1')
     // The genres come first, on a line of their own.
     const genres = fromCrate!.getByRole('list', { name: 'Genres' })
     await expect(genres.compareDocumentPosition(fromCrate!.getByRole('list', { name: 'On your playlists' }))).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
@@ -57,7 +58,7 @@ export const PlaylistsOfEachTrack = meta.story({
     // From an album: the album, then the playlist it's on.
     const fromAlbum = within(canvas.getByText('Sunday Morning Static').closest('li')!)
     await expect(visible(fromAlbum.getAllByText('Sunday Sessions'))[0]!.closest('a')).toBeNull()
-    await expect(fromAlbum.getByRole('link', { name: 'Road Trip (with Sam)' })).toHaveAttribute('href', '/playlists/p3')
+    await expect(fromAlbum.getByRole('link', { name: 'Road Trip (with Sam)' })).toHaveAttribute('href', '/playlists/p3?track=t2')
   },
 })
 

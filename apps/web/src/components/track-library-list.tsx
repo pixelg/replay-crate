@@ -56,7 +56,7 @@ export function TrackLibraryList({
               art={<AlbumArt src={track.album.thumbUrl} className="size-12" />}
               title={<TrackNameLink track={track} playing={playing} />}
               subtitle={track.artists.map((artist) => artist.name).join(', ')}
-              chips={<TrackChips playlists={track.playlists} genres={track.genres} />}
+              chips={<TrackChips trackId={track.id} playlists={track.playlists} genres={track.genres} />}
               play={!selection && <PlayTrackButton track={track} />}
               actions={!selection && <PlaylistShortcuts track={track} />}
               rating={<TrackRating track={track} compactOnPhones />}

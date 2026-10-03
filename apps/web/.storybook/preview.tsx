@@ -5,6 +5,7 @@ import addonMsw from 'msw-storybook-addon'
 import { useLayoutEffect, useState } from 'react'
 import { configure } from 'storybook/test'
 import { setMode } from '../src/lib/mode.ts'
+import { clearJustPlayed } from '../src/lib/just-played.ts'
 import { resetModeOffers } from '../src/lib/mode-offer.ts'
 import { setThemePreference } from '../src/lib/theme.ts'
 import '../src/styles.css'
@@ -30,6 +31,7 @@ export default definePreview({
     setThemePreference('system')
     setMode('music')
     resetModeOffers()
+    clearJustPlayed()
     for (const key of Object.keys(localStorage)) if (key.startsWith('rc:page-size:')) localStorage.removeItem(key)
   },
   decorators: [

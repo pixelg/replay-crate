@@ -1,6 +1,7 @@
 import { addEpisodesToPlaylist, addToPlaylist, moveInPlaylist, removeEpisodesFromPlaylist, removeFromPlaylist } from '@replay-crate/api-client'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from './api.ts'
+import { refreshUpNextAfterEdit } from './use-player.ts'
 
 type Edit =
   | { kind: 'add'; playlistId: string; trackIds: string[] }
@@ -9,7 +10,10 @@ type Edit =
   | { kind: 'add-episodes'; playlistId: string; episodeIds: string[] }
   | { kind: 'remove-episodes'; playlistId: string; episodeIds: string[] }
 
-/** Changes a playlist on Spotify, then refreshes everything that shows playlist contents. */
+/**
+ * Changes a playlist on Spotify, then refreshes everything that shows playlist contents, and Up
+ * next when it's the playlist playing.
+ */
 export function usePlaylistEdit() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -27,11 +31,13 @@ export function usePlaylistEdit() {
           return removeEpisodesFromPlaylist(api, edit.playlistId, edit.episodeIds)
       }
     },
-    onSettled: () =>
-      Promise.all([
+    onSettled: (_data, _error, edit) => {
+      refreshUpNextAfterEdit(queryClient, edit.playlistId)
+      return Promise.all([
         queryClient.invalidateQueries({ queryKey: ['playlists'] }),
         queryClient.invalidateQueries({ queryKey: ['tracks'] }),
         queryClient.invalidateQueries({ queryKey: ['episodes'] }),
-      ]),
+      ])
+    },
   })
 }

@@ -57,6 +57,12 @@ function PlayerPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>Up next</CardTitle>
+                  {/* Spotify doesn't say when Up next changes (a playlist reordered in Spotify, say). */}
+                  <CardAction>
+                    <IconButton label="Refresh Up next" onClick={() => void queue.refetch()} disabled={queue.isFetching}>
+                      <RefreshCw aria-hidden className={queue.isFetching ? 'size-4 motion-safe:animate-spin' : 'size-4'} />
+                    </IconButton>
+                  </CardAction>
                 </CardHeader>
                 <CardContent>
                   {queue.data ? (

@@ -22,17 +22,20 @@ const asContext = (playlist: PlaylistRef): PlayContext => ({
  * the one the play came from first when it's one of them, then the one the track went into most
  * recently (the order `playlists` comes in). The first `shown` (two) show; a "+N" chip opens the
  * rest. The `text` variant drops the chips' backgrounds, for a row's one line of details, and shows
- * one place at most: somewhere else the play came from leaves all the playlists to its "+N".
+ * one place at most: somewhere else the play came from leaves all the playlists to its "+N". Given
+ * the `track` (its id), each playlist opens where the track is.
  */
 export function PlayedFromChips({
   context,
   playlists,
+  track,
   label = 'On your playlists',
   shown: count = SHOWN,
   variant = 'chips',
 }: {
   context: PlayContext | null
   playlists: PlaylistRef[]
+  track?: string
   /** What the playlists are, for screen readers. */
   label?: string
   shown?: number
@@ -49,17 +52,17 @@ export function PlayedFromChips({
   if (!elsewhere && !ordered.length) return null
   return (
     <>
-      {elsewhere && <ContextChip context={elsewhere} variant={variant} className="min-w-0" />}
+      {elsewhere && <ContextChip context={elsewhere} openAt={track} variant={variant} className="min-w-0" />}
       {ordered.length > 0 && (
         <ul aria-label={label} className={cn('flex min-w-0 items-center gap-1', variant === 'chips' && 'flex-wrap')}>
           {shown.map((playlist) => (
             <li key={playlist.id} className={cn('min-w-0', variant === 'chips' && 'max-w-48')}>
-              <ContextChip context={asContext(playlist)} variant={variant} mine />
+              <ContextChip context={asContext(playlist)} openAt={track} variant={variant} mine />
             </li>
           ))}
           {rest.length > 0 && (
             <li className="shrink-0">
-              <MorePlaylists playlists={rest} variant={variant} />
+              <MorePlaylists playlists={rest} track={track} variant={variant} />
             </li>
           )}
         </ul>
@@ -69,7 +72,7 @@ export function PlayedFromChips({
 }
 
 /** "+N": a tap (or click) opens the rest of the track's playlists. */
-function MorePlaylists({ playlists, variant }: { playlists: PlaylistRef[]; variant: 'chips' | 'text' }) {
+function MorePlaylists({ playlists, track, variant }: { playlists: PlaylistRef[]; track?: string; variant: 'chips' | 'text' }) {
   const [open, setOpen] = useState(false)
   const count = playlists.length
   return (
@@ -91,7 +94,7 @@ function MorePlaylists({ playlists, variant }: { playlists: PlaylistRef[]; varia
         <ul className="flex flex-wrap gap-1" onClick={(event) => (event.target as Element).closest('a') && setOpen(false)}>
           {playlists.map((playlist) => (
             <li key={playlist.id} className="max-w-full min-w-0">
-              <ContextChip context={asContext(playlist)} mine />
+              <ContextChip context={asContext(playlist)} openAt={track} mine />
             </li>
           ))}
         </ul>
