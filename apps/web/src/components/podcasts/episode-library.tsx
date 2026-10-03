@@ -2,12 +2,12 @@ import type { LibraryEpisode, LibraryShow } from '@replay-crate/api-client'
 import { formatRelative } from '@replay-crate/core'
 import { Link } from '@tanstack/react-router'
 import { AudioLines } from 'lucide-react'
-import { AddEpisodeToPlaylist } from '../add-to-playlist.tsx'
 import { AlbumArt } from '../album-art.tsx'
 import { EpisodeRating } from '../star-rating.tsx'
 import { TrackRow } from '../track-row.tsx'
 import { formatListened, formatRelease } from '../../lib/podcast-format.ts'
-import { EpisodeNameLink, EpisodeProgress, PlayEpisodeButton, QueueEpisodeButton, ShowLink } from './episode-parts.tsx'
+import { EpisodeNameLink, EpisodeProgress, EpisodeShortcuts, PlayEpisodeButton, ShowLink } from './episode-parts.tsx'
+import { EpisodeActions } from './episode-actions.tsx'
 
 /** Every listened episode: its show and progress, time listened, and when last. */
 export function EpisodeLibraryList({
@@ -39,13 +39,10 @@ export function EpisodeLibraryList({
               subtitle={showShow ? <ShowLink show={episode.show} /> : (released ?? 'Release date unknown')}
               chips={<EpisodeProgress episode={episode} />}
               play={<PlayEpisodeButton episode={episode} />}
-              actions={
-                <>
-                  <QueueEpisodeButton episode={episode} />
-                  <AddEpisodeToPlaylist episode={episode} compact />
-                </>
-              }
+              actions={<EpisodeShortcuts episode={episode} />}
               rating={<EpisodeRating episode={episode} compactOnPhones />}
+              // On a show's own page, no "Go to" it.
+              menu={<EpisodeActions episode={showShow ? episode : { ...episode, show: undefined }} />}
               side={
                 <>
                   <div className="min-w-14 shrink-0 text-right text-xs text-muted-foreground tabular-nums @2xl:min-w-24">
