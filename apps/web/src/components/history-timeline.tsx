@@ -206,8 +206,9 @@ export function TimelineDrawer({
 
   return (
     <Drawer open={open} onOpenChange={setOpen} swipeDirection={wide ? 'right' : 'down'} showSwipeHandle={!wide}>
-      <DrawerTrigger className={buttonClasses({ variant: 'secondary', size: 'sm' }, className)}>
-        <CalendarSearch aria-hidden className="size-4" /> Timeline
+      {/* On a phone just the icon, still named Timeline (and its tooltip). */}
+      <DrawerTrigger title="Timeline" className={buttonClasses({ variant: 'secondary', size: 'sm' }, className)}>
+        <CalendarSearch aria-hidden className="size-4" /> <span className="max-md:sr-only">Timeline</span>
       </DrawerTrigger>
       <DrawerContent>
         <DrawerHeader className="flex-row items-center justify-between gap-3 text-left">

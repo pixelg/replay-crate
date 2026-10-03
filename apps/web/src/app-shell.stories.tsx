@@ -250,7 +250,7 @@ export const SyncFailsInline = meta.story({
   },
   play: async ({ canvas, userEvent }) => {
     // The automatic sync runs once per page load, so press the button explicitly.
-    await userEvent.click(await canvas.findByRole('button', { name: 'Sync now' }))
+    await userEvent.click(await canvas.findByRole('button', { name: 'Sync' }))
     await expect(await canvas.findByText("Sync failed: Can't reach Replay Crate")).toBeVisible()
     // The history itself still shows.
     await expect(canvas.getByRole('heading', { name: 'Today' })).toBeVisible()

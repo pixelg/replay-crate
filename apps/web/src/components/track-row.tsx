@@ -6,13 +6,13 @@ import { PlayedFromChips } from './played-from-chips.tsx'
 
 /**
  * The one layout every track list shares (History, Tracks, a playlist, Now playing): the art, then
- * the title, subtitle and chips; the play button and the actions (add to playlist...); the rating
- * and the row's details; and its ⋯ menu. When the row itself is at least `@2xl` (42rem) wide it's
- * one line with the actions on the right, so they line up down the list.
+ * the title, subtitle and chips; the play button and the actions (add to playlist...); the rating;
+ * the row's details; and its ⋯ menu. When the row itself is at least `@2xl` (42rem) wide it's one
+ * line with the actions on the right, so they line up down the list.
  *
  * Narrower (a phone, or beside the sidebar on a tablet) it's three short lines: the title with the
- * rating, the subtitle with the details, and the chips as one line of text. The play button
- * becomes a badge on the art, and the actions and menu sit on the right. An `open` row (Now
+ * rating right after it, the subtitle, and the chips as one line of text. The play button becomes
+ * a badge on the art, and the last column holds the details over the menu. An `open` row (Now
  * playing) keeps its chips in full instead, with its actions on a line of their own under them.
  *
  * The row is a container: what goes in it switches with `@2xl:` too, not the viewport's `sm:`/`md:`,
@@ -26,6 +26,7 @@ export function TrackRow({
   subtitle,
   chips,
   actions,
+  rating,
   side,
   menu,
   playing = false,
@@ -41,7 +42,9 @@ export function TrackRow({
   subtitle: ReactNode
   chips?: ReactNode
   actions?: ReactNode
-  /** The rating and the row's details (when it was played, how often...). */
+  /** The rating (`TrackRating` with `compactOnPhones`): after the title on phones, its own column when wide. */
+  rating?: ReactNode
+  /** The row's details (when it was played, how often...). */
   side?: ReactNode
   menu?: ReactNode
   /** Marks the track Spotify is playing. */
@@ -54,11 +57,13 @@ export function TrackRow({
     <div aria-current={playing || undefined} className={cn('@container', playing && '-mx-2 rounded-lg bg-accent px-2', className)}>
       <div
         className={cn(
+          // The title's column is only as wide as the title, so the rating follows it; the empty
+          // column after them takes up the rest.
           'grid items-center gap-x-2 py-2 @2xl:gap-x-3',
           open
-            ? "grid-cols-[auto_minmax(0,1fr)_auto_auto] [grid-template-areas:'start_main_side_side'_'._chips_chips_chips'_'._actions_actions_menu']"
-            : "grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] [grid-template-areas:'start_main_side_actions_menu'_'start_chips_chips_actions_menu']",
-          "@2xl:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto] @2xl:[grid-template-areas:'start_main_play_actions_side_menu'_'start_chips_play_actions_side_menu']",
+            ? "grid-cols-[auto_minmax(0,max-content)_auto_minmax(0,1fr)_auto] [grid-template-areas:'start_title_rating_._side'_'start_sub_sub_sub_sub'_'._chips_chips_chips_chips'_'._actions_actions_actions_menu']"
+            : "grid-cols-[auto_minmax(0,max-content)_auto_minmax(0,1fr)_auto_auto] [grid-template-areas:'start_title_rating_._actions_side'_'start_sub_sub_sub_actions_menu'_'start_chips_chips_chips_actions_menu']",
+          "@2xl:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto_auto] @2xl:[grid-template-areas:'start_title_play_actions_rating_side_menu'_'start_sub_play_actions_rating_side_menu'_'start_chips_play_actions_rating_side_menu']",
         )}
       >
         <div className="flex items-center gap-2 [grid-area:start] @2xl:gap-3">
@@ -79,16 +84,16 @@ export function TrackRow({
             {play}
           </div>
         )}
-        <div className="min-w-0 [grid-area:main]">
-          {title}
-          <p className="truncate text-sm text-muted-foreground">{subtitle}</p>
-        </div>
+        <div className="min-w-0 [grid-area:title]">{title}</div>
+        <p className="truncate text-sm text-muted-foreground [grid-area:sub]">{subtitle}</p>
         {chips && <div className={cn('min-w-0 [grid-area:chips]', open && 'mt-1 @2xl:mt-0')}>{chips}</div>}
         {actions && (
           <div className={cn('flex items-center [grid-area:actions]', open && 'mt-2 @2xl:mt-0')}>{actions}</div>
         )}
-        <div className="flex flex-col items-end gap-1 [grid-area:side] @2xl:flex-row @2xl:items-center @2xl:gap-3">{side}</div>
-        <div className={cn('[grid-area:menu]', open && 'mt-2 justify-self-end @2xl:mt-0')}>{menu}</div>
+        {/* The compact rating's padding is for its hover; close it up to the title. */}
+        {rating && <div className="flex [grid-area:rating] @max-2xl:-ml-1.5">{rating}</div>}
+        <div className="flex flex-col items-end justify-self-end [grid-area:side] @2xl:flex-row @2xl:items-center @2xl:gap-3">{side}</div>
+        <div className={cn('justify-self-end [grid-area:menu] @max-2xl:-mr-2', open && 'mt-2 @2xl:mt-0')}>{menu}</div>
       </div>
     </div>
   )
@@ -97,7 +102,8 @@ export function TrackRow({
 /**
  * A row's chips, under its artists: its first two genres on a line of their own, then where the
  * play came from and the user's playlists holding the track (each a link). In a narrow row they're
- * one line of text instead, which shortens before anything else does. `full` (an `open` row) shows
+ * one line of text instead, which shortens before anything else does: one genre and one place,
+ * each with a "+N" for the rest. `full` (an `open` row) shows
  * the chips at every width, all of its genres and playlists. Nothing when there are none.
  */
 export function TrackChips({
@@ -127,7 +133,7 @@ export function TrackChips({
       {!full && (
         <div className="mt-0.5 flex min-w-0 items-center gap-2 overflow-hidden text-xs whitespace-nowrap @2xl:hidden">
           {/* The genres keep up to three fifths of the line; the place the play came from shortens first. */}
-          <GenreChips genres={genres} max={2} variant="text" className="max-w-3/5 shrink-0" />
+          <GenreChips genres={genres} max={1} variant="text" className="max-w-3/5 shrink-0" />
           <PlayedFromChips context={context} playlists={playlists} label={playlistsLabel} shown={1} variant="text" />
         </div>
       )}

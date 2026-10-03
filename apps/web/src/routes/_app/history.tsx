@@ -263,7 +263,7 @@ function HistoryPage() {
             )}
             <Button variant="secondary" size="sm" onClick={() => sync()} disabled={isSyncing}>
               <RefreshCw aria-hidden className={cn('size-4', isSyncing && 'motion-safe:animate-spin')} />
-              {isSyncing ? 'Syncing…' : 'Sync now'}
+              {isSyncing ? 'Syncing…' : 'Sync'}
             </Button>
             {months.length > 0 && (
               <TimelineDrawer months={months} current={monthInView} linkTo={linkTo} day={day} onThisDay={onThisDay} />
@@ -378,7 +378,7 @@ function HistoryPage() {
           </EmptyState>
         ) : (
           <EmptyState icon={History} title="No plays yet">
-            Spotify shares your last 50 plays. Press Sync now to pull them in.
+            Spotify shares your last 50 plays. Press Sync to pull them in.
           </EmptyState>
         )}
       </div>

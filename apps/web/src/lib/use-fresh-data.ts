@@ -48,7 +48,7 @@ export function useFreshData(enabled: boolean, timing: SyncTiming = SYNC_TIMING)
       }
     })
 
-    // Sync now counts as a sync too.
+    // Sync counts as a sync too.
     const unsubscribeSyncs = queryClient.getMutationCache().subscribe((event) => {
       if (event.type === 'updated' && event.action.type === 'success' && matchMutation({ mutationKey: SYNC_KEY }, event.mutation)) {
         scheduler.synced()

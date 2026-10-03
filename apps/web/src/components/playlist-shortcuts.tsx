@@ -28,8 +28,8 @@ const shortcutClass = cn(
 /**
  * Shortcuts on every track row, for catching a song while it plays (or a few songs later): add
  * it to a playlist you've been adding to (two taps), or start a new playlist with it. The ⋯ menu
- * still has everything. In a narrow row (a `TrackRow` is a container) "New playlist" is left to
- * the menu, unless the row is `labelled` (Now playing), where both get their names on phones.
+ * still has everything. In a narrow row (a `TrackRow` is a container) both are left to the menu,
+ * unless the row is `labelled` (Now playing), where they get their names on phones.
  */
 export function PlaylistShortcuts({ track, labelled = false }: { track: Track; labelled?: boolean }) {
   return (
@@ -90,7 +90,7 @@ function AddToRecentPlaylist({ track, labelled }: { track: Track; labelled: bool
         <PopoverTrigger
           aria-label={`Add ${track.name} to a playlist`}
           title="Add to playlist"
-          className={cn(shortcutClass, labelled && labelledClass)}
+          className={cn(shortcutClass, labelled ? labelledClass : '@max-2xl:hidden')}
         >
           <ListPlus aria-hidden className="size-4" />
           {labelled && (

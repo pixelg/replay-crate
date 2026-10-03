@@ -39,7 +39,7 @@ export const SwitchesHistoryToPodcasts = meta.story({
     await expect(sidebar.getByRole('button', { name: 'Podcasts' })).toHaveAttribute('aria-pressed', 'true')
     // History lists listens now, and the library tab is Episodes.
     await expect(await main.findByRole('link', { name: 'Digging in Osaka' })).toBeVisible()
-    await expect(main.queryByRole('button', { name: 'Sync now' })).toBeNull()
+    await expect(main.queryByRole('button', { name: 'Sync' })).toBeNull()
     const nav = sidebar.getByRole('navigation', { name: 'Main' })
     await expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Player', 'History', 'Episodes', 'Playlists', 'Stats'])
     // The player carries on as it was.
@@ -48,7 +48,7 @@ export const SwitchesHistoryToPodcasts = meta.story({
 
     // And back.
     await userEvent.click(sidebar.getByRole('button', { name: 'Music' }))
-    await expect(await main.findByRole('button', { name: 'Sync now' })).toBeVisible()
+    await expect(await main.findByRole('button', { name: 'Sync' })).toBeVisible()
     await expect(within(nav).getByRole('link', { name: 'Tracks' })).toBeVisible()
   },
 })
