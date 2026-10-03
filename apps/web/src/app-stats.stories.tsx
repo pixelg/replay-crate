@@ -50,6 +50,17 @@ export const StatsArtistsOverTime = meta.story({
     await userEvent.click(within(measure).getByRole('button', { name: 'Time played' }))
     await expect(within(measure).getByRole('button', { name: 'Time played' })).toHaveAttribute('aria-pressed', 'true')
     await expect(chart.getByText('Pete Rock')).toBeVisible()
+
+    // A name in the legend toggles its area off and on, through a change of measure too.
+    const peteRock = chart.getByRole('button', { name: 'Pete Rock' })
+    await expect(peteRock).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(peteRock)
+    await expect(peteRock).toHaveAttribute('aria-pressed', 'false')
+    await waitFor(() => expect(card.querySelectorAll('.recharts-area')).toHaveLength(3))
+    await userEvent.click(within(measure).getByRole('button', { name: 'Plays' }))
+    await expect(chart.getByRole('button', { name: 'Pete Rock' })).toHaveAttribute('aria-pressed', 'false')
+    await userEvent.click(chart.getByRole('button', { name: 'Pete Rock' }))
+    await waitFor(() => expect(card.querySelectorAll('.recharts-area')).toHaveLength(4))
   },
 })
 

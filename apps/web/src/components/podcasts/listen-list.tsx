@@ -19,7 +19,11 @@ const headingClass =
 /** The right-hand column: a steady width, so the ratings line up down the list. */
 const timeClass = 'shrink-0 text-right text-xs text-muted-foreground tabular-nums @2xl:w-24'
 
-/** Podcast listens under sticky day headings (the day each ended), newest first. */
+/**
+ * Podcast listens under sticky day headings (the day each ended), newest first. An episode heard
+ * more than once in a day is one row: at the time of the day's last listen, with the time heard
+ * added up. The listens themselves are all still recorded.
+ */
 export function ListenList({
   listens,
   playingEpisodeId = null,
@@ -30,7 +34,7 @@ export function ListenList({
   playingEpisodeId?: string | null
   now?: Date
 }) {
-  const days = groupByDay(listens, (listen) => new Date(listen.endedAt))
+  const days = groupByDay(listens, (listen) => new Date(listen.endedAt)).map((group) => ({ ...group, items: byEpisode(group.items) }))
   return (
     <div className="flex flex-col gap-6">
       {days.map((group) => (
@@ -49,6 +53,16 @@ export function ListenList({
       ))}
     </div>
   )
+}
+
+/** A day's listens, one per episode: the newest, with the time heard in all of them. */
+function byEpisode(listens: ListenItem[]): ListenItem[] {
+  const combined = new Map<string, ListenItem>()
+  for (const listen of listens) {
+    const newer = combined.get(listen.episode.id)
+    combined.set(listen.episode.id, newer ? { ...newer, listenedMs: newer.listenedMs + listen.listenedMs } : listen)
+  }
+  return [...combined.values()]
 }
 
 function ListenRow({ listen, playing }: { listen: ListenItem; playing: boolean }) {

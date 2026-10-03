@@ -124,6 +124,8 @@ function OverTimeChart({
 }) {
   const perWeek = bucket === 'week'
   const [measure, setMeasure] = useState<Measure>(initialMeasure)
+  // Groups toggled off in the legend, by name: they stay off through a change of measure or span.
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
   const measures = [
     { value: 'count', label: counted.label },
     { value: 'minutes', label: 'Time played' },
@@ -141,6 +143,15 @@ function OverTimeChart({
   }))
   const keys = groups.map((_, index) => groupKey(index))
   const rank = (key: unknown) => keys.indexOf(String(key))
+  const toggle = (key: string) => {
+    const name = groups[keys.indexOf(key)]?.name
+    if (name === undefined) return
+    setHidden((current) => {
+      const next = new Set(current)
+      if (!next.delete(name)) next.add(name)
+      return next
+    })
+  }
 
   return (
     <Card className="@container/card">
@@ -225,7 +236,7 @@ function OverTimeChart({
                   />
                 )}
               />
-              {keys.map((key) => (
+              {keys.map((key, index) => (
                 <Area
                   key={key}
                   dataKey={key}
@@ -234,9 +245,11 @@ function OverTimeChart({
                   fill={`url(#fill-${key})`}
                   stroke={`var(--color-${key})`}
                   stackId="listening"
+                  hide={hidden.has(groups[index]!.name)}
                 />
               ))}
-              <ChartLegend content={<ChartLegendContent />} />
+              {/* Each name toggles its area off and on. */}
+              <ChartLegend content={<ChartLegendContent onToggleItem={toggle} className="flex-wrap gap-x-4 gap-y-1" />} />
             </AreaChart>
           </ChartContainer>
         )}
