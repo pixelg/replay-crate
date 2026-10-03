@@ -1,6 +1,6 @@
 import preview from '#storybook/preview'
 import { createRootRoute, createRouter, RouterProvider, createMemoryHistory } from '@tanstack/react-router'
-import { expect, within } from 'storybook/test'
+import { expect, screen, within } from 'storybook/test'
 import { plays } from '../test/fixtures.ts'
 import { HistoryList } from './history-list.tsx'
 
@@ -62,25 +62,32 @@ export const PlaylistsOfEachTrack = meta.story({
 })
 
 /**
- * On a phone a row's chips are one line of text: two genres, then one place (the playlist the play
- * came from, else wherever it was), and "+N" for the rest of the track's playlists.
+ * On a phone a row's chips are one line of text: one genre with "+N" for the rest, then one place
+ * (the playlist the play came from, else wherever it was), and "+N" for the rest of its playlists.
  */
 export const Mobile = meta.story({
   globals: { viewport: { value: 'mobile2', isRotated: false } },
-  play: async ({ canvas }) => {
+  play: async ({ canvas, userEvent }) => {
     const [fromCrate, fromDiscover] = canvas.getAllByText('Brass Monkey Business').map((title) => within(title.closest('li')!))
     const yoursFromCrate = within(fromCrate!.getByRole('list', { name: 'On your playlists' }))
     await expect(yoursFromCrate.getAllByRole('link').map((link) => link.textContent)).toEqual(['Late Night Crate'])
     await expect(yoursFromCrate.getByRole('button', { name: '1 more playlist' })).toBeVisible()
-    await expect(within(fromCrate!.getByRole('list', { name: 'Genres' })).getAllByRole('link')).toHaveLength(2)
+    // One genre, and "+N" for the rest.
+    const genres = within(fromCrate!.getByRole('list', { name: 'Genres' }))
+    await expect(genres.getAllByRole('link')).toHaveLength(1)
+    await userEvent.click(genres.getByRole('button', { name: /^\d+ more genres?$/ }))
+    const more = within(await screen.findByRole('dialog'))
+    await expect(more.getByRole('link', { name: 'boom bap' })).toHaveAttribute('href', expect.stringContaining('genre='))
+    await userEvent.keyboard('{Escape}')
     // Played from somewhere else: that place, and both of yours behind "+2".
     await expect(visible(fromDiscover!.getAllByText('Spotify playlist'))).toHaveLength(1)
     const yoursFromDiscover = within(fromDiscover!.getByRole('list', { name: 'On your playlists' }))
     await expect(yoursFromDiscover.queryAllByRole('link')).toEqual([])
     await expect(yoursFromDiscover.getByRole('button', { name: '2 more playlists' })).toBeVisible()
-    // The play button sits on the art; a new playlist is left to the ⋯ menu.
+    // The play button sits on the art; adding to a playlist, or starting one, is left to the ⋯ menu.
     await expect(fromCrate!.getByRole('button', { name: /^Play Brass Monkey Business/ })).toBeVisible()
     await expect(fromCrate!.queryByRole('button', { name: 'New playlist with Brass Monkey Business' })).toBeNull()
+    await expect(fromCrate!.queryByRole('button', { name: 'Add Brass Monkey Business to a playlist' })).toBeNull()
   },
 })
 

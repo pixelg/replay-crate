@@ -125,8 +125,7 @@ function ItemRating({
   if (!compactOnPhones) return stars
   return (
     <>
-      {/* Its padding is for the hover; the star lines up with the details under it. */}
-      <CompactRating track={track} rate={rate} className={cn('-mr-1.5 @2xl:hidden', className)} />
+      <CompactRating track={track} rate={rate} className={cn('@2xl:hidden', className)} />
       {stars}
     </>
   )

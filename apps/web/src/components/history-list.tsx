@@ -153,9 +153,9 @@ export function NowPlayingSection({
         // It's already playing: an empty slot where the play button goes keeps the rest in line with the rows below.
         play={track && !selecting && <span aria-hidden className="hidden size-9 @2xl:block" />}
         actions={track && !selecting && <PlaylistShortcuts track={track} labelled />}
+        rating={track && <TrackRating track={track} compactOnPhones />}
         side={
           <>
-            {track && <TrackRating track={track} compactOnPhones />}
             <span className={cn(timeClass, 'flex items-center justify-end gap-1', isPlaying && 'text-primary')}>
               {isPlaying ? (
                 <AudioLines aria-hidden className="size-4 shrink-0 motion-safe:animate-pulse" />
@@ -216,9 +216,9 @@ function PlayRow({ play, selection, playing }: { play: PlayItem; selection?: Pla
       chips={<TrackChips context={play.context} playlists={track.playlists} genres={track.genres} />}
       play={!selection && <PlayTrackButton track={track} from={from ? { uri: from.uri, name: contextName(from) } : undefined} />}
       actions={!selection && <PlaylistShortcuts track={track} />}
+      rating={<TrackRating track={track} compactOnPhones />}
       side={
         <>
-          <TrackRating track={track} compactOnPhones />
           <time dateTime={play.playedAt} className={timeClass}>
             {time}
           </time>

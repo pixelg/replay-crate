@@ -218,9 +218,9 @@ function PlaylistEpisodeRow({ item, playing, actions }: { item: PlaylistEpisode;
       chips={<EpisodeProgress episode={episode} />}
       play={<PlayEpisodeButton episode={episode} />}
       actions={<QueueEpisodeButton episode={episode} />}
+      rating={<EpisodeRating episode={episode} compactOnPhones />}
       side={
         <>
-          <EpisodeRating episode={episode} compactOnPhones />
           <div className="shrink-0 text-right text-xs text-muted-foreground @2xl:min-w-24">
             {item.listens > 0 ? <p className="font-medium text-foreground">{formatListened(item.listenedMs)}</p> : <p>Not played</p>}
           </div>
@@ -259,9 +259,9 @@ function PlaylistTrackRow({ item, playing, play, actions }: { item: PlaylistTrac
       chips={<TrackChips playlists={alsoOn} playlistsLabel="Also on" genres={track.genres} />}
       play={play}
       actions={<PlaylistShortcuts track={track} />}
+      rating={<TrackRating track={track} compactOnPhones />}
       side={
         <>
-          <TrackRating track={track} compactOnPhones />
           {/* On phones one line beside the rating, as on Tracks. */}
           <p className="shrink-0 text-xs text-muted-foreground tabular-nums @2xl:hidden">
             <span className="font-medium text-foreground">{item.playCount.toLocaleString()}</span> {item.playCount === 1 ? 'play' : 'plays'}

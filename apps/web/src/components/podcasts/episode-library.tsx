@@ -45,9 +45,9 @@ export function EpisodeLibraryList({
                   <AddEpisodeToPlaylist episode={episode} compact />
                 </>
               }
+              rating={<EpisodeRating episode={episode} compactOnPhones />}
               side={
                 <>
-                  <EpisodeRating episode={episode} compactOnPhones />
                   <div className="min-w-14 shrink-0 text-right text-xs text-muted-foreground tabular-nums @2xl:min-w-24">
                     {playing ? (
                       <p className="hidden items-center justify-end gap-1 text-primary @2xl:flex">

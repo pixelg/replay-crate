@@ -59,9 +59,9 @@ export function TrackLibraryList({
               chips={<TrackChips playlists={track.playlists} genres={track.genres} />}
               play={!selection && <PlayTrackButton track={track} />}
               actions={!selection && <PlaylistShortcuts track={track} />}
+              rating={<TrackRating track={track} compactOnPhones />}
               side={
                 <>
-                  <TrackRating track={track} compactOnPhones />
                   {/* A steady width, so the stars line up down the list. On phones, only the count (and
                       the month of the first play when that's the sort): the title needs the room, and
                       the playing row is highlighted anyway. */}

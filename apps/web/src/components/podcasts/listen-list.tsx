@@ -67,9 +67,9 @@ function ListenRow({ listen, playing }: { listen: ListenItem; playing: boolean }
           <AddEpisodeToPlaylist episode={episode} compact />
         </>
       }
+      rating={<EpisodeRating episode={episode} compactOnPhones />}
       side={
         <>
-          <EpisodeRating episode={episode} compactOnPhones />
           <p className={timeClass}>
             {/* One line on phones, beside the rating: "7:14 AM · 4 min". */}
             <time dateTime={listen.endedAt} className="@2xl:block">

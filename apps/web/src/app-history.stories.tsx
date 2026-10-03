@@ -25,7 +25,7 @@ export const History = meta.story({
     await expect(await canvas.findByRole('heading', { level: 1, name: 'History' }, { timeout: 15_000 })).toBeVisible()
     await expect(await canvas.findByRole('heading', { name: 'Today' })).toBeVisible()
     // The automatic sync on open may still be running ("Syncing…"); wait for it to settle.
-    await expect(await canvas.findByRole('button', { name: 'Sync now' })).toBeEnabled()
+    await expect(await canvas.findByRole('button', { name: 'Sync' })).toBeEnabled()
   },
 })
 

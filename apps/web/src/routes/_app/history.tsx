@@ -34,6 +34,7 @@ import { historyRange, isHistoryRange, rangeBounds, type HistoryRange } from '..
 import { cn } from 'cn'
 import { cursorDay, cursorMonth, dayCursor, formatMonth, monthCursor, parseCursor, timeZone } from '../../lib/months.ts'
 import { pageSearch, resizedPage, storedPageSize, storePageSize } from '../../lib/page-size.ts'
+import { useMediaQuery } from '../../lib/use-media-query.ts'
 import { useMonthInView } from '../../lib/use-month-in-view.ts'
 import { getMode, useMode } from '../../lib/mode.ts'
 import { useNowPlaying, usePlayingEpisodeId, usePlayingTrackId } from '../../lib/use-player.ts'
@@ -159,6 +160,8 @@ function jumpLabel(before: string) {
 }
 
 function HistoryPage() {
+  // The timeline strip is for `md` and up; phones have the Timeline drawer.
+  const wide = useMediaQuery('(min-width: 48rem)')
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
   const page = search.page ?? 1
@@ -263,7 +266,7 @@ function HistoryPage() {
             )}
             <Button variant="secondary" size="sm" onClick={() => sync()} disabled={isSyncing}>
               <RefreshCw aria-hidden className={cn('size-4', isSyncing && 'motion-safe:animate-spin')} />
-              {isSyncing ? 'Syncing…' : 'Sync now'}
+              {isSyncing ? 'Syncing…' : 'Sync'}
             </Button>
             {months.length > 0 && (
               <TimelineDrawer months={months} current={monthInView} linkTo={linkTo} day={day} onThisDay={onThisDay} />
@@ -305,8 +308,9 @@ function HistoryPage() {
         </div>
       )}
 
-      {/* From `md` up: every month at a glance, to see where you are and go elsewhere. */}
-      {months.length > 0 && (
+      {/* From `md` up: every month at a glance, to see where you are and go elsewhere. Not rendered
+          on a phone at all: a hidden chart measures 0×0 and Recharts warns about it. */}
+      {wide && months.length > 0 && (
         <TimelineStrip
           months={months}
           current={monthInView}
@@ -314,7 +318,7 @@ function HistoryPage() {
             void navigate({ search: (prev) => ({ size: prev.size, genre: prev.genre, ...(month && { before: monthCursor(month) }) }) })
           }
           onThisDay={onThisDay}
-          className="mb-6 hidden md:block"
+          className="mb-6"
         />
       )}
 
@@ -378,7 +382,7 @@ function HistoryPage() {
           </EmptyState>
         ) : (
           <EmptyState icon={History} title="No plays yet">
-            Spotify shares your last 50 plays. Press Sync now to pull them in.
+            Spotify shares your last 50 plays. Press Sync to pull them in.
           </EmptyState>
         )}
       </div>
