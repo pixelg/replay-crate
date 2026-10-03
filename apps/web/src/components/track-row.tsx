@@ -5,6 +5,12 @@ import { GenreChips } from './genre-chips.tsx'
 import { PlayedFromChips } from './played-from-chips.tsx'
 
 /**
+ * Rings what's playing where it's the point of the place: History's Now playing, and the playing
+ * item of the playlist being looked at. (A `playing` row elsewhere is only shaded.)
+ */
+export const playingRing = 'ring-1 ring-primary'
+
+/**
  * The one layout every track list shares (History, Tracks, a playlist, Now playing): the art, then
  * the title, subtitle and chips; the play button and the actions (add to playlist...); the rating;
  * the row's details; and its ⋯ menu. When the row itself is at least `@2xl` (42rem) wide it's one
