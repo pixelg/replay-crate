@@ -5,7 +5,7 @@ import type { Ref } from 'react'
 import { cn } from 'cn'
 import { AlbumArt } from '../album-art.tsx'
 import { EpisodeRating } from '../star-rating.tsx'
-import { TrackRow } from '../track-row.tsx'
+import { playingRing, TrackRow } from '../track-row.tsx'
 import { formatListened } from '../../lib/podcast-format.ts'
 import { EpisodeNameLink, EpisodeProgress, EpisodeShortcuts, PlayEpisodeButton, ShowLink } from './episode-parts.tsx'
 import { EpisodeActions } from './episode-actions.tsx'
@@ -111,7 +111,7 @@ export function EpisodeNowPlaying({
         Now playing
       </h2>
       <TrackRow
-        className="-mx-2 rounded-lg bg-accent px-2"
+        className={cn('-mx-2 rounded-lg bg-accent px-2', playingRing)}
         art={<AlbumArt src={item.thumbUrl} className="size-12" />}
         title={<EpisodeNameLink episode={item} playing={isPlaying} />}
         subtitle={<ShowLink show={item.show} />}

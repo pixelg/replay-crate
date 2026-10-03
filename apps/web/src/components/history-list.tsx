@@ -14,7 +14,7 @@ import { TrackRating } from './star-rating.tsx'
 import { TrackActions } from './track-actions.tsx'
 import { TrackNameLink } from './track-name-link.tsx'
 import { PlaylistShortcuts } from './playlist-shortcuts.tsx'
-import { TrackChips, TrackRow } from './track-row.tsx'
+import { playingRing, TrackChips, TrackRow } from './track-row.tsx'
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
 const gapFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -137,7 +137,7 @@ export function NowPlayingSection({
       </h2>
       <TrackRow
         open
-        className="-mx-2 rounded-lg bg-accent px-2"
+        className={cn('-mx-2 rounded-lg bg-accent px-2', playingRing)}
         art={<AlbumArt src={thumbOf(item)} className="size-12" />}
         title={
           track ? (

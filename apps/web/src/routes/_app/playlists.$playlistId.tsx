@@ -25,7 +25,7 @@ import { usePlaylistEdit } from '../../lib/use-playlist-edits.ts'
 import { usePlayContext } from '../../lib/use-track-commands.ts'
 import { TrackNameLink } from '../../components/track-name-link.tsx'
 import { PlaylistShortcuts } from '../../components/playlist-shortcuts.tsx'
-import { TrackChips, TrackRow } from '../../components/track-row.tsx'
+import { playingRing, TrackChips, TrackRow } from '../../components/track-row.tsx'
 
 export const Route = createFileRoute('/_app/playlists/$playlistId')({
   // The sort and page live in the URL: shareable, and the back button undoes a change. `track`
@@ -221,6 +221,7 @@ function PlaylistEpisodeRow({ item, playing, actions }: { item: PlaylistEpisode;
   return (
     <TrackRow
       playing={playing}
+      className={playing ? playingRing : undefined}
       lead={<span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums @2xl:block">{item.position + 1}</span>}
       art={<AlbumArt src={episode.thumbUrl} className="size-11" />}
       title={<EpisodeNameLink episode={episode} playing={playing} />}
@@ -294,6 +295,7 @@ function PlaylistTrackRow({ item, playing, play, actions }: { item: PlaylistTrac
     // The track Spotify is playing is marked, as in History and Tracks.
     <TrackRow
       playing={playing}
+      className={playing ? playingRing : undefined}
       lead={
         <span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums @2xl:block">{item.position + 1}</span>
       }
