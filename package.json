@@ -23,6 +23,8 @@
     "storybook": "pnpm --filter @replay-crate/web storybook",
     "build-storybook": "turbo run build-storybook",
     "serve": "./scripts/serve.sh",
+    "remote:up": "./scripts/remote-up.sh",
+    "remote:down": "./scripts/remote-down.sh",
     "test:e2e": "turbo run test:e2e"
   },
   "devDependencies": {
