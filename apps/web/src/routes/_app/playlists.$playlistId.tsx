@@ -3,7 +3,7 @@ import { pageCount, type PageSize } from '@replay-crate/core'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { ArrowLeft, ListMusic, Play, Podcast } from 'lucide-react'
-import { useMemo, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { AlbumArt } from '../../components/album-art.tsx'
 import { EmptyState } from '../../components/empty-state.tsx'
 import { ErrorPage } from '../../components/error-page.tsx'
@@ -28,10 +28,13 @@ import { PlaylistShortcuts } from '../../components/playlist-shortcuts.tsx'
 import { TrackChips, TrackRow } from '../../components/track-row.tsx'
 
 export const Route = createFileRoute('/_app/playlists/$playlistId')({
-  // The sort and page live in the URL: shareable, and the back button undoes a change.
-  validateSearch: (search: Record<string, unknown>): { sort?: Sort; page?: number; size?: PageSize } => ({
+  // The sort and page live in the URL: shareable, and the back button undoes a change. `track`
+  // (from a link elsewhere, such as a playlist chip in History) opens the page holding that track,
+  // scrolled to it.
+  validateSearch: (search: Record<string, unknown>): { sort?: Sort; page?: number; size?: PageSize; track?: string } => ({
     ...(isSort(search.sort) && search.sort !== 'order' && { sort: search.sort }),
     ...pageSearch(search),
+    ...(typeof search.track === 'string' && /^[0-9A-Za-z]+$/.test(search.track) && { track: search.track }),
   }),
   loader: async ({ context, params }) => {
     try {
@@ -87,6 +90,9 @@ function PlaylistPage() {
     const direction = sort === 'most' ? -1 : 1
     return items.toSorted((a, b) => direction * (a.playCount - b.playCount) || a.position - b.position)
   }, [items, sort])
+  const marked = useOpenAtTrack(search.track, sorted, page, size, (to) =>
+    void navigate({ search: (prev) => ({ ...prev, track: undefined, page: to > 1 ? to : undefined }), replace: true }),
+  )
 
   return (
     <article className="flex flex-col gap-6">
@@ -128,7 +134,11 @@ function PlaylistPage() {
           </div>
           <ol className="flex flex-col divide-y divide-border" aria-busy={edit.isPending}>
             {pageOfItems(sorted, page, size).map((item) => (
-              <li key={`${item.position}-${item.track.id}`}>
+              <li
+                key={`${item.position}-${item.track.id}`}
+                data-marked={item.position === marked || undefined}
+                className="rounded-md transition-colors duration-1000 data-marked:bg-accent"
+              >
                 <PlaylistTrackRow
                   item={item}
                   playing={item.track.id === playingTrackId}
@@ -231,6 +241,40 @@ function PlaylistEpisodeRow({ item, playing, actions }: { item: PlaylistEpisode;
   )
 }
 
+/** How long a track opened from a link stays marked. */
+const MARKED_MS = 3_000
+
+/**
+ * Opening the playlist at a track (`trackId`, any copy of its recording): moves to the page
+ * holding it (its first place, in the order shown) with `goTo`, which also drops it from the URL,
+ * then scrolls it into view. Returns the position of the track to mark, for a moment.
+ */
+function useOpenAtTrack(
+  trackId: string | undefined,
+  sorted: PlaylistTrack[],
+  page: number,
+  size: PageSize,
+  goTo: (page: number) => void,
+) {
+  const [marked, setMarked] = useState<number | null>(null)
+  useEffect(() => {
+    if (trackId === undefined) return
+    const index = sorted.findIndex((item) => item.track.id === trackId || item.recordingId === trackId)
+    setMarked(index >= 0 ? sorted[index]!.position : null)
+    goTo(index >= 0 && size !== 'all' ? Math.floor(index / size) + 1 : 1)
+    // Only when a link brings a track: the list and size are as they were then.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackId])
+  useEffect(() => {
+    if (marked === null) return
+    // Once its page is showing (the move above may still be on its way).
+    document.querySelector('[data-marked]')?.scrollIntoView({ block: 'center' })
+    const timer = setTimeout(() => setMarked(null), MARKED_MS)
+    return () => clearTimeout(timer)
+  }, [marked, page])
+  return marked
+}
+
 /** "1 track", "12 episodes". */
 const count = (n: number, one: string) => `${n.toLocaleString()} ${n === 1 ? one : `${one}s`}`
 
@@ -256,7 +300,7 @@ function PlaylistTrackRow({ item, playing, play, actions }: { item: PlaylistTrac
       art={<AlbumArt src={track.album.thumbUrl} className="size-11" />}
       title={<TrackNameLink track={track} playing={playing} />}
       subtitle={track.artists.map((artist) => artist.name).join(', ')}
-      chips={<TrackChips playlists={alsoOn} playlistsLabel="Also on" genres={track.genres} />}
+      chips={<TrackChips trackId={item.recordingId} playlists={alsoOn} playlistsLabel="Also on" genres={track.genres} />}
       play={play}
       actions={<PlaylistShortcuts track={track} />}
       rating={<TrackRating track={track} compactOnPhones />}

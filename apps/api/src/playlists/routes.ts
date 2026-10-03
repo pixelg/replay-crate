@@ -129,6 +129,9 @@ const get = createRoute({
             .object({
               position: z.number().int(),
               addedAt: IsoDateTime.nullable(),
+              recordingId: z.string().openapi({
+                description: "The recording's track id, as plays and the other lists know it: the track's own, unless the playlist holds another copy.",
+              }),
               track: z.object({
                 id: z.string(),
                 name: z.string(),
@@ -396,6 +399,7 @@ export function playlistRoutes(deps: AppDeps) {
               return {
                 position: item.position,
                 addedAt: item.addedAt?.toISOString() ?? null,
+                recordingId: item.recording,
                 track: {
                   id: item.trackId,
                   name: item.trackName,

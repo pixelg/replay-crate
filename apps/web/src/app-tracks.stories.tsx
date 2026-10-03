@@ -49,7 +49,8 @@ export const Tracks = meta.story({
     // It's the fixture's playing track.
     await waitFor(() => expect(first.firstElementChild).toHaveAttribute('aria-current', 'true'))
     // Its playlists and genres, and the same actions as every track row.
-    await expect(within(first).getByRole('link', { name: 'Boom Bap Essentials' })).toHaveAttribute('href', '/playlists/p2')
+    // It opens where the track is on it.
+    await expect(within(first).getByRole('link', { name: 'Boom Bap Essentials' })).toHaveAttribute('href', '/playlists/p2?track=t1')
     await expect(within(first).getByRole('link', { name: 'hip hop' })).toBeVisible()
     await expect(within(first).getByRole('button', { name: 'Play Brass Monkey Business' })).toBeVisible()
     await expect(within(first).getByRole('button', { name: 'Add Brass Monkey Business to a playlist' })).toBeVisible()

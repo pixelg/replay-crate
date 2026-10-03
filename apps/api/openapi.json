@@ -1629,6 +1629,10 @@
             "format": "date-time",
             "example": "2026-09-21T12:00:00.000Z"
           },
+          "recordingId": {
+            "type": "string",
+            "description": "The recording's track id, as plays and the other lists know it: the track's own, unless the playlist holds another copy."
+          },
           "track": {
             "type": "object",
             "properties": {
@@ -1731,6 +1735,7 @@
         "required": [
           "position",
           "addedAt",
+          "recordingId",
           "track",
           "playCount",
           "playsHere",

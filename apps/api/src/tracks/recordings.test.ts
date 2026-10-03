@@ -130,7 +130,8 @@ describe('copies of a recording', () => {
     expect((await send('POST', '/playlists/sync')).status).toBe(200)
 
     const road = await json(await get('/playlists/road'))
-    expect(road.items[0]).toMatchObject({ track: { id: LP }, playCount: 2, alsoOn: [{ id: 'mix' }] })
+    // Its recording id is the one History's plays carry, so a link from a play finds this copy.
+    expect(road.items[0]).toMatchObject({ track: { id: LP }, recordingId: SINGLE, playCount: 2, alsoOn: [{ id: 'mix' }] })
     const page = await json(await get(`/tracks/${SINGLE}`))
     expect(page.playlists.map((p: { id: string }) => p.id).sort()).toEqual(['mix', 'road'])
     const history = await json(await get('/history/plays'))

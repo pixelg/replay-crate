@@ -269,6 +269,7 @@ const playlistTrack = (
 ): PlaylistDetail['items'][number] => ({
   position,
   addedAt: hoursAgo(24 * 90),
+  recordingId: t.id,
   track: t,
   playCount,
   playsHere,

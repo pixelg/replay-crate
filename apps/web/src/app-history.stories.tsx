@@ -1,7 +1,7 @@
 import preview from '#storybook/preview'
 import { HttpResponse } from 'msw'
 import { expect, screen, waitFor, within } from 'storybook/test'
-import { gaps, manyPlays, pausedPlayback, playback } from './test/fixtures.ts'
+import { gaps, manyPlays, pausedPlayback, playback, plays, playsPage, queue } from './test/fixtures.ts'
 import { defaultHandlers, http, pageBy } from './test/handlers.ts'
 import { App } from './test/app-story.tsx'
 import { playerRequests, preloadRoutes, recordPlayerCommands, rowNames } from './test/app-story-helpers.ts'
@@ -54,6 +54,55 @@ export const HistoryPausedKeepsNowPlaying = meta.story({
     await expect(nowPlaying.getByText('Paused')).toBeVisible()
     await expect(nowPlaying.queryByText('Playing')).toBeNull()
     await expect(mainEl.querySelectorAll('[aria-current="true"]')).toHaveLength(0)
+  },
+})
+
+/**
+ * A track that ends shows under Today at once, though its play only comes in with the next sync;
+ * when it does, it takes the place of the one shown.
+ */
+export const HistoryShowsTheTrackThatJustEnded = meta.story({
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    let item = playback.item
+    let synced = plays
+    msw.use(
+      http.get('/api/v1/player', ({ response }) => response(200).json({ playback: { ...playback, item } })),
+      http.post('/api/v1/player/next', ({ response }) => {
+        item = queue.queue[0]!
+        return response(204).empty()
+      }),
+      http.post('/api/v1/history/sync', ({ response }) => {
+        // Spotify lists the play now (from its album, to tell it from the one shown before).
+        const album = { type: 'album', uri: 'spotify:album:album-t1', name: 'Dusty Grooves', imageUrl: null } as const
+        if (item !== playback.item) synced = [{ ...plays[0]!, context: album, playedAt: new Date().toISOString() }, ...plays]
+        return response(200).json({ status: 'synced', inserted: 1, lastSyncedAt: new Date().toISOString(), missedPlays: false })
+      }),
+      http.get('/api/v1/history/plays', ({ response }) => response(200).json({ ...playsPage, items: synced, total: synced.length })),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    const nowPlaying = within(await main.findByRole('group', { name: 'Now playing' }))
+    await expect(await nowPlaying.findByRole('link', { name: 'Brass Monkey Business' })).toBeVisible()
+    const today = () => within(main.getByRole('heading', { name: 'Today' }).closest('section')!)
+    const playsOf = (name: string) => today().queryAllByRole('link', { name }).length
+    await expect(await main.findByRole('heading', { name: 'Today' })).toBeVisible()
+    const earlier = playsOf('Brass Monkey Business')
+    // The open-the-app sync may still be running.
+    await expect(await canvas.findByRole('button', { name: 'Sync' })).toBeEnabled()
+
+    await userEvent.click(within(canvas.getByRole('banner')).getByRole('button', { name: 'Next' }))
+    await expect(await nowPlaying.findByRole('link', { name: 'Sunday Morning Static' })).toBeVisible()
+    // Straight away, before any sync: the track that ended heads Today.
+    await waitFor(() => expect(playsOf('Brass Monkey Business')).toBe(earlier + 1))
+    const first = today().getAllByRole('listitem')[0]!
+    await expect(within(first).getByRole('link', { name: 'Brass Monkey Business' })).toBeVisible()
+
+    // Its play arrives: it replaces the one shown rather than joining it.
+    await userEvent.click(canvas.getByRole('button', { name: 'Sync' }))
+    await waitFor(() => expect(within(today().getAllByRole('listitem')[0]!).getAllByText('Dusty Grooves')[0]).toBeVisible())
+    await expect(playsOf('Brass Monkey Business')).toBe(earlier + 1)
   },
 })
 

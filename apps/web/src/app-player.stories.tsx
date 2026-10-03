@@ -1,7 +1,7 @@
 import preview from '#storybook/preview'
 import { HttpResponse } from 'msw'
 import { expect, screen, waitFor, within } from 'storybook/test'
-import { devices, pausedPlayback, playback } from './test/fixtures.ts'
+import { devices, pausedPlayback, playback, queue } from './test/fixtures.ts'
 import { defaultHandlers, http } from './test/handlers.ts'
 import { App } from './test/app-story.tsx'
 import { playerRequests, preloadRoutes, recordPlayerCommands } from './test/app-story-helpers.ts'
@@ -132,6 +132,30 @@ export const PlayerUpNextLeavesOutPadding = meta.story({
     const header = within(canvas.getByRole('banner'))
     await expect(await header.findByRole('region', { name: 'Now playing' })).toBeVisible()
     await expect(header.queryByRole('button', { name: /^Up next/ })).toBeNull()
+  },
+})
+
+/** Spotify doesn't say when Up next changes (a playlist reordered in Spotify itself): a button asks again. */
+export const PlayerRefreshesUpNext = meta.story({
+  args: { path: '/player' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    let asked = 0
+    msw.use(
+      http.get('/api/v1/player/queue', ({ response }) =>
+        // The second answer has the playlist's new order.
+        response(200).json(asked++ === 0 ? queue : { ...queue, queue: queue.queue.toReversed() }),
+      ),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    const element = (await main.findByText('Up next', { selector: '[data-slot=card-title]' })).closest<HTMLElement>('[data-slot=card]')!
+    const card = within(element)
+    const names = () => [...element.querySelectorAll('ol > li')].map((item) => item.textContent)
+    await waitFor(() => expect(names()[0]).toMatch(/^Sunday Morning Static/))
+    await userEvent.click(card.getByRole('button', { name: 'Refresh Up next' }))
+    await waitFor(() => expect(names()[0]).toMatch(/^The History of the Breakbeat/))
   },
 })
 

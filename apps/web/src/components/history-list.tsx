@@ -148,7 +148,13 @@ export function NowPlayingSection({
         }
         subtitle={subtitleOf(item)}
         chips={
-          <TrackChips context={context} playlists={(track && detail?.playlists) || []} genres={(track && detail?.track.genres) || []} full />
+          <TrackChips
+            trackId={track?.id}
+            context={context}
+            playlists={(track && detail?.playlists) || []}
+            genres={(track && detail?.track.genres) || []}
+            full
+          />
         }
         // It's already playing: an empty slot where the play button goes keeps the rest in line with the rows below.
         play={track && !selecting && <span aria-hidden className="hidden size-9 @2xl:block" />}
@@ -213,7 +219,7 @@ function PlayRow({ play, selection, playing }: { play: PlayItem; selection?: Pla
       art={<AlbumArt src={track.album.thumbUrl} className="size-12" />}
       title={<TrackNameLink track={track} playing={playing} />}
       subtitle={track.artists.map((artist) => artist.name).join(', ')}
-      chips={<TrackChips context={play.context} playlists={track.playlists} genres={track.genres} />}
+      chips={<TrackChips trackId={track.id} context={play.context} playlists={track.playlists} genres={track.genres} />}
       play={!selection && <PlayTrackButton track={track} from={from ? { uri: from.uri, name: contextName(from) } : undefined} />}
       actions={!selection && <PlaylistShortcuts track={track} />}
       rating={<TrackRating track={track} compactOnPhones />}

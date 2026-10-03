@@ -36,6 +36,7 @@ import { cursorDay, cursorMonth, dayCursor, formatMonth, monthCursor, parseCurso
 import { pageSearch, resizedPage, storedPageSize, storePageSize } from '../../lib/page-size.ts'
 import { useMediaQuery } from '../../lib/use-media-query.ts'
 import { useMonthInView } from '../../lib/use-month-in-view.ts'
+import { useJustPlayed, withJustPlayed } from '../../lib/just-played.ts'
 import { getMode, useMode } from '../../lib/mode.ts'
 import { useNowPlaying, usePlayingEpisodeId, usePlayingTrackId } from '../../lib/use-player.ts'
 import { useSync } from '../../lib/use-sync.ts'
@@ -167,8 +168,13 @@ function HistoryPage() {
   const page = search.page ?? 1
   const size = search.size ?? storedPageSize('history')
   const { before, genre, when } = search
-  const { plays, lastSyncedAt, total, olderPlayedAt, loadMore, isLoadingMore, loadNewer, isLoadingNewer, isPlaceholder } =
+  const { plays: synced, lastSyncedAt, total, olderPlayedAt, loadMore, isLoadingMore, loadNewer, isLoadingNewer, isPlaceholder } =
     useHistoryPlays(page, size, before, playsFilter(genre, when))
+  // Read from the present, a track that just finished heads Today until its play is synced. Its
+  // genres may not be known yet, so not under a genre filter.
+  const justPlayed = useJustPlayed()
+  const fromNow = before === undefined && page === 1 && genre === undefined && when !== 'yesterday'
+  const plays = fromNow ? withJustPlayed(synced, justPlayed) : synced
   const { data: genres = [] } = useQuery(genresQueryOptions(api))
   const genreName = genres.find((known) => known.id === genre)?.name
   const { sync, isSyncing, error: syncError } = useSync()

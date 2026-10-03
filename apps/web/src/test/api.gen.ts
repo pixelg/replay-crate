@@ -1736,6 +1736,8 @@ export interface components {
              * @example 2026-09-21T12:00:00.000Z
              */
             addedAt: string | null;
+            /** @description The recording's track id, as plays and the other lists know it: the track's own, unless the playlist holds another copy. */
+            recordingId: string;
             track: {
                 id: string;
                 name: string;

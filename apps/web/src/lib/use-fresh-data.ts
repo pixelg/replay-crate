@@ -1,7 +1,16 @@
-import { createSyncScheduler, playbackQueryOptions, SYNC_TIMING, type Playback, type SyncTiming } from '@replay-crate/api-client'
+import {
+  createSyncScheduler,
+  playbackQueryOptions,
+  SYNC_TIMING,
+  trackQueryOptions,
+  type Playback,
+  type SyncTiming,
+  type TrackDetail,
+} from '@replay-crate/api-client'
 import { focusManager, hashKey, matchMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { api } from './api.ts'
+import { addJustPlayed, createJustPlayedTracker } from './just-played.ts'
 import { SYNC_KEY, useSync } from './use-sync.ts'
 
 const PLAYBACK_HASH = hashKey(playbackQueryOptions(api).queryKey)
@@ -11,7 +20,8 @@ let syncedOnOpen = false
 /**
  * Keeps history and the player fresh from what the app already sees, rather than by polling more:
  * history syncs when the app opens, a while after the playing item changes (the last one has
- * probably finished), and on coming back to the tab after a couple of minutes away; the device
+ * probably finished), and on coming back to the tab after a couple of minutes away; a track that
+ * finishes shows in History straight away, until its play arrives (`just-played.ts`); the device
  * list is fetched again when playback moves to another device. Mount it once, for the signed-in
  * app. `timing` is for tests.
  */
@@ -30,10 +40,15 @@ export function useFreshData(enabled: boolean, timing: SyncTiming = SYNC_TIMING)
       scheduler.syncNow()
     }
 
+    const justPlayed = createJustPlayedTracker(addJustPlayed, (trackId) =>
+      queryClient.getQueryData<TrackDetail>(trackQueryOptions(api, trackId).queryKey),
+    )
+
     // Watch the playback the player polls anyway, rather than asking Spotify again.
     let deviceId: string | null | undefined
     const seen = (playback: Playback | null) => {
       scheduler.itemChanged(playback?.item?.uri ?? null)
+      justPlayed.seen(playback)
       const device = playback?.device.id ?? null
       if (deviceId !== undefined && device !== deviceId) {
         void queryClient.invalidateQueries({ queryKey: ['player', 'devices'] })
