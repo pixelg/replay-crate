@@ -1,9 +1,9 @@
 # Replay Crate
 
-A personal Spotify companion that remembers everything you play.
+A personal Spotify companion that remembers everything you play. It's built mobile-first, so it works as well on a phone as on a desktop.
 
 - **History with context**: every play, and the playlist or album it was played from
-- **Play counts**: per track, per playlist, across your whole listening history (backfilled from Spotify's data export)
+- **Play counts**: per track, per playlist, across your whole listening history (backfilled from Spotify's data export). Spotify lists a song once per release (single, album, remaster); Replay Crate counts those copies as one recording, so plays and ratings add up
 - **Genres**: from Last.fm and MusicBrainz, since Spotify no longer provides them: on every track, as a History filter, in search and in stats
 - **Playlists**: see play counts inside each playlist and which of your other playlists a track is on; build new playlists from your history
 - **Stats**: top tracks, artists, albums and genres over any time range
@@ -186,7 +186,9 @@ With Elasticsearch, the API also keeps two indices of events for Kibana: `rc-pla
 | `pnpm lint` / `pnpm typecheck` | oxlint / TypeScript |
 | `pnpm build` | Production build of the web app |
 | `pnpm serve` | Built app + API + scheduled sync on http://127.0.0.1:4173 |
-| `pnpm storybook` | Component workshop at http://127.0.0.1:6006 |
+| `pnpm storybook` / `build-storybook` | Component workshop at http://127.0.0.1:6006 / its static build |
+| `pnpm remote:up` / `remote:down` | Going away: bring Tailscale up and keep this machine awake (no suspend, lid closed included), then undo it |
+| `pnpm --filter @replay-crate/db genres --fetch` | Refresh MusicBrainz's genre list (then add a seed migration) |
 | `pnpm search:up` / `search:down` | Elasticsearch + Kibana in Docker (optional; see [Search](#search)) |
 | `pnpm search:reindex` | Rebuild the search index from Postgres |
 | `pnpm kibana:load` | Import the Kibana dashboards (`infra/kibana`) |

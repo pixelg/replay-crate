@@ -29,6 +29,7 @@ pnpm test               # vitest everywhere; web runs every story as a browser t
 pnpm build              # production build of the web app
 pnpm serve              # built app + API + scheduled sync on :4173 (the everyday/always-on mode)
 pnpm storybook          # component workshop on :6006
+pnpm remote:up / remote:down   # going away: Tailscale up + keep the machine awake (systemd-inhibit), and undo
 pnpm test:e2e           # Playwright smoke tests: built app + API, in-memory DB, fake Spotify
 pnpm --filter @replay-crate/db db:generate   # new migration from schema changes
 pnpm db:migrate         # apply migrations to DATABASE_URL
