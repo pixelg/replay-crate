@@ -59,7 +59,15 @@ function ListenRow({ listen, playing }: { listen: ListenItem; playing: boolean }
       art={<AlbumArt src={episode.thumbUrl} className="size-12" />}
       title={<EpisodeNameLink episode={episode} playing={playing} />}
       subtitle={<ShowLink show={episode.show} />}
-      chips={<EpisodeProgress episode={episode} />}
+      chips={
+        <EpisodeProgress episode={episode}>
+          {/* On phones the time listened is here, leaving the right-hand column to the time. */}
+          <span className="@2xl:hidden">
+            {episode.progress && ' · '}
+            {formatListened(listen.listenedMs)} listened
+          </span>
+        </EpisodeProgress>
+      }
       play={<PlayEpisodeButton episode={episode} />}
       actions={<EpisodeShortcuts episode={episode} />}
       rating={<EpisodeRating episode={episode} compactOnPhones />}
@@ -67,12 +75,11 @@ function ListenRow({ listen, playing }: { listen: ListenItem; playing: boolean }
       side={
         <>
           <p className={timeClass}>
-            {/* One line on phones, beside the rating: "7:14 AM · 4 min". */}
-            <time dateTime={listen.endedAt} className="@2xl:block">
+            <time dateTime={listen.endedAt} className="block">
               {timeFormat.format(new Date(listen.endedAt))}
             </time>
-            <span aria-hidden className="@2xl:hidden"> · </span>
-            <span>{formatListened(listen.listenedMs)}</span>
+            {/* On phones it's on the progress line instead. */}
+            <span className="hidden @2xl:block">{formatListened(listen.listenedMs)}</span>
           </p>
         </>
       }
