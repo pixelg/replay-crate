@@ -21,6 +21,7 @@ import type {
   HistoryTimeline,
   ImportStatus,
   LibraryPage,
+  PlayContextCount,
   Me,
   OnThisDay,
   PlaylistDetail,
@@ -610,6 +611,13 @@ export const libraryPage: LibraryPage = {
   nextCursor: null,
   total: 4,
 }
+
+/** Where the plays in a stretch of history came from, most first. */
+export const playContexts: PlayContextCount[] = [
+  { context: { type: 'playlist', uri: 'spotify:playlist:p1', name: 'Late Night Crate', imageUrl: null }, plays: 9 },
+  { context: { type: 'album', uri: 'spotify:album:a2', name: 'Sunday Sessions', imageUrl: null }, plays: 4 },
+  { context: { type: 'collection', uri: 'spotify:user:pixelg:collection', name: 'Liked Songs', imageUrl: null }, plays: 2 },
+]
 
 // Long lists, for paging. Names count up ("Crate Cut 01", …) so a page's rows are easy to name.
 const pad = (n: number) => String(n).padStart(2, '0')

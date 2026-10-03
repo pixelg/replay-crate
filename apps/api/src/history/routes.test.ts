@@ -353,6 +353,107 @@ describe('history', () => {
     it('rejects a malformed cursor', async () => {
       expect((await get('/api/v1/history/plays?before=yesterday')).status).toBe(400)
     })
+
+    const at = (body: { items: Array<{ playedAt: string }> }) => body.items.map((p) => p.playedAt)
+    const rate = async (trackId: string, rating: number) => {
+      const [user] = await ctx.db.select({ id: schema.users.id }).from(schema.users)
+      await ctx.db.insert(schema.trackRatings).values({ userId: user!.id, trackId, rating })
+    }
+
+    it('lists oldest first by offset, with no older play to point at', async () => {
+      const body = await json(await get('/api/v1/history/plays?order=oldest&limit=2&offset=0'))
+      expect(at(body)).toEqual(['2026-09-21T11:40:00.000Z', '2026-09-21T11:45:00.000Z'])
+      expect(body).toMatchObject({ total: 3, olderPlayedAt: null })
+      expect(at(await json(await get('/api/v1/history/plays?order=oldest&limit=2&offset=2')))).toEqual(['2026-09-21T11:50:00.000Z'])
+      // Cursors only go newest first.
+      expect((await get('/api/v1/history/plays?order=oldest')).status).toBe(400)
+    })
+
+    it('keeps only plays of rated or unrated tracks', async () => {
+      await rate('b', 4)
+      expect(at(await json(await get('/api/v1/history/plays?rated=yes')))).toEqual(['2026-09-21T11:45:00.000Z'])
+      expect(at(await json(await get('/api/v1/history/plays?rated=no&offset=0')))).toEqual([
+        '2026-09-21T11:50:00.000Z',
+        '2026-09-21T11:40:00.000Z',
+      ])
+    })
+
+    it('keeps only plays of tracks first played since newSince', async () => {
+      // Song A was first played at 11:40, so from 11:42 only Song B is new.
+      const body = await json(await get('/api/v1/history/plays?since=2026-09-21T11:42:00.000Z&newSince=2026-09-21T11:42:00.000Z&offset=0'))
+      expect(at(body)).toEqual(['2026-09-21T11:45:00.000Z'])
+      expect(body.total).toBe(1)
+    })
+
+    it('keeps only plays from one context', async () => {
+      expect(at(await json(await get('/api/v1/history/plays?context=spotify:playlist:pl-1')))).toEqual(['2026-09-21T11:50:00.000Z'])
+      expect((await get('/api/v1/history/plays?context=not-a-uri')).status).toBe(400)
+    })
+  })
+
+  describe('GET /api/v1/history/tracks', () => {
+    beforeEach(async () => {
+      ctx.spotify.getRecentlyPlayed.mockResolvedValue({
+        items: [
+          play(songB, '2026-09-21T11:55:00.000Z'),
+          play(songA, '2026-09-21T11:50:00.000Z', playlistContext('pl-1')),
+          play(songB, '2026-09-21T11:45:00.000Z'),
+          play(songA, '2026-09-21T11:40:00.000Z'),
+          play(songA, '2026-09-21T11:35:00.000Z'),
+        ],
+        cursors: null,
+      })
+      await sync()
+    })
+
+    it('lists the tracks most played first, counting only the plays the filters keep', async () => {
+      const all = await json(await get('/api/v1/history/tracks'))
+      expect(all.total).toBe(2)
+      expect(all.items.map((item: { track: { id: string }; playCount: number }) => [item.track.id, item.playCount])).toEqual([
+        ['a', 3],
+        ['b', 2],
+      ])
+      expect(all.items[0]).toMatchObject({
+        track: { name: 'Song A', artists: [{ name: 'Band' }, { name: 'Guest' }] },
+        firstPlayedAt: '2026-09-21T11:35:00.000Z',
+        lastPlayedAt: '2026-09-21T11:50:00.000Z',
+      })
+
+      // From 11:42, Song B leads, with Song A's one play then.
+      const later = await json(await get('/api/v1/history/tracks?since=2026-09-21T11:42:00.000Z'))
+      expect(later.items.map((item: { track: { id: string }; playCount: number }) => [item.track.id, item.playCount])).toEqual([
+        ['b', 2],
+        ['a', 1],
+      ])
+      expect(later.items[1]).toMatchObject({ firstPlayedAt: '2026-09-21T11:50:00.000Z', lastPlayedAt: '2026-09-21T11:50:00.000Z' })
+
+      // Pages by offset.
+      const second = await json(await get('/api/v1/history/tracks?limit=1&offset=1'))
+      expect(second).toMatchObject({ total: 2, items: [{ track: { id: 'b' } }] })
+    })
+  })
+
+  describe('GET /api/v1/history/contexts', () => {
+    it('lists where the plays came from, most first, leaving out plays from nowhere', async () => {
+      ctx.spotify.getRecentlyPlayed.mockResolvedValue({
+        items: [
+          play(songA, '2026-09-21T11:50:00.000Z', playlistContext('pl-1')),
+          play(songB, '2026-09-21T11:45:00.000Z', playlistContext('pl-2')),
+          play(songA, '2026-09-21T11:40:00.000Z', playlistContext('pl-2')),
+          play(songB, '2026-09-21T11:35:00.000Z'),
+        ],
+        cursors: null,
+      })
+      await sync()
+      const body = await json(await get('/api/v1/history/contexts'))
+      expect(body.contexts).toEqual([
+        { context: { type: 'playlist', uri: 'spotify:playlist:pl-2', name: 'Playlist pl-2', imageUrl: 'https://i.scdn.co/pl-2' }, plays: 2 },
+        { context: expect.objectContaining({ uri: 'spotify:playlist:pl-1' }), plays: 1 },
+      ])
+      // With the other filters.
+      const later = await json(await get('/api/v1/history/contexts?since=2026-09-21T11:48:00.000Z'))
+      expect(later.contexts).toEqual([{ context: expect.objectContaining({ uri: 'spotify:playlist:pl-1' }), plays: 1 }])
+    })
   })
 
   describe('GET /api/v1/history/timeline', () => {

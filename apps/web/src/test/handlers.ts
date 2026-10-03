@@ -26,6 +26,7 @@ import {
   playback,
   playlistDetail,
   playlistsList,
+  playContexts,
   playsPage,
   queue,
   searchResponse,
@@ -96,6 +97,12 @@ export const handlers = {
     http.get('/api/v1/history/gaps', ({ response }) => response(200).json({ gaps: [] })),
     http.get('/api/v1/history/timeline', ({ response }) => response(200).json(timeline)),
     http.get('/api/v1/history/on-this-day', ({ response }) => response(200).json(onThisDay)),
+    // A month's tracks by plays: the library's, a page at a time.
+    http.get('/api/v1/history/tracks', ({ query, response }) => {
+      const { items } = pageBy(libraryPage.items, query)
+      return response(200).json({ items, total: libraryPage.items.length })
+    }),
+    http.get('/api/v1/history/contexts', ({ response }) => response(200).json({ contexts: playContexts })),
   ],
   // Podcasts: with `show`, only that show's listens; with `since` / `until`, only those ending in between.
   podcasts: [

@@ -36,3 +36,23 @@ export const jsonResponse = <T extends z.ZodType>(schema: T, description: string
   description,
   content: { 'application/json': { schema } },
 })
+
+/** A track played, with its plays: how many, and the first and last of them. */
+export const LibraryTrack = z
+  .object({
+    track: z.object({
+      id: z.string(),
+      name: z.string(),
+      durationMs: z.number().int(),
+      explicit: z.boolean(),
+      album: z.object({ id: z.string(), name: z.string(), thumbUrl: z.string().nullable() }),
+      artists: z.array(ArtistRef),
+      genres: z.array(GenreRef).openapi({ description: "Its artists' genres, the primary artist's first; at most 3." }),
+      playlists: z.array(PlaylistRef).openapi({ description: "The user's playlists holding it, the one it was added to most recently first." }),
+      rating: Rating,
+    }),
+    playCount: z.number().int(),
+    firstPlayedAt: IsoDateTime,
+    lastPlayedAt: IsoDateTime,
+  })
+  .openapi('LibraryTrack')

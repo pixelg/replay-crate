@@ -1,8 +1,8 @@
 import preview from '#storybook/preview'
 import { expect, fn, screen, waitFor, within } from 'storybook/test'
-import { genre, march2019Plays, playsPage } from './test/fixtures.ts'
+import { genre, libraryPage, march2019Plays, playsPage } from './test/fixtures.ts'
 import { defaultHandlers, http, pageBy } from './test/handlers.ts'
-import { dayCursor, formatMonth, monthCursor, monthOf } from './lib/months.ts'
+import { dayCursor, formatMonth, monthBounds, monthCursor, monthOf } from './lib/months.ts'
 import { App } from './test/app-story.tsx'
 import { preloadRoutes } from './test/app-story-helpers.ts'
 
@@ -113,13 +113,27 @@ const marchPlays = march2019Plays(6)
 /** Played early in April 2019: what "Show newer plays" finds above the end of March. */
 const aprilPlay = { ...marchPlays[0]!, playedAt: new Date(2019, 3, 2, 20).toISOString(), track: { ...marchPlays[0]!.track, id: 'spring', name: 'Spring Newcomer' } }
 const playsCursors = fn()
-/** The end of March 2019 for a `before` cursor, the play just after it for `after`; the present otherwise. */
-const pastHandler = http.get('/api/v1/history/plays', ({ query, response }) => {
+/** Every plays request's query, to check what a month view asks for. */
+const playsQueries = fn()
+/**
+ * The end of March 2019 for a `before` cursor, the play just after it for `after`, and a month
+ * view's numbered pages for `since` in the past (March's plays then, in the order asked for); the
+ * present otherwise.
+ */
+const pastHandler = http.get('/api/v1/history/plays', ({ request, query, response }) => {
   const before = query.get('before')
   const after = query.get('after')
+  const since = query.get('since')
   playsCursors({ before, after })
+  playsQueries(Object.fromEntries(new URL(request.url).searchParams))
   if (after) return response(200).json({ items: [aprilPlay], nextCursor: null, lastSyncedAt: playsPage.lastSyncedAt })
   if (before) return response(200).json({ items: marchPlays, nextCursor: null, lastSyncedAt: playsPage.lastSyncedAt })
+  if (since && Date.parse(since) < Date.parse(playsPage.items.at(-1)!.playedAt)) {
+    const until = query.get('until')
+    const inRange = marchPlays.filter((play) => play.playedAt >= since && (!until || play.playedAt < until))
+    const { items, rest } = pageBy(query.get('order') === 'oldest' ? inRange.toReversed() : inRange, query)
+    return response(200).json({ items, nextCursor: null, lastSyncedAt: playsPage.lastSyncedAt, ...rest, olderPlayedAt: null })
+  }
   const { items, rest } = pageBy(playsPage.items, query)
   return response(200).json({ ...playsPage, items, ...rest, ...('total' in rest && { olderPlayedAt: null }) })
 })
@@ -136,6 +150,7 @@ export const HistoryTimelineJumpsToAMonth = meta.story({
   globals: { viewport: { value: 'desktop', isRotated: false } },
   beforeEach({ msw }) {
     playsCursors.mockClear()
+    playsQueries.mockClear()
     msw.use(pastHandler)
   },
   play: async ({ canvas, userEvent }) => {
@@ -150,21 +165,21 @@ export const HistoryTimelineJumpsToAMonth = meta.story({
     await userEvent.click(drawer.getByRole('button', { name: /^2019, / }))
     await userEvent.click(drawer.getByRole('link', { name: /^March 2019, / }))
     await timelineClosed()
-    // March's latest plays first: everything before the start of April.
+    // Just March, its latest plays first, in numbered pages.
     await expect(await main.findByRole('link', { name: 'Old Favourite 01' })).toBeVisible()
-    await expect(playsCursors).toHaveBeenLastCalledWith({ before: monthCursor('2019-03'), after: null })
-    await expect(main.getByText(/^Showing/)).toHaveTextContent('Showing March 2019, newest first.')
+    await expect(playsQueries).toHaveBeenLastCalledWith(expect.objectContaining({ ...monthBounds('2019-03'), offset: '0' }))
+    await expect(main.getByRole('heading', { name: /^March 2019 · [\d,]+ plays$/ })).toBeVisible()
+    await expect(main.getByRole('combobox', { name: 'Per page' })).toBeVisible()
     drawer = await openTimeline(main, userEvent)
     await waitFor(() => expect(drawer.getByRole('link', { name: /^March 2019, / })).toHaveAttribute('data-in-view', 'true'))
     await userEvent.keyboard('{Escape}')
     await timelineClosed()
-    // The past isn't headed by what's playing now, and reads by cursor, without pages.
+    // The past isn't headed by what's playing now.
     await expect(main.queryByRole('group', { name: 'Now playing' })).toBeNull()
-    await expect(main.queryByRole('combobox', { name: 'Per page' })).toBeNull()
 
     await userEvent.click(main.getByRole('link', { name: 'Back to now' }))
     await expect(await main.findByRole('heading', { name: 'Today' })).toBeVisible()
-    await expect(main.queryByText(/^Showing/)).toBeNull()
+    await expect(main.queryByRole('heading', { name: /^March 2019/ })).toBeNull()
     await expect(await main.findByRole('group', { name: 'Now playing' })).toBeVisible()
   },
 })
@@ -185,9 +200,9 @@ export const HistoryStripJumpsToAMonth = meta.story({
     // A year back with the keys, then there.
     strip.focus()
     await userEvent.keyboard('{PageDown}{Enter}')
-    const lastYear = new Date(new Date().getFullYear() - 1, new Date().getMonth(), 1)
-    await expect(await main.findByText(/^Showing/)).toHaveTextContent(`Showing ${formatMonth(monthOf(lastYear))}, newest first.`)
-    await expect(playsCursors).toHaveBeenLastCalledWith({ before: monthCursor(monthOf(lastYear)), after: null })
+    const lastYear = monthOf(new Date(new Date().getFullYear() - 1, new Date().getMonth(), 1))
+    await expect(await main.findByRole('heading', { name: new RegExp(`^${formatMonth(lastYear)}`) })).toBeVisible()
+    await waitFor(() => expect(playsQueries).toHaveBeenLastCalledWith(expect.objectContaining(monthBounds(lastYear))))
   },
 })
 
@@ -255,8 +270,80 @@ export const HistoryJumpOnPhone = meta.story({
     await userEvent.click(drawer.getByRole('link', { name: /^March 2019, / }))
     await expect(await main.findByRole('link', { name: 'Old Favourite 01' })).toBeVisible()
     await timelineClosed()
-    await expect(main.getByText(/^Showing/)).toHaveTextContent('Showing March 2019, newest first.')
+    await expect(main.getByRole('heading', { name: /^March 2019/ })).toBeVisible()
     await expect(main.getByRole('link', { name: 'Back to now' })).toBeVisible()
+  },
+})
+
+/** Every request for a month's tracks by plays. */
+const tracksQueries = fn()
+
+/** A month reads newest or oldest first, or as its tracks by plays, narrowed down by quick filters. */
+export const HistoryMonthSortsAndFilters = meta.story({
+  args: { path: '/history?month=2019-03' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    playsQueries.mockClear()
+    tracksQueries.mockClear()
+    msw.use(
+      pastHandler,
+      http.get('/api/v1/history/tracks', ({ request, response }) => {
+        tracksQueries(Object.fromEntries(new URL(request.url).searchParams))
+        return response(200).json({ items: libraryPage.items, total: libraryPage.items.length })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('link', { name: 'Old Favourite 01' })).toBeVisible()
+    const pill = (group: string, name: string) => within(main.getByRole('group', { name: group })).getByRole('button', { name })
+    const asked = (query: Record<string, string>) => waitFor(() => expect(playsQueries).toHaveBeenLastCalledWith(expect.objectContaining(query)))
+    const names = () => main.getAllByRole('link', { name: /^Old Favourite/ }).map((link) => link.textContent)
+
+    await userEvent.click(pill('Order', 'Oldest first'))
+    await asked({ order: 'oldest', offset: '0' })
+    await waitFor(() => expect(names()[0]).toBe('Old Favourite 06'))
+
+    // Each filter narrows what's asked for, on top of the others.
+    await userEvent.click(pill('Week of the month', '29–31'))
+    await asked(monthBounds('2019-03', 5))
+    await userEvent.click(pill('New to you', 'New to you'))
+    await asked({ newSince: monthBounds('2019-03').since, ...monthBounds('2019-03', 5) })
+    await userEvent.click(pill('Rating', 'Unrated'))
+    await asked({ rated: 'no', order: 'oldest' })
+    await userEvent.click(await main.findByRole('combobox', { name: 'Played from' }))
+    await userEvent.click(await screen.findByRole('option', { name: /^Sunday Sessions/ }))
+    await asked({ context: 'spotify:album:a2', rated: 'no' })
+
+    // Most played: the month's tracks, each with its plays then, under the same filters.
+    await userEvent.click(pill('Order', 'Most played'))
+    await waitFor(() =>
+      expect(tracksQueries).toHaveBeenLastCalledWith(
+        expect.objectContaining({ context: 'spotify:album:a2', rated: 'no', newSince: monthBounds('2019-03').since, offset: '0' }),
+      ),
+    )
+    const top = within((await main.findByRole('link', { name: 'Brass Monkey Business' })).closest('li')!)
+    await expect(top.getByText('12')).toBeVisible()
+    await expect(main.queryByRole('link', { name: /^Old Favourite/ })).toBeNull()
+    // Picking tracks from plays doesn't apply to a list of tracks.
+    await expect(main.queryByRole('button', { name: 'Select' })).toBeNull()
+  },
+})
+
+/** Filters that keep nothing say so, with a way to clear them. */
+export const HistoryMonthNothingMatches = meta.story({
+  args: { path: '/history?month=2019-03&rated=yes&week=2' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    playsQueries.mockClear()
+    msw.use(pastHandler)
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('heading', { name: 'Nothing in March 2019 like that' })).toBeVisible()
+    await userEvent.click(main.getByRole('link', { name: 'Clear the filters' }))
+    await expect(await main.findByRole('link', { name: 'Old Favourite 01' })).toBeVisible()
+    await expect(playsQueries).toHaveBeenLastCalledWith(expect.not.objectContaining({ rated: 'yes' }))
   },
 })
 

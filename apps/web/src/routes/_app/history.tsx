@@ -5,6 +5,8 @@ import {
   listensInfiniteQueryOptions,
   listensPageQueryOptions,
   onThisDayQueryOptions,
+  playContextsQueryOptions,
+  playedTracksPageQueryOptions,
   playsInfiniteQueryOptions,
   playsPageQueryOptions,
   timelineQueryOptions,
@@ -12,7 +14,7 @@ import {
   type PlayItem,
   type PlaysFilter,
 } from '@replay-crate/api-client'
-import { formatRelative, localDayKey, pageCount, type PageSize } from '@replay-crate/core'
+import { formatRelative, localDayKey, PAGE_SIZES, pageCount, type PageSize } from '@replay-crate/core'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { ArrowUpToLine, CalendarClock, CircleDashed, History, ListChecks, ListFilter, Podcast, RefreshCw } from 'lucide-react'
@@ -24,20 +26,23 @@ import { EpisodeNowPlaying, ListenList } from '../../components/podcasts/listen-
 import { TimelineDrawer, type DayJump, type TimelineLink } from '../../components/history-timeline.tsx'
 import { InlineError } from '../../components/inline-error.tsx'
 import { ListPagination } from '../../components/list-pagination.tsx'
+import { MonthFilters } from '../../components/month-filters.tsx'
 import { PageHeader } from '../../components/page-header.tsx'
 import { SelectionBar } from '../../components/selection-bar.tsx'
 import { TimelineStrip } from '../../components/timeline-strip.tsx'
+import { TrackLibraryList } from '../../components/track-library-list.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { buttonClasses } from '../../components/ui/button-classes.ts'
 import { api } from '../../lib/api.ts'
 import { historyRange, isHistoryRange, rangeBounds, type HistoryRange } from '../../lib/history-ranges.ts'
 import { cn } from 'cn'
-import { cursorDay, cursorMonth, dayCursor, formatMonth, monthCursor, parseCursor, timeZone } from '../../lib/months.ts'
+import { cursorDay, cursorMonth, dayCursor, formatMonth, monthBounds, monthWeeks, parseCursor, parseMonth, timeZone } from '../../lib/months.ts'
 import { pageSearch, resizedPage, storedPageSize, storePageSize } from '../../lib/page-size.ts'
 import { useMediaQuery } from '../../lib/use-media-query.ts'
 import { useMonthInView } from '../../lib/use-month-in-view.ts'
 import { useJustPlayed, withJustPlayed } from '../../lib/just-played.ts'
 import { getMode, useMode } from '../../lib/mode.ts'
+import { isMonthSort, type MonthSort, type MonthView } from '../../lib/month-view.ts'
 import { useNowPlaying, usePlayingEpisodeId, usePlayingTrackId } from '../../lib/use-player.ts'
 import { useSync } from '../../lib/use-sync.ts'
 
@@ -50,7 +55,67 @@ const parseGenre = (value: unknown) => {
 /** A show id from the URL: Spotify's base-62 ids, else none. */
 const parseShow = (value: unknown) => (typeof value === 'string' && /^[0-9A-Za-z]+$/.test(value) ? value : undefined)
 
-type HistorySearch = { page?: number; size?: PageSize; before?: string; genre?: number; show?: string; when?: HistoryRange }
+type HistorySearch = {
+  page?: number
+  size?: PageSize
+  before?: string
+  genre?: number
+  show?: string
+  when?: HistoryRange
+  /** A month from the timeline (`YYYY-MM`), with how it's read and narrowed down. */
+  month?: string
+  sort?: Exclude<MonthSort, 'newest'>
+  week?: number
+  new?: true
+  rated?: 'yes' | 'no'
+  from?: string
+}
+
+/** A month's view from the URL: newest first, and no quick filters, unless it says otherwise. */
+const monthViewOf = (search: HistorySearch): MonthView => ({
+  sort: search.sort ?? 'newest',
+  week: search.week,
+  fresh: search.new === true,
+  rated: search.rated,
+  from: search.from,
+})
+
+/** A month's view as search params, leaving out what's as it would be anyway. */
+const monthSearch = ({ sort, week, fresh, rated, from }: MonthView) => ({
+  ...(sort !== 'newest' && { sort }),
+  ...(week && { week }),
+  ...(fresh && { new: true as const }),
+  ...(rated && { rated }),
+  ...(from && { from }),
+})
+
+/** A month reads in numbered pages, so All reads as the largest of them. */
+const MONTH_SIZES = PAGE_SIZES.filter((size): size is Exclude<PageSize, 'all'> => size !== 'all')
+const monthSize = (size: PageSize) => (size === 'all' ? MONTH_SIZES.at(-1)! : size)
+
+/** The plays a month keeps: in the month (or one of its weeks), and the genre and quick filters. */
+const monthFilter = (month: string, genre: number | undefined, { week, fresh, rated, from }: MonthView): PlaysFilter => ({
+  genre,
+  ...monthBounds(month, week),
+  rated,
+  newSince: fresh ? monthBounds(month).since : undefined,
+  context: from,
+})
+
+/** A month view's quick filters, from the URL: only the ones that make sense for that month. */
+function monthParams(month: string, search: Record<string, unknown>): Partial<HistorySearch> {
+  const week = Number(search.week)
+  const rated = search.rated === 'yes' || search.rated === 'no' ? search.rated : undefined
+  const from = typeof search.from === 'string' && /^spotify:[\w:.-]+$/.test(search.from) ? search.from : undefined
+  return {
+    month,
+    ...(isMonthSort(search.sort) && search.sort !== 'newest' && { sort: search.sort }),
+    ...(Number.isInteger(week) && week >= 1 && week <= monthWeeks(month).length && { week }),
+    ...((search.new === true || search.new === 'true') && { new: true as const }),
+    ...(rated && { rated }),
+    ...(from && { from }),
+  }
+}
 
 /** The plays the filters keep: `when` is a quick range of local days, worked out afresh each time. */
 const playsFilter = (genre: number | undefined, when: HistoryRange | undefined): PlaysFilter => ({
@@ -69,13 +134,24 @@ export const Route = createFileRoute('/_app/history')({
   // it, with newer ones a button away. Without it, numbered pages (or All) from the newest play.
   // `genre` keeps only plays in that genre, and `when` only those in a quick date range (today,
   // the last 7 days...), whichever way the list reads. In podcast mode it lists episode listens
-  // instead, and `show` keeps only one show's.
+  // instead, and `show` keeps only one show's. `month` (from the timeline) lists just that month,
+  // in numbered pages: newest or oldest first, or its tracks by plays (`sort`), narrowed down to a
+  // week, tracks new that month, rated or not, or plays from one place (`from`). It takes the
+  // place of `before` and `when`.
   validateSearch: (search: Record<string, unknown>): HistorySearch => {
-    const before = parseCursor(search.before)
+    const month = parseMonth(search.month)
+    const before = month ? undefined : parseCursor(search.before)
     const genre = parseGenre(search.genre)
     const show = parseShow(search.show)
-    const when = isHistoryRange(search.when) ? search.when : undefined
-    return { ...pageSearch(search), ...(before && { before }), ...(genre && { genre }), ...(show && { show }), ...(when && { when }) }
+    const when = !month && isHistoryRange(search.when) ? search.when : undefined
+    return {
+      ...pageSearch(search),
+      ...(before && { before }),
+      ...(genre && { genre }),
+      ...(show && { show }),
+      ...(when && { when }),
+      ...(month && monthParams(month, search)),
+    }
   },
   loaderDeps: ({ search }) => ({
     mode: getMode(),
@@ -85,8 +161,10 @@ export const Route = createFileRoute('/_app/history')({
     genre: search.genre,
     show: search.show,
     when: search.when,
+    month: search.month,
+    view: monthViewOf(search),
   }),
-  loader: ({ context: { queryClient }, deps: { mode, page, size, before, genre, show, when } }) =>
+  loader: ({ context: { queryClient }, deps: { mode, page, size, before, genre, show, when, month, view } }) =>
     mode === 'podcasts'
       ? Promise.all([
           before !== undefined || size === 'all'
@@ -95,7 +173,13 @@ export const Route = createFileRoute('/_app/history')({
           show !== undefined && queryClient.ensureQueryData(listenedShowsQueryOptions(api)),
         ])
       : Promise.all([
-      before !== undefined || size === 'all'
+      month !== undefined
+        ? view.sort === 'most'
+          ? queryClient.ensureQueryData(playedTracksPageQueryOptions(api, { page, size: monthSize(size), ...monthFilter(month, genre, view) }))
+          : queryClient.ensureQueryData(
+              playsPageQueryOptions(api, { page, size: monthSize(size), order: view.sort, ...monthFilter(month, genre, view) }),
+            )
+        : before !== undefined || size === 'all'
         ? queryClient.ensureInfiniteQueryData(playsInfiniteQueryOptions(api, before, playsFilter(genre, when)))
         : queryClient.ensureQueryData(playsPageQueryOptions(api, { page, size, ...playsFilter(genre, when) })),
       // A filtered view names its genre in the picker from the first paint.
@@ -114,10 +198,10 @@ function HistoryRoute() {
  * plays"): with All from the newest play, after a jump from `before`, with newer pages going on
  * top ("Show newer plays"). Only the view in use fetches; the loader has already filled it.
  */
-function useHistoryPlays(page: number, size: PageSize, before: string | undefined, filter: PlaysFilter) {
+function useHistoryPlays(page: number, size: PageSize, before: string | undefined, filter: PlaysFilter, enabled: boolean) {
   const byCursor = size === 'all' || before !== undefined
-  const infinite = useInfiniteQuery({ ...playsInfiniteQueryOptions(api, before, filter), enabled: byCursor })
-  const paged = useQuery({ ...playsPageQueryOptions(api, { page, size: size === 'all' ? 0 : size, ...filter }), enabled: !byCursor })
+  const infinite = useInfiniteQuery({ ...playsInfiniteQueryOptions(api, before, filter), enabled: enabled && byCursor })
+  const paged = useQuery({ ...playsPageQueryOptions(api, { page, size: size === 'all' ? 0 : size, ...filter }), enabled: enabled && !byCursor })
   if (byCursor) {
     const pages = infinite.data?.pages ?? []
     return {
@@ -145,6 +229,31 @@ function useHistoryPlays(page: number, size: PageSize, before: string | undefine
   }
 }
 
+/**
+ * A month's plays (newest or oldest first) or its tracks by plays, one numbered page; and where its
+ * plays came from, for the Played from filter. Nothing fetches without a month.
+ */
+function useMonthPlays(month: string | undefined, page: number, size: PageSize, view: MonthView, genre: number | undefined) {
+  const filter = month ? monthFilter(month, genre, view) : {}
+  const most = month !== undefined && view.sort === 'most'
+  const order = view.sort === 'oldest' ? 'oldest' : 'newest'
+  const plays = useQuery({ ...playsPageQueryOptions(api, { page, size: monthSize(size), order, ...filter }), enabled: month !== undefined && !most })
+  const tracks = useQuery({ ...playedTracksPageQueryOptions(api, { page, size: monthSize(size), ...filter }), enabled: most })
+  const contexts = useQuery({ ...playContextsQueryOptions(api, filter), enabled: month !== undefined })
+  const shown = most ? tracks : plays
+  return {
+    // A query not in use may still hold the last page it showed.
+    plays: most ? [] : (plays.data?.items ?? []),
+    tracks: most ? (tracks.data?.items ?? []) : [],
+    lastSyncedAt: plays.data?.lastSyncedAt ?? null,
+    total: shown.data?.total,
+    olderPlayedAt: (!most && plays.data?.olderPlayedAt) || null,
+    isPlaceholder: shown.isPlaceholderData,
+    isPending: shown.isPending,
+    contexts: contexts.data ?? [],
+  }
+}
+
 const dayFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
 const cursorFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
@@ -167,23 +276,28 @@ function HistoryPage() {
   const navigate = Route.useNavigate()
   const page = search.page ?? 1
   const size = search.size ?? storedPageSize('history')
-  const { before, genre, when } = search
+  const { before, genre, when, month } = search
+  const view = monthViewOf(search)
+  const latest = useHistoryPlays(page, size, before, playsFilter(genre, when), month === undefined)
+  const monthly = useMonthPlays(month, page, size, view, genre)
+  const most = month !== undefined && view.sort === 'most'
+  const pageSize = month !== undefined ? monthSize(size) : size
   const { plays: synced, lastSyncedAt, total, olderPlayedAt, loadMore, isLoadingMore, loadNewer, isLoadingNewer, isPlaceholder } =
-    useHistoryPlays(page, size, before, playsFilter(genre, when))
+    month === undefined ? latest : { ...monthly, loadMore: undefined, isLoadingMore: false, loadNewer: undefined, isLoadingNewer: false }
   // Read from the present, a track that just finished heads Today until its play is synced. Its
   // genres may not be known yet, so not under a genre filter.
   const justPlayed = useJustPlayed()
-  const fromNow = before === undefined && page === 1 && genre === undefined && when !== 'yesterday'
+  const fromNow = before === undefined && month === undefined && page === 1 && genre === undefined && when !== 'yesterday'
   const plays = fromNow ? withJustPlayed(synced, justPlayed) : synced
   const { data: genres = [] } = useQuery(genresQueryOptions(api))
   const genreName = genres.find((known) => known.id === genre)?.name
   const { sync, isSyncing, error: syncError } = useSync()
   const { data: gaps = [] } = useQuery(gapsQueryOptions(api))
   const playingTrackId = usePlayingTrackId()
-  // After a jump the list reads from the past, so what's playing now doesn't head it. Nor does
-  // an episode: that's podcast History's.
+  // After a jump, or in a month, the list reads from the past, so what's playing now doesn't head
+  // it. Nor does an episode: that's podcast History's.
   const nowPlaying = useNowPlaying()
-  const showNowPlaying = nowPlaying && nowPlaying.item.type === 'track' && before === undefined
+  const showNowPlaying = nowPlaying && nowPlaying.item.type === 'track' && before === undefined && month === undefined
   const [nowPlayingRef, nowPlayingHeight] = useHeight()
 
   // The timeline: months with plays, and the one being read (under the header and Now playing).
@@ -191,17 +305,19 @@ function HistoryPage() {
   const { data: onThisDay } = useQuery(onThisDayQueryOptions(api, localDayKey(new Date()), timeZone))
   const months = timeline?.months ?? []
   const listRef = useRef<HTMLDivElement>(null)
-  const monthInView = useMonthInView(listRef, HEADER_HEIGHT + nowPlayingHeight, `${plays.length}:${plays[0]?.playedAt}`)
-  // A month or day opens at its latest plays; the present keeps the page size (a jump has no pages).
-  // Both keep the genre filter; a date filter goes, since a jump picks its own time.
-  const linkTo: TimelineLink = (month, props) => (
-    <Link
-      from={Route.fullPath}
-      to="."
-      search={(prev) => ({ size: prev.size, genre: prev.genre, ...(month && { before: monthCursor(month) }) })}
-      {...props}
-    />
+  const scrolledTo = useMonthInView(listRef, HEADER_HEIGHT + nowPlayingHeight, `${plays.length}:${plays[0]?.playedAt}`)
+  // A month being read is the one in view, whichever way it's sorted.
+  const monthInView = month ?? scrolledTo
+  // A month opens on its own, newest first, and a day at its latest plays. Both keep the page size
+  // and the genre filter; a date filter goes, since they pick their own time.
+  const linkTo: TimelineLink = (to, props) => (
+    <Link from={Route.fullPath} to="." search={(prev) => ({ size: prev.size, genre: prev.genre, ...(to && { month: to }) })} {...props} />
   )
+  const monthPlays = months.find((known) => known.month === month)?.plays
+  const setView = (next: Partial<MonthView>) =>
+    void navigate({
+      search: (prev) => ({ size: prev.size, genre: prev.genre, month: prev.month, ...monthSearch({ ...monthViewOf(prev), ...next }) }),
+    })
   const oldest = months.at(-1)
   const day: DayJump = {
     first: oldest ? `${oldest.month}-01` : '',
@@ -210,7 +326,7 @@ function HistoryPage() {
   }
 
   // A page past the end (history shrank, or a hand-edited URL): go to the last one.
-  const lastPage = total !== undefined && size !== 'all' ? pageCount(total, size) : undefined
+  const lastPage = total !== undefined && pageSize !== 'all' ? pageCount(total, pageSize) : undefined
   useEffect(() => {
     if (lastPage !== undefined && page > lastPage) {
       void navigate({ search: (prev) => ({ ...prev, page: lastPage > 1 ? lastPage : undefined }), replace: true })
@@ -258,14 +374,13 @@ function HistoryPage() {
                 allLabel: 'All genres',
                 options: genres.map((known) => ({ value: String(known.id), name: known.name, count: known.playCount })),
                 value: genre === undefined ? undefined : String(genre),
-                onChange: (next) =>
-                  void navigate({ search: (prev) => ({ size: prev.size, before: prev.before, when: prev.when, genre: next === undefined ? undefined : Number(next) }) }),
+                onChange: (next) => void navigate({ search: (prev) => ({ ...prev, page: undefined, genre: next === undefined ? undefined : Number(next) }) }),
               }}
               when={when}
               // A date range and a jump into the past don't mix: the range wins.
               onWhenChange={(next) => void navigate({ search: (prev) => ({ size: prev.size, genre: prev.genre, when: next }) })}
             />
-            {plays.length > 0 && (
+            {plays.length > 0 && !most && (
               <Button variant="secondary" size="sm" onClick={() => setSelected(selected ? null : new Map())} aria-pressed={selected !== null}>
                 <ListChecks aria-hidden className="size-4" /> {selected ? 'Done' : 'Select'}
               </Button>
@@ -314,19 +429,44 @@ function HistoryPage() {
         </div>
       )}
 
+      {month !== undefined && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2 text-sm">
+          <div className="flex items-start gap-2">
+            <CalendarClock aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
+            <h2 className="font-medium">
+              {formatMonth(month)}
+              {monthPlays !== undefined && (
+                <>
+                  {' '}
+                  <span className="font-normal text-muted-foreground">{`· ${monthPlays.toLocaleString()} ${monthPlays === 1 ? 'play' : 'plays'}`}</span>
+                </>
+              )}
+            </h2>
+          </div>
+          {linkTo(null, {
+            className: buttonClasses({ variant: 'secondary', size: 'sm' }),
+            children: (
+              <>
+                <ArrowUpToLine aria-hidden className="size-4" /> Back to now
+              </>
+            ),
+          })}
+        </div>
+      )}
+
       {/* From `md` up: every month at a glance, to see where you are and go elsewhere. Not rendered
           on a phone at all: a hidden chart measures 0×0 and Recharts warns about it. */}
       {wide && months.length > 0 && (
         <TimelineStrip
           months={months}
           current={monthInView}
-          onJump={(month) =>
-            void navigate({ search: (prev) => ({ size: prev.size, genre: prev.genre, ...(month && { before: monthCursor(month) }) }) })
-          }
+          onJump={(to) => void navigate({ search: (prev) => ({ size: prev.size, genre: prev.genre, ...(to && { month: to }) }) })}
           onThisDay={onThisDay}
           className="mb-6"
         />
       )}
+
+      {month !== undefined && <MonthFilters month={month} view={view} contexts={monthly.contexts} onChange={setView} />}
 
       <div ref={listRef}>
         {/* The present heads every page, not just the newest plays, and stays there as they scroll. */}
@@ -340,16 +480,21 @@ function HistoryPage() {
           </div>
         )}
 
-        {plays.length ? (
+        {plays.length || monthly.tracks.length ? (
           <>
             <div className={cn('transition-opacity', isPlaceholder && 'opacity-60')} aria-busy={isPlaceholder}>
-              <HistoryList
-                plays={plays}
-                gaps={gaps}
-                olderPlayedAt={olderPlayedAt}
-                selection={selected ? { selected, toggle } : undefined}
-                playingTrackId={playingTrackId}
-              />
+              {most ? (
+                <TrackLibraryList items={monthly.tracks} playingTrackId={playingTrackId} />
+              ) : (
+                <HistoryList
+                  plays={plays}
+                  // Gap markers sit between a newer play and an older one.
+                  gaps={view.sort === 'oldest' ? [] : gaps}
+                  olderPlayedAt={olderPlayedAt}
+                  selection={selected ? { selected, toggle } : undefined}
+                  playingTrackId={playingTrackId}
+                />
+              )}
             </div>
             {loadMore && (
               <div className="mt-6 flex justify-center">
@@ -362,13 +507,31 @@ function HistoryPage() {
             {before === undefined && (
               <ListPagination
                 page={page}
-                size={size}
+                size={pageSize}
                 total={total}
                 onSizeChange={setSize}
+                sizes={month !== undefined ? MONTH_SIZES : undefined}
                 linkTo={(to) => <Link from={Route.fullPath} to="." search={(prev) => ({ ...prev, page: to > 1 ? to : undefined })} />}
               />
             )}
           </>
+        ) : month !== undefined ? (
+          monthly.isPending ? null : genre !== undefined || Object.keys(monthSearch({ ...view, sort: 'newest' })).length ? (
+            <EmptyState icon={ListFilter} title={`Nothing in ${formatMonth(month)} like that`}>
+              <Link
+                from={Route.fullPath}
+                to="."
+                search={(prev) => ({ size: prev.size, month: prev.month, ...(prev.sort && { sort: prev.sort }) })}
+                className="font-medium text-primary hover:underline"
+              >
+                Clear the filters
+              </Link>
+            </EmptyState>
+          ) : (
+            <EmptyState icon={History} title={`Nothing played in ${formatMonth(month)}`}>
+              Pick another month, or go back to now.
+            </EmptyState>
+          )
         ) : when !== undefined ? (
           <EmptyState icon={ListFilter} title={`No ${genre === undefined ? 'plays' : genreName ? `${genreName} plays` : 'plays in this genre'} ${historyRange(when).phrase}`}>
             <Link from={Route.fullPath} to="." search={(prev) => ({ ...prev, when: undefined, page: undefined })} className="font-medium text-primary hover:underline">
