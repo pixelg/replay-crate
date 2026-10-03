@@ -1,7 +1,10 @@
 name: CI
 
 on:
+  # A draft PR is work in progress: nothing runs until it's marked ready for review, which starts
+  # a run (`ready_for_review`), as does every push after that.
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
 
@@ -17,6 +20,8 @@ jobs:
   # licence can't break what the jobs below test, so they're skipped for it. Skipped, not left out
   # (as `paths-ignore` would), so the required `check` still reports: a skipped job counts as passing.
   changes:
+    # Skipped for a draft, and with it every job that needs it. (On a push to main there's no PR.)
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     outputs:
@@ -116,7 +121,7 @@ jobs:
   # passed or was skipped (a docs-only change), fails if any failed or was cancelled.
   check:
     needs: [changes, static, unit, stories, e2e]
-    if: always()
+    if: ${{ always() && !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
