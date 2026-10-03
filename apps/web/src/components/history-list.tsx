@@ -158,7 +158,7 @@ export function NowPlayingSection({
         }
         // It's already playing: an empty slot where the play button goes keeps the rest in line with the rows below.
         play={track && !selecting && <span aria-hidden className="hidden size-9 @2xl:block" />}
-        actions={track && !selecting && <PlaylistShortcuts track={track} labelled />}
+        actions={track && !selecting && <PlaylistShortcuts track={track} stacked />}
         rating={track && <TrackRating track={track} compactOnPhones />}
         side={
           <>

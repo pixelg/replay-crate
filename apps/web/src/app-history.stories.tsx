@@ -136,13 +136,13 @@ export const OpensTrackFromHistory = meta.story({
   },
 })
 
-/** On a phone Now playing stays open: all its chips, and its shortcuts named, where the rows below are one line of text and icons. */
+/** On a phone Now playing stays open: all its chips, and its shortcuts under the art, where the rows below are one line of text and leave them to the menu. */
 export const HistoryMobile = meta.story({
   globals: { viewport: { value: 'mobile2', isRotated: false } },
   play: async ({ canvas }) => {
     const nowPlaying = within(await canvas.findByRole('group', { name: 'Now playing' }))
-    await expect(await nowPlaying.findByRole('button', { name: 'New playlist with Brass Monkey Business' })).toHaveTextContent('New playlist')
-    await expect(nowPlaying.getByRole('button', { name: 'Add Brass Monkey Business to a playlist' })).toHaveTextContent('Add')
+    await expect(await nowPlaying.findByRole('button', { name: 'New playlist with Brass Monkey Business' })).toBeVisible()
+    await expect(nowPlaying.getByRole('button', { name: 'Add Brass Monkey Business to a playlist' })).toBeVisible()
     const playlists = within(await nowPlaying.findByRole('list', { name: 'On your playlists' }))
     await expect(playlists.getAllByRole('link').map((link) => link.textContent)).toEqual(['Late Night Crate', 'Boom Bap Essentials'])
   },
