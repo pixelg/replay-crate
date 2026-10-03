@@ -41,6 +41,29 @@ export function monthCursor(month: string): string {
   return new Date(start.getFullYear(), start.getMonth() + 1, 1).toISOString()
 }
 
+/** A `YYYY-MM` month from the URL, or undefined when it isn't one. */
+export const parseMonth = (value: unknown) =>
+  typeof value === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : undefined
+
+/** A month's weeks, for narrowing it down: days 1–7, 8–14, 15–21, 22–28, then 29 to its end (if it has a 29th). */
+export function monthWeeks(month: string): Array<{ week: number; first: number; last: number }> {
+  const start = firstOf(month)
+  const days = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate()
+  return Array.from({ length: Math.ceil(days / 7) }, (_, index) => ({
+    week: index + 1,
+    first: index * 7 + 1,
+    last: Math.min(index * 7 + 7, days),
+  }))
+}
+
+/** A month, or one of its weeks (`monthWeeks`), as `since` / `until` for the plays API: local midnights. */
+export function monthBounds(month: string, week?: number): { since: string; until: string } {
+  const start = firstOf(month)
+  const range = week === undefined ? undefined : monthWeeks(month)[week - 1]
+  const day = (date: number) => new Date(start.getFullYear(), start.getMonth(), date).toISOString()
+  return range ? { since: day(range.first), until: day(range.last + 1) } : { since: day(1), until: monthCursor(month) }
+}
+
 /** The month a `before` cursor opens, when it's one `monthCursor` made; otherwise null. */
 export function cursorMonth(before: string): string | null {
   const date = new Date(before)

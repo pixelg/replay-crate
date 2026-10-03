@@ -21,6 +21,8 @@ export type GenreRef = PlayItem['track']['genres'][number]
 export type GenrePlays = InferResponseType<ApiClient['genres']['$get'], 200>['genres'][number]
 export type LibraryPage = InferResponseType<ApiClient['tracks']['$get'], 200>
 export type LibraryTrack = LibraryPage['items'][number]
+export type PlayedTracksPage = InferResponseType<ApiClient['history']['tracks']['$get'], 200>
+export type PlayContextCount = InferResponseType<ApiClient['history']['contexts']['$get'], 200>['contexts'][number]
 export type TrackSort = 'plays' | 'last_played' | 'first_played' | 'first_played_oldest' | 'name' | 'rating'
 export type SyncResult = InferResponseType<ApiClient['history']['sync']['$post'], 200>
 export type PlaylistsList = InferResponseType<ApiClient['playlists']['$get'], 200>
@@ -110,18 +112,38 @@ export async function logout(api: ApiClient): Promise<void> {
 /** Where a page of plays starts: older than a time, newer than one, or (null) from the newest play. */
 export type PlaysCursor = { before: string } | { after: string } | null
 
-/** Which plays History lists: in a genre, and between `since` (inclusive) and `until` (exclusive). */
-export type PlaysFilter = { genre?: number; since?: string; until?: string }
+/**
+ * Which plays History lists: in a genre, between `since` (inclusive) and `until` (exclusive), of
+ * tracks rated or not, of tracks first played at or after `newSince`, and from one `context` (a URI).
+ */
+export type PlaysFilter = {
+  genre?: number
+  since?: string
+  until?: string
+  rated?: 'yes' | 'no'
+  newSince?: string
+  context?: string
+}
 
 /** The filter as query parameters, leaving out what isn't set. */
-const filterQuery = ({ genre, since, until }: PlaysFilter) => ({
+const filterQuery = ({ genre, since, until, rated, newSince, context }: PlaysFilter) => ({
   ...(genre && { genre: String(genre) }),
   ...(since && { since }),
   ...(until && { until }),
+  ...(rated && { rated }),
+  ...(newSince && { newSince }),
+  ...(context && { context }),
 })
 
 /** The filter as a query key part: the same filter, the same key. */
-const filterKey = ({ genre, since, until }: PlaysFilter) => ({ genre: genre ?? null, since: since ?? null, until: until ?? null })
+const filterKey = ({ genre, since, until, rated, newSince, context }: PlaysFilter) => ({
+  genre: genre ?? null,
+  since: since ?? null,
+  until: until ?? null,
+  rated: rated ?? null,
+  newSince: newSince ?? null,
+  context: context ?? null,
+})
 
 /**
  * Newest-first play history; each page's `nextCursor` fetches older plays. The "All" view, and with
@@ -164,16 +186,48 @@ export const timelineQueryOptions = (api: ApiClient, tz: string) =>
  * One numbered page of play history (`page` from 1), with `total` and `olderPlayedAt`; with
  * `genre`, of only that genre's plays. Keeps showing the previous page while the next one loads.
  */
-export const playsPageQueryOptions = (api: ApiClient, { page, size, ...filter }: { page: number; size: number } & PlaysFilter) =>
+export const playsPageQueryOptions = (
+  api: ApiClient,
+  { page, size, order = 'newest', ...filter }: { page: number; size: number; order?: 'newest' | 'oldest' } & PlaysFilter,
+) =>
   queryOptions({
-    queryKey: ['plays', 'page', { page, size, ...filterKey(filter) }],
+    queryKey: ['plays', 'page', { page, size, order, ...filterKey(filter) }],
     queryFn: async (): Promise<PlaysPage> => {
       const endpoint = 'GET /api/v1/history/plays'
-      const query = { limit: String(size), offset: String((page - 1) * size), ...filterQuery(filter) }
+      const query = { limit: String(size), offset: String((page - 1) * size), ...(order === 'oldest' && { order }), ...filterQuery(filter) }
       return expectOk(await send(endpoint, () => api.history.plays.$get({ query })), endpoint)
     },
     placeholderData: keepPreviousData,
   })
+
+/**
+ * One numbered page of the tracks in the plays a filter keeps, most played first, with their plays
+ * among them. Under `['plays']`, so a sync refreshes it too.
+ */
+export const playedTracksPageQueryOptions = (api: ApiClient, { page, size, ...filter }: { page: number; size: number } & PlaysFilter) =>
+  queryOptions({
+    queryKey: ['plays', 'tracks', { page, size, ...filterKey(filter) }],
+    queryFn: async (): Promise<PlayedTracksPage> => {
+      const endpoint = 'GET /api/v1/history/tracks'
+      const query = { limit: String(size), offset: String((page - 1) * size), ...filterQuery(filter) }
+      return expectOk(await send(endpoint, () => api.history.tracks.$get({ query })), endpoint)
+    },
+    placeholderData: keepPreviousData,
+  })
+
+/** Where the plays a filter keeps came from, most plays first (its own `context` aside). */
+export const playContextsQueryOptions = (api: ApiClient, filter: PlaysFilter) => {
+  const others = { ...filter, context: undefined }
+  return queryOptions({
+    queryKey: ['plays', 'contexts', filterKey(others)],
+    queryFn: async (): Promise<PlayContextCount[]> => {
+      const endpoint = 'GET /api/v1/history/contexts'
+      return (await expectOk(await send(endpoint, () => api.history.contexts.$get({ query: filterQuery(others) })), endpoint)).contexts
+    },
+    // The picker keeps its places while another filter's are fetched.
+    placeholderData: keepPreviousData,
+  })
+}
 
 /** Rates a track 1–5 stars, or clears its rating with `null`. */
 export async function setTrackRating(api: ApiClient, trackId: string, rating: number | null): Promise<void> {

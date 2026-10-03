@@ -628,6 +628,118 @@
           "name"
         ]
       },
+      "LibraryTrack": {
+        "type": "object",
+        "properties": {
+          "track": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "durationMs": {
+                "type": "integer"
+              },
+              "explicit": {
+                "type": "boolean"
+              },
+              "album": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "thumbUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "thumbUrl"
+                ]
+              },
+              "artists": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ArtistRef"
+                }
+              },
+              "genres": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/GenreRef"
+                },
+                "description": "Its artists' genres, the primary artist's first; at most 3."
+              },
+              "playlists": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PlaylistRef"
+                },
+                "description": "The user's playlists holding it, the one it was added to most recently first."
+              },
+              "rating": {
+                "$ref": "#/components/schemas/Rating"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "durationMs",
+              "explicit",
+              "album",
+              "artists",
+              "genres",
+              "playlists",
+              "rating"
+            ]
+          },
+          "playCount": {
+            "type": "integer"
+          },
+          "firstPlayedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          },
+          "lastPlayedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-21T12:00:00.000Z"
+          }
+        },
+        "required": [
+          "track",
+          "playCount",
+          "firstPlayedAt",
+          "lastPlayedAt"
+        ]
+      },
+      "PlayContextCount": {
+        "type": "object",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/ContextRef"
+          },
+          "plays": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "context",
+          "plays"
+        ]
+      },
       "ListenedShow": {
         "allOf": [
           {
@@ -792,103 +904,6 @@
           "fullyPlayed"
         ],
         "description": "Null when the user has never played it."
-      },
-      "LibraryTrack": {
-        "type": "object",
-        "properties": {
-          "track": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "durationMs": {
-                "type": "integer"
-              },
-              "explicit": {
-                "type": "boolean"
-              },
-              "album": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "thumbUrl": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  }
-                },
-                "required": [
-                  "id",
-                  "name",
-                  "thumbUrl"
-                ]
-              },
-              "artists": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ArtistRef"
-                }
-              },
-              "genres": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/GenreRef"
-                },
-                "description": "Its artists' genres, the primary artist's first; at most 3."
-              },
-              "playlists": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/PlaylistRef"
-                },
-                "description": "The user's playlists holding it, the one it was added to most recently first."
-              },
-              "rating": {
-                "$ref": "#/components/schemas/Rating"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "durationMs",
-              "explicit",
-              "album",
-              "artists",
-              "genres",
-              "playlists",
-              "rating"
-            ]
-          },
-          "playCount": {
-            "type": "integer"
-          },
-          "firstPlayedAt": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2026-09-21T12:00:00.000Z"
-          },
-          "lastPlayedAt": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2026-09-21T12:00:00.000Z"
-          }
-        },
-        "required": [
-          "track",
-          "playCount",
-          "firstPlayedAt",
-          "lastPlayedAt"
-        ]
       },
       "ForbiddenError": {
         "type": "object",
@@ -3958,7 +3973,7 @@
         ],
         "operationId": "listPlays",
         "summary": "Play history",
-        "description": "Newest first. Three ways to page, one at a time: pass `nextCursor` back as `before` for older plays (infinite scroll); pass `after` for the plays just newer than a time, to scroll back up from a point in the past (still listed newest first, and their `nextCursor` goes back in as `after` for newer ones still); or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`. `genre` keeps only plays of tracks whose artists have that genre (see `/genres`), and `since` / `until` only plays in that stretch of time, with any way of paging.",
+        "description": "Newest first. Three ways to page, one at a time: pass `nextCursor` back as `before` for older plays (infinite scroll); pass `after` for the plays just newer than a time, to scroll back up from a point in the past (still listed newest first, and their `nextCursor` goes back in as `after` for newer ones still); or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`. `genre` keeps only plays of tracks whose artists have that genre (see `/genres`), and `since` / `until` only plays in that stretch of time, with any way of paging; likewise `rated`, `newSince` and `context`. `order=oldest` lists oldest first, with `offset` only.",
         "security": [
           {
             "session": []
@@ -3968,6 +3983,79 @@
           }
         ],
         "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Only plays in this genre (a `GenreRef` id)."
+            },
+            "required": false,
+            "description": "Only plays in this genre (a `GenreRef` id).",
+            "name": "genre",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-09-21T12:00:00.000Z",
+              "description": "Only plays at or after this time."
+            },
+            "required": false,
+            "description": "Only plays at or after this time.",
+            "name": "since",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-09-21T12:00:00.000Z",
+              "description": "Only plays strictly before this time."
+            },
+            "required": false,
+            "description": "Only plays strictly before this time.",
+            "name": "until",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no"
+              ],
+              "description": "Only plays of tracks you have rated (`yes`) or not (`no`)."
+            },
+            "required": false,
+            "description": "Only plays of tracks you have rated (`yes`) or not (`no`).",
+            "name": "rated",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-09-21T12:00:00.000Z",
+              "description": "Only plays of tracks first played at or after this time: with `since` set to the same time, what was new to you then."
+            },
+            "required": false,
+            "description": "Only plays of tracks first played at or after this time: with `since` set to the same time, what was new to you then.",
+            "name": "newSince",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^spotify:[\\w:.-]+$",
+              "description": "Only plays from this context (its Spotify URI).",
+              "example": "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"
+            },
+            "required": false,
+            "description": "Only plays from this context (its Spotify URI).",
+            "name": "context",
+            "in": "query"
+          },
           {
             "schema": {
               "type": "string",
@@ -4019,37 +4107,17 @@
           },
           {
             "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Only plays in this genre (a `GenreRef` id)."
-            },
-            "required": false,
-            "description": "Only plays in this genre (a `GenreRef` id).",
-            "name": "genre",
-            "in": "query"
-          },
-          {
-            "schema": {
               "type": "string",
-              "format": "date-time",
-              "example": "2026-09-21T12:00:00.000Z",
-              "description": "Only plays at or after this time."
+              "enum": [
+                "newest",
+                "oldest"
+              ],
+              "default": "newest",
+              "description": "`oldest` lists from the oldest play; with `offset` only."
             },
             "required": false,
-            "description": "Only plays at or after this time.",
-            "name": "since",
-            "in": "query"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "format": "date-time",
-              "example": "2026-09-21T12:00:00.000Z",
-              "description": "Only plays strictly before this time."
-            },
-            "required": false,
-            "description": "Only plays strictly before this time.",
-            "name": "until",
+            "description": "`oldest` lists from the oldest play; with `offset` only.",
+            "name": "order",
             "in": "query"
           }
         ],
@@ -4086,7 +4154,7 @@
                     },
                     "total": {
                       "type": "integer",
-                      "description": "All of the user’s plays (in `genre` and between `since` and `until`, if given). With `offset` only."
+                      "description": "All of the user’s plays that the filters keep. With `offset` only."
                     },
                     "olderPlayedAt": {
                       "type": [
@@ -4095,13 +4163,322 @@
                       ],
                       "format": "date-time",
                       "example": "2026-09-21T12:00:00.000Z",
-                      "description": "When the play just after this page was played (null on the last page), so a gap across the page boundary can still be shown. With `offset` only."
+                      "description": "When the play just after this page was played (null on the last page, and oldest first), so a gap across the page boundary can still be shown. With `offset` only."
                     }
                   },
                   "required": [
                     "items",
                     "nextCursor",
                     "lastSyncedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/history/tracks": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "operationId": "listPlayedTracks",
+        "summary": "The tracks in a stretch of history",
+        "description": "The tracks in the plays the filters keep (as for `/history/plays`), most played first, each with its plays among them: how many, and the first and last. Numbered pages by `offset`.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Only plays in this genre (a `GenreRef` id)."
+            },
+            "required": false,
+            "description": "Only plays in this genre (a `GenreRef` id).",
+            "name": "genre",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-09-21T12:00:00.000Z",
+              "description": "Only plays at or after this time."
+            },
+            "required": false,
+            "description": "Only plays at or after this time.",
+            "name": "since",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-09-21T12:00:00.000Z",
+              "description": "Only plays strictly before this time."
+            },
+            "required": false,
+            "description": "Only plays strictly before this time.",
+            "name": "until",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no"
+              ],
+              "description": "Only plays of tracks you have rated (`yes`) or not (`no`)."
+            },
+            "required": false,
+            "description": "Only plays of tracks you have rated (`yes`) or not (`no`).",
+            "name": "rated",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-09-21T12:00:00.000Z",
+              "description": "Only plays of tracks first played at or after this time: with `since` set to the same time, what was new to you then."
+            },
+            "required": false,
+            "description": "Only plays of tracks first played at or after this time: with `since` set to the same time, what was new to you then.",
+            "name": "newSince",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^spotify:[\\w:.-]+$",
+              "description": "Only plays from this context (its Spotify URI).",
+              "example": "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"
+            },
+            "required": false,
+            "description": "Only plays from this context (its Spotify URI).",
+            "name": "context",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of tracks.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LibraryTrack"
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "description": "Tracks across all pages."
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/history/contexts": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "operationId": "listPlayContexts",
+        "summary": "Where plays came from",
+        "description": "The places (playlists, albums, artists, Liked Songs…) the plays the filters keep came from, most plays first: the top 50, to filter `/history/plays` by `context`. Plays from no context aren't listed.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Only plays in this genre (a `GenreRef` id)."
+            },
+            "required": false,
+            "description": "Only plays in this genre (a `GenreRef` id).",
+            "name": "genre",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-09-21T12:00:00.000Z",
+              "description": "Only plays at or after this time."
+            },
+            "required": false,
+            "description": "Only plays at or after this time.",
+            "name": "since",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-09-21T12:00:00.000Z",
+              "description": "Only plays strictly before this time."
+            },
+            "required": false,
+            "description": "Only plays strictly before this time.",
+            "name": "until",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no"
+              ],
+              "description": "Only plays of tracks you have rated (`yes`) or not (`no`)."
+            },
+            "required": false,
+            "description": "Only plays of tracks you have rated (`yes`) or not (`no`).",
+            "name": "rated",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "2026-09-21T12:00:00.000Z",
+              "description": "Only plays of tracks first played at or after this time: with `since` set to the same time, what was new to you then."
+            },
+            "required": false,
+            "description": "Only plays of tracks first played at or after this time: with `since` set to the same time, what was new to you then.",
+            "name": "newSince",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Where the plays came from.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "contexts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlayContextCount"
+                      }
+                    }
+                  },
+                  "required": [
+                    "contexts"
                   ]
                 }
               }

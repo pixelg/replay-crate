@@ -207,9 +207,49 @@ export interface paths {
         };
         /**
          * Play history
-         * @description Newest first. Three ways to page, one at a time: pass `nextCursor` back as `before` for older plays (infinite scroll); pass `after` for the plays just newer than a time, to scroll back up from a point in the past (still listed newest first, and their `nextCursor` goes back in as `after` for newer ones still); or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`. `genre` keeps only plays of tracks whose artists have that genre (see `/genres`), and `since` / `until` only plays in that stretch of time, with any way of paging.
+         * @description Newest first. Three ways to page, one at a time: pass `nextCursor` back as `before` for older plays (infinite scroll); pass `after` for the plays just newer than a time, to scroll back up from a point in the past (still listed newest first, and their `nextCursor` goes back in as `after` for newer ones still); or pass `offset` for numbered pages, which also returns `total` and `olderPlayedAt`. `genre` keeps only plays of tracks whose artists have that genre (see `/genres`), and `since` / `until` only plays in that stretch of time, with any way of paging; likewise `rated`, `newSince` and `context`. `order=oldest` lists oldest first, with `offset` only.
          */
         get: operations["listPlays"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/history/tracks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The tracks in a stretch of history
+         * @description The tracks in the plays the filters keep (as for `/history/plays`), most played first, each with its plays among them: how many, and the first and last. Numbered pages by `offset`.
+         */
+        get: operations["listPlayedTracks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/history/contexts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where plays came from
+         * @description The places (playlists, albums, artists, Liked Songs…) the plays the filters keep came from, most plays first: the top 50, to filter `/history/plays` by `context`. Plays from no context aren't listed.
+         */
+        get: operations["listPlayContexts"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1433,6 +1473,40 @@ export interface components {
             id: string;
             name: string;
         };
+        LibraryTrack: {
+            track: {
+                id: string;
+                name: string;
+                durationMs: number;
+                explicit: boolean;
+                album: {
+                    id: string;
+                    name: string;
+                    thumbUrl: string | null;
+                };
+                artists: components["schemas"]["ArtistRef"][];
+                /** @description Its artists' genres, the primary artist's first; at most 3. */
+                genres: components["schemas"]["GenreRef"][];
+                /** @description The user's playlists holding it, the one it was added to most recently first. */
+                playlists: components["schemas"]["PlaylistRef"][];
+                rating: components["schemas"]["Rating"];
+            };
+            playCount: number;
+            /**
+             * Format: date-time
+             * @example 2026-09-21T12:00:00.000Z
+             */
+            firstPlayedAt: string;
+            /**
+             * Format: date-time
+             * @example 2026-09-21T12:00:00.000Z
+             */
+            lastPlayedAt: string;
+        };
+        PlayContextCount: {
+            context: components["schemas"]["ContextRef"];
+            plays: number;
+        };
         ListenedShow: components["schemas"]["ShowRef"] & {
             listens: number;
         };
@@ -1480,36 +1554,6 @@ export interface components {
             resumePositionMs: number;
             fullyPlayed: boolean;
         } | null;
-        LibraryTrack: {
-            track: {
-                id: string;
-                name: string;
-                durationMs: number;
-                explicit: boolean;
-                album: {
-                    id: string;
-                    name: string;
-                    thumbUrl: string | null;
-                };
-                artists: components["schemas"]["ArtistRef"][];
-                /** @description Its artists' genres, the primary artist's first; at most 3. */
-                genres: components["schemas"]["GenreRef"][];
-                /** @description The user's playlists holding it, the one it was added to most recently first. */
-                playlists: components["schemas"]["PlaylistRef"][];
-                rating: components["schemas"]["Rating"];
-            };
-            playCount: number;
-            /**
-             * Format: date-time
-             * @example 2026-09-21T12:00:00.000Z
-             */
-            firstPlayedAt: string;
-            /**
-             * Format: date-time
-             * @example 2026-09-21T12:00:00.000Z
-             */
-            lastPlayedAt: string;
-        };
         ForbiddenError: {
             /** @enum {string} */
             error: "forbidden";
@@ -2674,6 +2718,18 @@ export interface operations {
     listPlays: {
         parameters: {
             query?: {
+                /** @description Only plays in this genre (a `GenreRef` id). */
+                genre?: number;
+                /** @description Only plays at or after this time. */
+                since?: string;
+                /** @description Only plays strictly before this time. */
+                until?: string;
+                /** @description Only plays of tracks you have rated (`yes`) or not (`no`). */
+                rated?: "yes" | "no";
+                /** @description Only plays of tracks first played at or after this time: with `since` set to the same time, what was new to you then. */
+                newSince?: string;
+                /** @description Only plays from this context (its Spotify URI). */
+                context?: string;
                 /** @description Only plays strictly older than this. */
                 before?: string;
                 /** @description Only plays strictly newer than this: the `limit` closest to it. */
@@ -2681,12 +2737,8 @@ export interface operations {
                 limit?: number;
                 /** @description Plays to skip, for numbered pages. */
                 offset?: number | null;
-                /** @description Only plays in this genre (a `GenreRef` id). */
-                genre?: number;
-                /** @description Only plays at or after this time. */
-                since?: string;
-                /** @description Only plays strictly before this time. */
-                until?: string;
+                /** @description `oldest` lists from the oldest play; with `offset` only. */
+                order?: "newest" | "oldest";
             };
             header?: never;
             path?: never;
@@ -2713,14 +2765,140 @@ export interface operations {
                          * @example 2026-09-21T12:00:00.000Z
                          */
                         lastSyncedAt: string | null;
-                        /** @description All of the user’s plays (in `genre` and between `since` and `until`, if given). With `offset` only. */
+                        /** @description All of the user’s plays that the filters keep. With `offset` only. */
                         total?: number;
                         /**
                          * Format: date-time
-                         * @description When the play just after this page was played (null on the last page), so a gap across the page boundary can still be shown. With `offset` only.
+                         * @description When the play just after this page was played (null on the last page, and oldest first), so a gap across the page boundary can still be shown. With `offset` only.
                          * @example 2026-09-21T12:00:00.000Z
                          */
                         olderPlayedAt?: string | null;
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    listPlayedTracks: {
+        parameters: {
+            query?: {
+                /** @description Only plays in this genre (a `GenreRef` id). */
+                genre?: number;
+                /** @description Only plays at or after this time. */
+                since?: string;
+                /** @description Only plays strictly before this time. */
+                until?: string;
+                /** @description Only plays of tracks you have rated (`yes`) or not (`no`). */
+                rated?: "yes" | "no";
+                /** @description Only plays of tracks first played at or after this time: with `since` set to the same time, what was new to you then. */
+                newSince?: string;
+                /** @description Only plays from this context (its Spotify URI). */
+                context?: string;
+                limit?: number;
+                offset?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of tracks. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["LibraryTrack"][];
+                        /** @description Tracks across all pages. */
+                        total: number;
+                    };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    listPlayContexts: {
+        parameters: {
+            query?: {
+                /** @description Only plays in this genre (a `GenreRef` id). */
+                genre?: number;
+                /** @description Only plays at or after this time. */
+                since?: string;
+                /** @description Only plays strictly before this time. */
+                until?: string;
+                /** @description Only plays of tracks you have rated (`yes`) or not (`no`). */
+                rated?: "yes" | "no";
+                /** @description Only plays of tracks first played at or after this time: with `since` set to the same time, what was new to you then. */
+                newSince?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Where the plays came from. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        contexts: components["schemas"]["PlayContextCount"][];
                     };
                 };
             };

@@ -1,19 +1,21 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import { schema } from '@replay-crate/db'
 import { SpotifyApiError } from '@replay-crate/spotify'
-import { and, asc, count, desc, eq, gt, gte, isNull, lt, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
-import { loadTrackGenres, playInGenre } from '../genres/queries.ts'
-import { ArtistRef, ContextRef, GenreRef, IsoDateTime, jsonResponse, PlaylistRef, Rating } from '../lib/schemas.ts'
+import { loadTrackGenres } from '../genres/queries.ts'
+import { ArtistRef, ContextRef, GenreRef, IsoDateTime, jsonResponse, LibraryTrack, PlaylistRef, Rating } from '../lib/schemas.ts'
 import { loadTrackPlaylists } from '../playlists/queries.ts'
 import { localDay, timeZone } from '../stats/ranges.ts'
 import { pauseSpotify, pausedUntil } from '../jobs/budget.ts'
+import { listTracks } from '../tracks/library.ts'
 import { loadRatings } from '../tracks/ratings.ts'
 import { ReauthRequiredError } from '../spotify/access-token.ts'
 import { syncRecentlyPlayed } from '../sync/recently-played.ts'
 import { isCalendarDay, onThisDay, TRACKS_PER_YEAR } from './on-this-day.ts'
+import { PlayFilterQuery, playFilter } from './filters.ts'
 import { loadTrackArtists, toContext } from './queries.ts'
 
 const { albums, contexts, plays, syncGaps, tracks } = schema
@@ -56,17 +58,16 @@ const listPlays = createRoute({
     'scroll); pass `after` for the plays just newer than a time, to scroll back up from a point in the past (still ' +
     'listed newest first, and their `nextCursor` goes back in as `after` for newer ones still); or pass `offset` for ' +
     'numbered pages, which also returns `total` and `olderPlayedAt`. `genre` keeps only plays of tracks whose artists ' +
-    'have that genre (see `/genres`), and `since` / `until` only plays in that stretch of time, with any way of paging.',
+    'have that genre (see `/genres`), and `since` / `until` only plays in that stretch of time, with any way of paging; ' +
+    'likewise `rated`, `newSince` and `context`. `order=oldest` lists oldest first, with `offset` only.',
   security: signedIn,
   request: {
-    query: z.object({
+    query: PlayFilterQuery.extend({
       before: IsoDateTime.optional().openapi({ description: 'Only plays strictly older than this.' }),
       after: IsoDateTime.optional().openapi({ description: 'Only plays strictly newer than this: the `limit` closest to it.' }),
       limit: z.coerce.number().int().min(1).max(100).default(50),
       offset: z.coerce.number().int().min(0).optional().openapi({ description: 'Plays to skip, for numbered pages.' }),
-      genre: z.coerce.number().int().min(1).optional().openapi({ description: 'Only plays in this genre (a `GenreRef` id).' }),
-      since: IsoDateTime.optional().openapi({ description: 'Only plays at or after this time.' }),
-      until: IsoDateTime.optional().openapi({ description: 'Only plays strictly before this time.' }),
+      order: z.enum(['newest', 'oldest']).default('newest').openapi({ description: '`oldest` lists from the oldest play; with `offset` only.' }),
     }),
   },
   responses: {
@@ -81,14 +82,62 @@ const listPlays = createRoute({
           .number()
           .int()
           .optional()
-          .openapi({ description: 'All of the user’s plays (in `genre` and between `since` and `until`, if given). With `offset` only.' }),
+          .openapi({ description: 'All of the user’s plays that the filters keep. With `offset` only.' }),
         olderPlayedAt: IsoDateTime.nullable().optional().openapi({
           description:
-            'When the play just after this page was played (null on the last page), so a gap across the page ' +
-            'boundary can still be shown. With `offset` only.',
+            'When the play just after this page was played (null on the last page, and oldest first), so a gap across ' +
+            'the page boundary can still be shown. With `offset` only.',
         }),
       }),
       'A page of plays.',
+    ),
+    ...errorResponses('invalid_request', 'unauthorized'),
+  },
+})
+
+/** How many places `/history/contexts` lists. */
+const CONTEXTS_LISTED = 50
+
+const listPlayedTracks = createRoute({
+  method: 'get',
+  path: '/history/tracks',
+  tags: ['History'],
+  operationId: 'listPlayedTracks',
+  summary: 'The tracks in a stretch of history',
+  description:
+    'The tracks in the plays the filters keep (as for `/history/plays`), most played first, each with its plays among ' +
+    'them: how many, and the first and last. Numbered pages by `offset`.',
+  security: signedIn,
+  request: {
+    query: PlayFilterQuery.extend({
+      limit: z.coerce.number().int().min(1).max(100).default(50),
+      offset: z.coerce.number().int().min(0).default(0),
+    }),
+  },
+  responses: {
+    200: jsonResponse(
+      z.object({ items: z.array(LibraryTrack), total: z.number().int().openapi({ description: 'Tracks across all pages.' }) }),
+      'A page of tracks.',
+    ),
+    ...errorResponses('invalid_request', 'unauthorized'),
+  },
+})
+
+const listPlayContexts = createRoute({
+  method: 'get',
+  path: '/history/contexts',
+  tags: ['History'],
+  operationId: 'listPlayContexts',
+  summary: 'Where plays came from',
+  description:
+    'The places (playlists, albums, artists, Liked Songs…) the plays the filters keep came from, most plays first: ' +
+    `the top ${CONTEXTS_LISTED}, to filter \`/history/plays\` by \`context\`. Plays from no context aren't listed.`,
+  security: signedIn,
+  request: { query: PlayFilterQuery.omit({ context: true }) },
+  responses: {
+    200: jsonResponse(
+      z.object({ contexts: z.array(z.object({ context: ContextRef, plays: z.number().int() }).openapi('PlayContextCount')) }),
+      'Where the plays came from.',
     ),
     ...errorResponses('invalid_request', 'unauthorized'),
   },
@@ -305,19 +354,18 @@ export function historyRoutes(deps: AppDeps) {
 
     .openapi({ ...listPlays, middleware: auth }, async (c) => {
       const user = c.var.user
-      const { before, after, limit, offset, genre, since, until } = c.req.valid('query')
+      const { before, after, limit, offset, order, ...filter } = c.req.valid('query')
+      if (order === 'oldest' && offset === undefined) {
+        return c.json(invalidRequest({ issues: [{ path: ['order'], message: 'List oldest first with offset' }] }), 400)
+      }
       if (before !== undefined && offset !== undefined) {
         return c.json(invalidRequest({ issues: [{ path: ['offset'], message: 'Pass either before or offset, not both' }] }), 400)
       }
       if (after !== undefined && (before !== undefined || offset !== undefined)) {
         return c.json(invalidRequest({ issues: [{ path: ['after'], message: 'Pass after on its own, not with before or offset' }] }), 400)
       }
-      const mine = and(
-        eq(plays.userId, user.id),
-        genre ? playInGenre(genre) : undefined,
-        since ? gte(plays.playedAt, new Date(since)) : undefined,
-        until ? lt(plays.playedAt, new Date(until)) : undefined,
-      )
+      const mine = playFilter(user.id, filter)
+      const byTime = order === 'oldest' ? asc(plays.playedAt) : desc(plays.playedAt)
 
       // Numbered pages skip plays by position. Skip on `plays` alone (an index-only scan of
       // (user_id, played_at)), then join just this page, rather than joining every skipped row.
@@ -328,7 +376,7 @@ export function historyRoutes(deps: AppDeps) {
               .select({ playedAt: plays.playedAt })
               .from(plays)
               .where(mine)
-              .orderBy(desc(plays.playedAt))
+              .orderBy(byTime)
               .limit(limit + 1)
               .offset(offset)
               .as('window')
@@ -364,7 +412,7 @@ export function historyRoutes(deps: AppDeps) {
             after ? gt(plays.playedAt, new Date(after)) : undefined,
           ),
         )
-        .orderBy(after ? asc(plays.playedAt) : desc(plays.playedAt))
+        .orderBy(after ? asc(plays.playedAt) : byTime)
         .limit(limit + 1)
 
       const page = after ? rows.slice(0, limit).reverse() : rows.slice(0, limit)
@@ -413,10 +461,41 @@ export function historyRoutes(deps: AppDeps) {
             // plays.track_id is a foreign key, so the joins above drop nothing: this counts the same rows.
             // (`mine` includes the genre and time filters.)
             total: (await db.select({ n: count() }).from(plays).where(mine))[0]?.n ?? 0,
-            olderPlayedAt: rows[limit]?.playedAt.toISOString() ?? null,
+            olderPlayedAt: (order === 'newest' && rows[limit]?.playedAt.toISOString()) || null,
           }),
         },
         200,
       )
+    })
+
+    // After listPlays: the spec registers ContextRef where it first meets it, and plays' nullable
+    // context has always defined it.
+    .openapi({ ...listPlayedTracks, middleware: auth }, async (c) => {
+      const { limit, offset, ...filter } = c.req.valid('query')
+      const userId = c.var.user.id
+      const { items, total } = await listTracks(db, userId, { sort: 'plays', limit, offset, cursor: null, plays: playFilter(userId, filter) })
+      return c.json({ items, total }, 200)
+    })
+
+    .openapi({ ...listPlayContexts, middleware: auth }, async (c) => {
+      const rows = await db
+        .select({
+          contextType: plays.contextType,
+          contextUri: plays.contextUri,
+          contextName: contexts.name,
+          contextImageUrl: contexts.imageUrl,
+          plays: count(),
+        })
+        .from(plays)
+        .leftJoin(contexts, eq(plays.contextUri, contexts.uri))
+        .where(and(playFilter(c.var.user.id, c.req.valid('query')), isNotNull(plays.contextUri)))
+        .groupBy(plays.contextType, plays.contextUri, contexts.name, contexts.imageUrl)
+        .orderBy(desc(count()), asc(plays.contextUri))
+        .limit(CONTEXTS_LISTED)
+      const listed = rows.flatMap((row) => {
+        const context = toContext(row)
+        return context ? [{ context, plays: row.plays }] : []
+      })
+      return c.json({ contexts: listed }, 200)
     })
 }

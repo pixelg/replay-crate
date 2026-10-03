@@ -6,7 +6,7 @@ import type { AppDeps } from '../deps.ts'
 import { loadTrackArtists, toContext } from '../history/queries.ts'
 import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
 import { loadArtistGenres, loadTrackGenres } from '../genres/queries.ts'
-import { ArtistRef, ContextRef, GenreRef, IsoDateTime, jsonBody, jsonResponse, PlaylistRef, Rating } from '../lib/schemas.ts'
+import { ArtistRef, ContextRef, GenreRef, IsoDateTime, jsonBody, jsonResponse, LibraryTrack, Rating } from '../lib/schemas.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { clearRating, loadRatings, rateTrack } from './ratings.ts'
 import { canonicalTrackId, isCopyOf } from './recordings.ts'
@@ -46,24 +46,6 @@ const TrackDetail = z
   })
   .openapi('TrackDetail')
 
-const LibraryTrack = z
-  .object({
-    track: z.object({
-      id: z.string(),
-      name: z.string(),
-      durationMs: z.number().int(),
-      explicit: z.boolean(),
-      album: z.object({ id: z.string(), name: z.string(), thumbUrl: z.string().nullable() }),
-      artists: z.array(ArtistRef),
-      genres: z.array(GenreRef).openapi({ description: "Its artists' genres, the primary artist's first; at most 3." }),
-      playlists: z.array(PlaylistRef).openapi({ description: "The user's playlists holding it, the one it was added to most recently first." }),
-      rating: Rating,
-    }),
-    playCount: z.number().int(),
-    firstPlayedAt: IsoDateTime,
-    lastPlayedAt: IsoDateTime,
-  })
-  .openapi('LibraryTrack')
 
 const listLibrary = createRoute({
   method: 'get',
