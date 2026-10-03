@@ -11,7 +11,7 @@ import { InlineError } from '../../components/inline-error.tsx'
 import { ListPagination } from '../../components/list-pagination.tsx'
 import { PlayTrackButton } from '../../components/play-track-button.tsx'
 import { PlaylistEpisodeActions, PlaylistTrackActions } from '../../components/playlist-track-actions.tsx'
-import { EpisodeNameLink, EpisodeProgress, PlayEpisodeButton, QueueEpisodeButton, ShowLink } from '../../components/podcasts/episode-parts.tsx'
+import { EpisodeNameLink, EpisodeProgress, EpisodeShortcuts, PlayEpisodeButton, ShowLink } from '../../components/podcasts/episode-parts.tsx'
 import { EpisodeRating, TrackRating } from '../../components/star-rating.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { Segmented } from '../../components/ui/segmented.tsx'
@@ -217,7 +217,7 @@ function PlaylistEpisodeRow({ item, playing, actions }: { item: PlaylistEpisode;
       subtitle={<ShowLink show={episode.show} />}
       chips={<EpisodeProgress episode={episode} />}
       play={<PlayEpisodeButton episode={episode} />}
-      actions={<QueueEpisodeButton episode={episode} />}
+      actions={<EpisodeShortcuts episode={episode} />}
       rating={<EpisodeRating episode={episode} compactOnPhones />}
       side={
         <>

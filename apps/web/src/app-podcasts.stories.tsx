@@ -82,6 +82,21 @@ export const PodcastHistoryFiltersByShow = meta.story({
   },
 })
 
+/** On a phone an episode's shortcuts are left to its ⋯ menu, as a track's are. */
+export const PodcastHistoryOnPhone = meta.story({
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  beforeEach: inPodcastMode,
+  play: async ({ canvas, userEvent }) => {
+    const today = within(await within(await canvas.findByRole('main')).findByRole('region', { name: 'Today' }))
+    await expect(today.queryByRole('button', { name: 'Add Digging in Osaka to the queue' })).toBeNull()
+    await userEvent.click(today.getByRole('button', { name: 'Actions for Digging in Osaka' }))
+    await expect(await screen.findByRole('menuitem', { name: 'Go to Crate Talk' })).toHaveAttribute('href', '/shows/s2')
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Add to queue' }))
+    const toast = await screen.findByText('Added “Digging in Osaka” to the queue')
+    await waitFor(() => expect(toast).toBeVisible())
+  },
+})
+
 export const NowPlayingFollowsTheMode = meta.story({
   beforeEach({ msw }) {
     msw.use(http.get('/api/v1/player', () => HttpResponse.json({ playback: episodePlayback })))
