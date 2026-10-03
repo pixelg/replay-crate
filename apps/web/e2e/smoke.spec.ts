@@ -11,7 +11,8 @@ test('signs in with Spotify (PKCE) and shows recorded plays', async ({ page }) =
   // Opening the app syncs recently played from (fake) Spotify.
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Yesterday' })).toBeVisible()
-  await expect(page.getByText('Late Night Crate').first()).toBeVisible()
+  // A row keeps its chips for wide layouts and a line of text for phones: the visible one counts.
+  await expect(page.getByText('Late Night Crate').locator('visible=true').first()).toBeVisible()
 })
 
 test('opens a track, then a playlist with play counts and "also on"', async ({ page }) => {
@@ -26,7 +27,12 @@ test('opens a track, then a playlist with play counts and "also on"', async ({ p
   await page.getByRole('link', { name: /Late Night Crate/ }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Late Night Crate' })).toBeVisible()
   const tracks = page.getByRole('region', { name: 'Tracks' })
-  await expect(tracks.getByRole('link', { name: 'Boom Bap Essentials' })).toBeVisible() // also on
+  await expect(tracks.getByRole('link', { name: 'Brass Monkey Business' })).toBeVisible()
+  // Also on: a phone's row names one playlist and keeps the rest behind "+N".
+  if (!(await tracks.getByRole('link', { name: 'Boom Bap Essentials' }).isVisible())) {
+    await tracks.getByRole('button', { name: /more playlists?$/ }).first().click()
+  }
+  await expect(page.getByRole('link', { name: 'Boom Bap Essentials' })).toBeVisible()
 })
 
 test("shows a track's genres, found in the background, and filters History by one", async ({ page }) => {
