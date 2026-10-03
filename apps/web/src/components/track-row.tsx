@@ -66,7 +66,8 @@ export function TrackRow({
           "@2xl:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto_auto] @2xl:[grid-template-areas:'start_title_play_actions_rating_side_menu'_'start_sub_play_actions_rating_side_menu'_'start_chips_play_actions_rating_side_menu']",
         )}
       >
-        <div className="flex items-center gap-2 [grid-area:start] @2xl:gap-3">
+        {/* A wide row's three lines leave room for bigger art: the thumbnail's own 64px. */}
+        <div className="flex items-center gap-2 [grid-area:start] @2xl:gap-3 @2xl:[&>:last-child]:size-16">
           {lead}
           {art}
         </div>
