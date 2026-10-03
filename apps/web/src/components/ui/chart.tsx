@@ -275,9 +275,12 @@ function ChartLegendContent({
   payload,
   verticalAlign = "bottom",
   nameKey,
+  onToggleItem,
 }: React.ComponentProps<"div"> & {
   hideIcon?: boolean
   nameKey?: string
+  /** Makes each item a toggle button for its series (hidden with the series' `hide`). */
+  onToggleItem?: (key: string) => void
 } & RechartsPrimitive.DefaultLegendContentProps) {
   const { config } = useChart()
 
@@ -298,25 +301,44 @@ function ChartLegendContent({
         .map((item, index) => {
           const key = `${nameKey ?? item.dataKey ?? "value"}`
           const itemConfig = getPayloadConfigFromPayload(config, item, key)
-
-          return (
-            <div
-              key={index}
-              className={cn(
-                "flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground"
-              )}
-            >
+          const content = (
+            <>
               {itemConfig?.icon && !hideIcon ? (
                 <itemConfig.icon />
               ) : (
                 <div
-                  className="h-2 w-2 shrink-0 rounded-[2px]"
+                  className={cn(
+                    "h-2 w-2 shrink-0 rounded-[2px]",
+                    item.inactive && "bg-transparent ring-1 ring-muted-foreground ring-inset"
+                  )}
                   style={{
-                    backgroundColor: item.color,
+                    backgroundColor: item.inactive ? undefined : item.color,
                   }}
                 />
               )}
               {itemConfig?.label}
+            </>
+          )
+          const itemClass =
+            "flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground"
+
+          return onToggleItem ? (
+            <button
+              key={index}
+              type="button"
+              aria-pressed={!item.inactive}
+              onClick={() => onToggleItem(String(item.dataKey))}
+              className={cn(
+                itemClass,
+                "-mx-1.5 min-h-8 cursor-pointer rounded-md px-1.5 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                item.inactive && "text-muted-foreground line-through"
+              )}
+            >
+              {content}
+            </button>
+          ) : (
+            <div key={index} className={itemClass}>
+              {content}
             </div>
           )
         })}

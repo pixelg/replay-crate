@@ -65,6 +65,10 @@ export const PodcastHistory = meta.story({
     // A finished episode says so, and an unfinished one can be resumed.
     await expect(main.getAllByText('Finished').length).toBeGreaterThan(0)
     await expect(main.getAllByRole('button', { name: 'Resume The History of the Breakbeat' })[0]).toBeVisible()
+    // Two listens of one episode in a day are one row, at the time of the later one, with the time heard added up.
+    const yesterday = within(main.getByRole('region', { name: 'Yesterday' }))
+    await expect(yesterday.getAllByRole('link', { name: 'The History of the Breakbeat' })).toHaveLength(1)
+    await expect(yesterday.getByText('18 min', { exact: true })).toBeInTheDocument()
   },
 })
 
