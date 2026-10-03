@@ -249,7 +249,9 @@ export const HistoryStartsAPlaylistAndStays = meta.story({
   },
   play: async ({ canvas, userEvent }) => {
     const main = within(await canvas.findByRole('main'))
-    await userEvent.click(await main.findByRole('button', { name: 'New playlist with Sunday Morning Static' }))
+    // On a phone a row leaves "New playlist" to its ⋯ menu.
+    await userEvent.click(await main.findByRole('button', { name: 'Actions for Sunday Morning Static' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'New playlist…' }))
     const dialog = within(await screen.findByRole('dialog', { name: 'Create playlist' }))
     await userEvent.clear(dialog.getByRole('textbox', { name: 'Name' }))
     await userEvent.type(dialog.getByRole('textbox', { name: 'Name' }), 'Sunday finds')
@@ -326,12 +328,13 @@ export const PlaylistRowHasTrackActions = meta.story({
     await waitFor(() => expect(menu).toBeVisible())
     // The shared items first (playing from this playlist or the track's album among them), then the playlist's own.
     const items = within(menu).getAllByRole('menuitem').map((item) => item.textContent?.trim())
-    await expect(items.slice(0, 6)).toEqual([
+    await expect(items.slice(0, 7)).toEqual([
       'Play',
       'Play from Late Night Crate',
       'Play from Sunday Sessions',
       'Add to queue',
       'Add to playlist…',
+      'New playlist…',
       'Go to track',
     ])
     await expect(items).toContain('Remove from playlist…')

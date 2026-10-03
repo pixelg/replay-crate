@@ -4,6 +4,9 @@ import { expect, within } from 'storybook/test'
 import { plays } from '../test/fixtures.ts'
 import { HistoryList } from './history-list.tsx'
 
+// A row's chips are in the page twice, the chips and a phone's line of text, one of them hidden.
+const visible = (elements: HTMLElement[]) => elements.filter((element) => element.checkVisibility())
+
 const meta = preview.meta({
   component: HistoryList,
   args: { plays },
@@ -25,7 +28,7 @@ export const Default = meta.story({
     await expect(canvas.getByRole('heading', { name: 'Yesterday' })).toBeVisible()
     await expect(canvas.getAllByText('Late Night Crate')[0]).toBeVisible()
     // Spotify won't name its own algorithmic playlists; fall back to a generic label.
-    await expect(canvas.getByText('Spotify playlist')).toBeVisible()
+    await expect(visible(canvas.getAllByText('Spotify playlist'))).toHaveLength(1)
   },
 })
 
@@ -46,20 +49,39 @@ export const PlaylistsOfEachTrack = meta.story({
     await expect(genres.compareDocumentPosition(fromCrate!.getByRole('list', { name: 'On your playlists' }))).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     await expect(genres.parentElement).toBe(fromCrate!.getByRole('list', { name: 'On your playlists' }).parentElement!.parentElement)
     // Played from a Spotify playlist: that chip isn't a link, and both of yours follow.
-    await expect(fromDiscover!.getByText('Spotify playlist').closest('a')).toBeNull()
+    await expect(visible(fromDiscover!.getAllByText('Spotify playlist'))[0]!.closest('a')).toBeNull()
     const yours = within(fromDiscover!.getByRole('list', { name: 'On your playlists' }))
     for (const name of ['Late Night Crate', 'Boom Bap Essentials']) {
       await expect(yours.getByRole('link', { name })).toBeVisible()
     }
     // From an album: the album, then the playlist it's on.
     const fromAlbum = within(canvas.getByText('Sunday Morning Static').closest('li')!)
-    await expect(fromAlbum.getByText('Sunday Sessions').closest('a')).toBeNull()
+    await expect(visible(fromAlbum.getAllByText('Sunday Sessions'))[0]!.closest('a')).toBeNull()
     await expect(fromAlbum.getByRole('link', { name: 'Road Trip (with Sam)' })).toHaveAttribute('href', '/playlists/p3')
   },
 })
 
+/**
+ * On a phone a row's chips are one line of text: two genres, then one place (the playlist the play
+ * came from, else wherever it was), and "+N" for the rest of the track's playlists.
+ */
 export const Mobile = meta.story({
   globals: { viewport: { value: 'mobile2', isRotated: false } },
+  play: async ({ canvas }) => {
+    const [fromCrate, fromDiscover] = canvas.getAllByText('Brass Monkey Business').map((title) => within(title.closest('li')!))
+    const yoursFromCrate = within(fromCrate!.getByRole('list', { name: 'On your playlists' }))
+    await expect(yoursFromCrate.getAllByRole('link').map((link) => link.textContent)).toEqual(['Late Night Crate'])
+    await expect(yoursFromCrate.getByRole('button', { name: '1 more playlist' })).toBeVisible()
+    await expect(within(fromCrate!.getByRole('list', { name: 'Genres' })).getAllByRole('link')).toHaveLength(2)
+    // Played from somewhere else: that place, and both of yours behind "+2".
+    await expect(visible(fromDiscover!.getAllByText('Spotify playlist'))).toHaveLength(1)
+    const yoursFromDiscover = within(fromDiscover!.getByRole('list', { name: 'On your playlists' }))
+    await expect(yoursFromDiscover.queryAllByRole('link')).toEqual([])
+    await expect(yoursFromDiscover.getByRole('button', { name: '2 more playlists' })).toBeVisible()
+    // The play button sits on the art; a new playlist is left to the ⋯ menu.
+    await expect(fromCrate!.getByRole('button', { name: /^Play Brass Monkey Business/ })).toBeVisible()
+    await expect(fromCrate!.queryByRole('button', { name: 'New playlist with Brass Monkey Business' })).toBeNull()
+  },
 })
 
 /** Brass Monkey Business is playing: both of its plays are marked, nothing else is. */

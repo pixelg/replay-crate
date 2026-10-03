@@ -28,18 +28,23 @@ const shortcutClass = cn(
 /**
  * Shortcuts on every track row, for catching a song while it plays (or a few songs later): add
  * it to a playlist you've been adding to (two taps), or start a new playlist with it. The ⋯ menu
- * still has everything.
+ * still has everything. In a narrow row (a `TrackRow` is a container) "New playlist" is left to
+ * the menu, unless the row is `labelled` (Now playing), where both get their names on phones.
  */
-export function PlaylistShortcuts({ track }: { track: Track }) {
+export function PlaylistShortcuts({ track, labelled = false }: { track: Track; labelled?: boolean }) {
   return (
-    <span className="inline-flex items-center">
-      <AddToRecentPlaylist track={track} />
-      <NewPlaylistWith track={track} />
+    <span className={cn('inline-flex items-center', labelled && 'gap-2 @2xl:gap-0')}>
+      <AddToRecentPlaylist track={track} labelled={labelled} />
+      <NewPlaylistWith track={track} labelled={labelled} />
     </span>
   )
 }
 
-function AddToRecentPlaylist({ track }: { track: Track }) {
+// On phones, a labelled shortcut is a pill with its name beside the icon.
+const labelledClass =
+  '@max-2xl:w-auto @max-2xl:gap-1.5 @max-2xl:bg-background @max-2xl:px-3 @max-2xl:text-sm @max-2xl:font-medium @max-2xl:text-foreground'
+
+function AddToRecentPlaylist({ track, labelled }: { track: Track; labelled: boolean }) {
   const [open, setOpen] = useState(false)
   const [browsing, setBrowsing] = useState(false)
   const queryClient = useQueryClient()
@@ -82,8 +87,17 @@ function AddToRecentPlaylist({ track }: { track: Track }) {
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger aria-label={`Add ${track.name} to a playlist`} title="Add to playlist" className={shortcutClass}>
+        <PopoverTrigger
+          aria-label={`Add ${track.name} to a playlist`}
+          title="Add to playlist"
+          className={cn(shortcutClass, labelled && labelledClass)}
+        >
           <ListPlus aria-hidden className="size-4" />
+          {labelled && (
+            <span aria-hidden className="@2xl:hidden">
+              Add
+            </span>
+          )}
         </PopoverTrigger>
         <PopoverContent align="start" className="w-72 gap-1 p-1.5">
           <PopoverTitle className="px-2 pt-1 pb-0.5 text-xs font-medium text-muted-foreground">Add to playlist</PopoverTitle>
@@ -142,7 +156,7 @@ function AddToRecentPlaylist({ track }: { track: Track }) {
   )
 }
 
-function NewPlaylistWith({ track }: { track: Track }) {
+function NewPlaylistWith({ track, labelled }: { track: Track; labelled: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -151,9 +165,14 @@ function NewPlaylistWith({ track }: { track: Track }) {
         aria-label={`New playlist with ${track.name}`}
         title="New playlist with this track"
         onClick={() => setOpen(true)}
-        className={shortcutClass}
+        className={cn(shortcutClass, labelled ? labelledClass : '@max-2xl:hidden')}
       >
         <SquarePlus aria-hidden className="size-4" />
+        {labelled && (
+          <span aria-hidden className="@2xl:hidden">
+            New playlist
+          </span>
+        )}
       </button>
       {/* Stays on the page: you're listening, and the next track may be one to add too. */}
       <CreatePlaylistDialog open={open} onOpenChange={setOpen} trackIds={[track.id]} suggestedName={track.name} stay />

@@ -17,17 +17,19 @@ const kinds: Record<string, { icon: LucideIcon; fallback: string }> = {
  * Where a play came from: a playlist, album, artist page, Liked Songs... Given the `track` that
  * was played, an album or playlist gets a play button that starts it at that track, so Up next
  * is the real rest of it. One of the user's playlists links to its page (`mine` says it is one,
- * without looking).
+ * without looking). The `text` variant has no background, for a row's one line of details.
  */
 export function ContextChip({
   context,
   track,
   mine = false,
+  variant = 'chips',
   className,
 }: {
   context: PlayContext
   track?: { id: string; name: string }
   mine?: boolean
+  variant?: 'chips' | 'text'
   className?: string
 }) {
   const kind = kinds[context.type] ?? { icon: Radio, fallback: context.type }
@@ -35,8 +37,10 @@ export function ContextChip({
   const playable = track ? playableContext(context) : null
   const playlistId = playlistIdOf(context)
   const linked = useIsLibraryPlaylist(mine ? null : playlistId) || (mine && playlistId !== null)
+  const text = variant === 'text'
   const chipClass = cn(
-    'inline-flex max-w-full items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground',
+    'inline-flex max-w-full items-center gap-1 text-xs text-muted-foreground',
+    !text && 'rounded-full bg-muted px-2 py-0.5',
     playable ? 'min-w-0' : className,
   )
   const label = (
@@ -50,7 +54,11 @@ export function ContextChip({
       <Link
         to="/playlists/$playlistId"
         params={{ playlistId }}
-        className={cn(chipClass, 'hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring')}
+        className={cn(
+          chipClass,
+          text ? 'hover:underline' : 'hover:bg-accent',
+          'hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+        )}
       >
         {label}
       </Link>

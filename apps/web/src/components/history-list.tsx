@@ -13,7 +13,8 @@ import { subtitleOf, thumbOf } from './player/items.ts'
 import { TrackRating } from './star-rating.tsx'
 import { TrackActions } from './track-actions.tsx'
 import { TrackNameLink } from './track-name-link.tsx'
-import { TrackChips, TrackRow, TrackRowActions } from './track-row.tsx'
+import { PlaylistShortcuts } from './playlist-shortcuts.tsx'
+import { TrackChips, TrackRow } from './track-row.tsx'
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
 const gapFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -135,6 +136,7 @@ export function NowPlayingSection({
         Now playing
       </h2>
       <TrackRow
+        open
         className="-mx-2 rounded-lg bg-accent px-2"
         art={<AlbumArt src={thumbOf(item)} className="size-12" />}
         title={
@@ -145,9 +147,12 @@ export function NowPlayingSection({
           )
         }
         subtitle={subtitleOf(item)}
-        chips={<TrackChips context={context} playlists={(track && detail?.playlists) || []} genres={(track && detail?.track.genres) || []} />}
+        chips={
+          <TrackChips context={context} playlists={(track && detail?.playlists) || []} genres={(track && detail?.track.genres) || []} full />
+        }
         // It's already playing: an empty slot where the play button goes keeps the rest in line with the rows below.
-        actions={track && !selecting && <TrackRowActions track={track} play={<span aria-hidden className="hidden size-9 @2xl:block" />} />}
+        play={track && !selecting && <span aria-hidden className="hidden size-9 @2xl:block" />}
+        actions={track && !selecting && <PlaylistShortcuts track={track} labelled />}
         side={
           <>
             {track && <TrackRating track={track} compactOnPhones />}
@@ -209,14 +214,8 @@ function PlayRow({ play, selection, playing }: { play: PlayItem; selection?: Pla
       title={<TrackNameLink track={track} playing={playing} />}
       subtitle={track.artists.map((artist) => artist.name).join(', ')}
       chips={<TrackChips context={play.context} playlists={track.playlists} genres={track.genres} />}
-      actions={
-        !selection && (
-          <TrackRowActions
-            track={track}
-            play={<PlayTrackButton track={track} from={from ? { uri: from.uri, name: contextName(from) } : undefined} />}
-          />
-        )
-      }
+      play={!selection && <PlayTrackButton track={track} from={from ? { uri: from.uri, name: contextName(from) } : undefined} />}
+      actions={!selection && <PlaylistShortcuts track={track} />}
       side={
         <>
           <TrackRating track={track} compactOnPhones />

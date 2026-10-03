@@ -38,9 +38,9 @@ export function EpisodeLibraryList({
               title={<EpisodeNameLink episode={episode} playing={playing} />}
               subtitle={showShow ? <ShowLink show={episode.show} /> : (released ?? 'Release date unknown')}
               chips={<EpisodeProgress episode={episode} />}
+              play={<PlayEpisodeButton episode={episode} />}
               actions={
                 <>
-                  <PlayEpisodeButton episode={episode} />
                   <QueueEpisodeButton episode={episode} />
                   <AddEpisodeToPlaylist episode={episode} compact />
                 </>

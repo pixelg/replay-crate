@@ -4,25 +4,43 @@ import { cn } from 'cn'
 
 /**
  * A track's or artist's genres, strongest first, each a link to History filtered to it. `max`
- * keeps a list row to its first few. Nothing renders without genres (an artist not looked up yet).
+ * keeps a list row to its first few; the `text` variant is a run of plain links (`hip hop · boom
+ * bap`) for a row's one line of details, shortening as it must. Nothing renders without genres (an
+ * artist not looked up yet).
  */
-export function GenreChips({ genres, max, className }: { genres: GenreRef[]; max?: number; className?: string }) {
+export function GenreChips({
+  genres,
+  max,
+  variant = 'chips',
+  className,
+}: {
+  genres: GenreRef[]
+  max?: number
+  variant?: 'chips' | 'text'
+  className?: string
+}) {
   const shown = max === undefined ? genres : genres.slice(0, max)
   if (!shown.length) return null
+  const text = variant === 'text'
   return (
-    <ul aria-label="Genres" className={cn('flex min-w-0 flex-wrap items-center gap-1', className)}>
+    <ul
+      aria-label="Genres"
+      className={cn('flex min-w-0 items-center', text ? 'text-muted-foreground' : 'flex-wrap gap-1', className)}
+    >
       {shown.map((genre) => (
-        <li key={genre.id} className="min-w-0">
+        <li key={genre.id} className={cn('min-w-0', text && "truncate not-first:before:px-1 not-first:before:content-['·']")}>
           <Link
             to="/history"
             search={{ genre: genre.id }}
             title={`Your ${genre.name} plays`}
             className={cn(
-              'inline-flex max-w-full items-center rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground',
-              'hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+              'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+              text
+                ? 'hover:text-foreground hover:underline'
+                : 'inline-flex max-w-full items-center rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground',
             )}
           >
-            <span className="truncate">{genre.name}</span>
+            {text ? genre.name : <span className="truncate">{genre.name}</span>}
           </Link>
         </li>
       ))}
