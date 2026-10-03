@@ -57,33 +57,37 @@ function PlaylistsPage() {
 
   return (
     <>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <PageHeader
-          title="Playlists"
-          description={
-            mode === 'podcasts'
-              ? 'Your playlists with podcast episodes in them, and how far you are through each episode.'
-              : 'Your playlists with play counts, and where else each track lives.'
-          }
-        />
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          {syncError && !isSyncing && <InlineError error={syncError} action="Playlist sync" />}
-          <p className="text-xs text-muted-foreground" aria-live="polite">
-            {isSyncing
-              ? progress
-                ? `Syncing… ${progress.total - progress.remaining} of ${progress.total}`
-                : 'Syncing…'
-              : data.syncedAt && `Synced ${formatRelative(new Date(data.syncedAt))}`}
-          </p>
-          <Button variant="secondary" size="sm" onClick={() => sync()} disabled={isSyncing}>
-            <RefreshCw aria-hidden className={cn('size-4', isSyncing && 'motion-safe:animate-spin')} />
-            Sync playlists
-          </Button>
-          <Link to="/playlists/new" className={buttonClasses({ size: 'sm' })}>
-            <Plus aria-hidden className="size-4" /> New playlist
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Playlists"
+        description={
+          mode === 'podcasts'
+            ? 'Your playlists with podcast episodes in them, and how far you are through each episode.'
+            : 'Your playlists with play counts, and where else each track lives.'
+        }
+        status={
+          <>
+            <p aria-live="polite">
+              {isSyncing
+                ? progress
+                  ? `Syncing… ${progress.total - progress.remaining} of ${progress.total}`
+                  : 'Syncing…'
+                : data.syncedAt && `Synced ${formatRelative(new Date(data.syncedAt))}`}
+            </p>
+            {syncError && !isSyncing && <InlineError error={syncError} action="Playlist sync" />}
+          </>
+        }
+        actions={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => sync()} disabled={isSyncing}>
+              <RefreshCw aria-hidden className={cn('size-4', isSyncing && 'motion-safe:animate-spin')} />
+              Sync playlists
+            </Button>
+            <Link to="/playlists/new" className={buttonClasses({ size: 'sm' })}>
+              <Plus aria-hidden className="size-4" /> New playlist
+            </Link>
+          </>
+        }
+      />
 
       {data.playlists.length ? (
         <>

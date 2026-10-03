@@ -232,40 +232,45 @@ function HistoryPage() {
 
   return (
     <div style={{ '--now-playing-height': `${nowPlayingHeight}px` } as CSSProperties}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <PageHeader title="History" description="Every track you've played, and where you played it from." />
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          {syncError && !isSyncing && <InlineError error={syncError} action="Sync" />}
-          {lastSyncedAt && (
-            <p className="text-xs text-muted-foreground">Synced {formatRelative(new Date(lastSyncedAt))}</p>
-          )}
-          <HistoryFilter
-            filter={{
-              label: 'Genre',
-              allLabel: 'All genres',
-              options: genres.map((known) => ({ value: String(known.id), name: known.name, count: known.playCount })),
-              value: genre === undefined ? undefined : String(genre),
-              onChange: (next) =>
-                void navigate({ search: (prev) => ({ size: prev.size, before: prev.before, when: prev.when, genre: next === undefined ? undefined : Number(next) }) }),
-            }}
-            when={when}
-            // A date range and a jump into the past don't mix: the range wins.
-            onWhenChange={(next) => void navigate({ search: (prev) => ({ size: prev.size, genre: prev.genre, when: next }) })}
-          />
-          {plays.length > 0 && (
-            <Button variant="secondary" size="sm" onClick={() => setSelected(selected ? null : new Map())} aria-pressed={selected !== null}>
-              <ListChecks aria-hidden className="size-4" /> {selected ? 'Done' : 'Select'}
+      <PageHeader
+        title="History"
+        description="Every track you've played, and where you played it from."
+        status={
+          <>
+            {lastSyncedAt && <p>Synced {formatRelative(new Date(lastSyncedAt))}</p>}
+            {syncError && !isSyncing && <InlineError error={syncError} action="Sync" />}
+          </>
+        }
+        actions={
+          <>
+            <HistoryFilter
+              filter={{
+                label: 'Genre',
+                allLabel: 'All genres',
+                options: genres.map((known) => ({ value: String(known.id), name: known.name, count: known.playCount })),
+                value: genre === undefined ? undefined : String(genre),
+                onChange: (next) =>
+                  void navigate({ search: (prev) => ({ size: prev.size, before: prev.before, when: prev.when, genre: next === undefined ? undefined : Number(next) }) }),
+              }}
+              when={when}
+              // A date range and a jump into the past don't mix: the range wins.
+              onWhenChange={(next) => void navigate({ search: (prev) => ({ size: prev.size, genre: prev.genre, when: next }) })}
+            />
+            {plays.length > 0 && (
+              <Button variant="secondary" size="sm" onClick={() => setSelected(selected ? null : new Map())} aria-pressed={selected !== null}>
+                <ListChecks aria-hidden className="size-4" /> {selected ? 'Done' : 'Select'}
+              </Button>
+            )}
+            <Button variant="secondary" size="sm" onClick={() => sync()} disabled={isSyncing}>
+              <RefreshCw aria-hidden className={cn('size-4', isSyncing && 'motion-safe:animate-spin')} />
+              {isSyncing ? 'Syncing…' : 'Sync now'}
             </Button>
-          )}
-          <Button variant="secondary" size="sm" onClick={() => sync()} disabled={isSyncing}>
-            <RefreshCw aria-hidden className={cn('size-4', isSyncing && 'motion-safe:animate-spin')} />
-            {isSyncing ? 'Syncing…' : 'Sync now'}
-          </Button>
-          {months.length > 0 && (
-            <TimelineDrawer months={months} current={monthInView} linkTo={linkTo} day={day} onThisDay={onThisDay} />
-          )}
-        </div>
-      </div>
+            {months.length > 0 && (
+              <TimelineDrawer months={months} current={monthInView} linkTo={linkTo} day={day} onThisDay={onThisDay} />
+            )}
+          </>
+        }
+      />
 
       {gaps.length > 0 && (
         <p role="status" className="mb-4 flex items-start gap-2 rounded-lg bg-muted px-3 py-2 text-sm">

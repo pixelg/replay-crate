@@ -153,7 +153,7 @@ function TracksPage() {
       </div>
 
       {items.length || min ? (
-        <div className="mb-4 flex flex-wrap gap-2 overflow-x-auto">
+        <div className="mb-4 flex flex-wrap gap-2">
           {/* A new sort or filter starts again from page 1. */}
           <Segmented
             label="Sort by"
