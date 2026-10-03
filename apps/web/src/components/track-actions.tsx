@@ -1,16 +1,17 @@
 import type { PlayContext } from '@replay-crate/api-client'
 import { Link } from '@tanstack/react-router'
-import { Disc3, ListEnd, ListPlus, ListVideo, MoreHorizontal, Music, Play } from 'lucide-react'
+import { Disc3, ListEnd, ListPlus, ListVideo, MoreHorizontal, Music, Play, SquarePlus } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { contextName, playableContext } from '../lib/play-context.ts'
 import { useTrackCommands } from '../lib/use-track-commands.ts'
 import { AddToPlaylistDialog } from './add-to-playlist.tsx'
+import { CreatePlaylistDialog } from './create-playlist-dialog.tsx'
 import { MenuContent, MenuItem, MenuLinkItem, MenuRoot, MenuSeparator, MenuTrigger } from './ui/menu.tsx'
 
 /**
  * The "⋯" menu on a track, wherever one is listed: play it (from its album or last playlist, as
  * Settings says), play from where it's listed or was played, play from its album, queue it, add
- * it to a playlist, open its page. `children` adds items for the place it's in,
+ * it to a playlist or start one with it, open its page. `children` adds items for the place it's in,
  * such as a playlist's move and remove.
  */
 export function TrackActions({
@@ -32,6 +33,7 @@ export function TrackActions({
   children?: ReactNode
 }) {
   const [adding, setAdding] = useState(false)
+  const [creating, setCreating] = useState(false)
   const commands = useTrackCommands(track)
   const playFrom = playableContext(context)
   const album = track.album && { uri: `spotify:album:${track.album.id}`, name: track.album.name }
@@ -64,6 +66,9 @@ export function TrackActions({
           <MenuItem onClick={() => setAdding(true)}>
             <ListPlus aria-hidden className="size-4 text-muted-foreground" /> Add to playlist…
           </MenuItem>
+          <MenuItem onClick={() => setCreating(true)}>
+            <SquarePlus aria-hidden className="size-4 text-muted-foreground" /> New playlist…
+          </MenuItem>
           {hasPage && (
             <MenuLinkItem render={<Link to="/tracks/$trackId" params={{ trackId: track.id }} />}>
               <Music aria-hidden className="size-4 text-muted-foreground" /> Go to track
@@ -85,6 +90,7 @@ export function TrackActions({
         description={track.name}
         onPlaylists={onPlaylists}
       />
+      <CreatePlaylistDialog open={creating} onOpenChange={setCreating} trackIds={[track.id]} suggestedName={track.name} stay />
     </>
   )
 }

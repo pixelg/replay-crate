@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from './ui/popo
 
 type PlaylistRef = { id: string; name: string }
 
-/** How many playlists a row shows before "+N". */
+/** How many playlists a row shows before "+N", unless it says otherwise. */
 const SHOWN = 2
 
 const asContext = (playlist: PlaylistRef): PlayContext => ({
@@ -20,39 +20,46 @@ const asContext = (playlist: PlaylistRef): PlayContext => ({
 /**
  * Where a play came from, then the user's playlists holding the track, each a link to its page:
  * the one the play came from first when it's one of them, then the one the track went into most
- * recently (the order `playlists` comes in). The first two show; a "+N" chip opens the rest.
+ * recently (the order `playlists` comes in). The first `shown` (two) show; a "+N" chip opens the
+ * rest. The `text` variant drops the chips' backgrounds, for a row's one line of details, and shows
+ * one place at most: somewhere else the play came from leaves all the playlists to its "+N".
  */
 export function PlayedFromChips({
   context,
   playlists,
   label = 'On your playlists',
+  shown: count = SHOWN,
+  variant = 'chips',
 }: {
   context: PlayContext | null
   playlists: PlaylistRef[]
   /** What the playlists are, for screen readers. */
   label?: string
+  shown?: number
+  variant?: 'chips' | 'text'
 }) {
   const sourceId = playlistIdOf(context)
   const source = playlists.find((playlist) => playlist.id === sourceId)
   const ordered = source ? [source, ...playlists.filter((playlist) => playlist !== source)] : playlists
-  const shown = ordered.slice(0, SHOWN)
-  const rest = ordered.slice(SHOWN)
   // Somewhere that isn't one of the track's playlists (an album, Liked Songs...) keeps its own chip.
   const elsewhere = context && !source ? context : null
+  const limit = variant === 'text' && elsewhere ? 0 : count
+  const shown = ordered.slice(0, limit)
+  const rest = ordered.slice(limit)
   if (!elsewhere && !ordered.length) return null
   return (
     <>
-      {elsewhere && <ContextChip context={elsewhere} className="min-w-0" />}
+      {elsewhere && <ContextChip context={elsewhere} variant={variant} className="min-w-0" />}
       {ordered.length > 0 && (
-        <ul aria-label={label} className="flex min-w-0 flex-wrap items-center gap-1">
+        <ul aria-label={label} className={cn('flex min-w-0 items-center gap-1', variant === 'chips' && 'flex-wrap')}>
           {shown.map((playlist) => (
-            <li key={playlist.id} className="max-w-48 min-w-0">
-              <ContextChip context={asContext(playlist)} mine />
+            <li key={playlist.id} className={cn('min-w-0', variant === 'chips' && 'max-w-48')}>
+              <ContextChip context={asContext(playlist)} variant={variant} mine />
             </li>
           ))}
           {rest.length > 0 && (
-            <li>
-              <MorePlaylists playlists={rest} />
+            <li className="shrink-0">
+              <MorePlaylists playlists={rest} variant={variant} />
             </li>
           )}
         </ul>
@@ -62,7 +69,7 @@ export function PlayedFromChips({
 }
 
 /** "+N": a tap (or click) opens the rest of the track's playlists. */
-function MorePlaylists({ playlists }: { playlists: PlaylistRef[] }) {
+function MorePlaylists({ playlists, variant }: { playlists: PlaylistRef[]; variant: 'chips' | 'text' }) {
   const [open, setOpen] = useState(false)
   const count = playlists.length
   return (
@@ -70,9 +77,10 @@ function MorePlaylists({ playlists }: { playlists: PlaylistRef[] }) {
       <PopoverTrigger
         aria-label={`${count} more ${count === 1 ? 'playlist' : 'playlists'}`}
         className={cn(
-          'inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground tabular-nums',
-          'hover:bg-accent hover:text-foreground data-popup-open:bg-accent data-popup-open:text-foreground',
-          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+          'inline-flex items-center text-xs tabular-nums focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+          variant === 'text'
+            ? 'rounded-sm px-0.5 font-medium text-foreground hover:underline'
+            : 'rounded-full bg-muted px-2 py-0.5 text-muted-foreground hover:bg-accent hover:text-foreground data-popup-open:bg-accent data-popup-open:text-foreground',
         )}
       >
         +{count}

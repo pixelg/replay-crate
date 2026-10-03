@@ -7,7 +7,8 @@ import { PlayTrackButton } from './play-track-button.tsx'
 import { TrackRating } from './star-rating.tsx'
 import { TrackActions } from './track-actions.tsx'
 import { TrackNameLink } from './track-name-link.tsx'
-import { TrackChips, TrackRow, TrackRowActions } from './track-row.tsx'
+import { PlaylistShortcuts } from './playlist-shortcuts.tsx'
+import { TrackChips, TrackRow } from './track-row.tsx'
 
 const monthFormat = new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' })
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' })
@@ -56,7 +57,8 @@ export function TrackLibraryList({
               title={<TrackNameLink track={track} playing={playing} />}
               subtitle={track.artists.map((artist) => artist.name).join(', ')}
               chips={<TrackChips playlists={track.playlists} genres={track.genres} />}
-              actions={!selection && <TrackRowActions track={track} play={<PlayTrackButton track={track} />} />}
+              play={!selection && <PlayTrackButton track={track} />}
+              actions={!selection && <PlaylistShortcuts track={track} />}
               side={
                 <>
                   <TrackRating track={track} compactOnPhones />

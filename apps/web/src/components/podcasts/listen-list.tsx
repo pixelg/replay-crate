@@ -60,9 +60,9 @@ function ListenRow({ listen, playing }: { listen: ListenItem; playing: boolean }
       title={<EpisodeNameLink episode={episode} playing={playing} />}
       subtitle={<ShowLink show={episode.show} />}
       chips={<EpisodeProgress episode={episode} />}
+      play={<PlayEpisodeButton episode={episode} />}
       actions={
         <>
-          <PlayEpisodeButton episode={episode} />
           <QueueEpisodeButton episode={episode} />
           <AddEpisodeToPlaylist episode={episode} compact />
         </>
@@ -71,9 +71,11 @@ function ListenRow({ listen, playing }: { listen: ListenItem; playing: boolean }
         <>
           <EpisodeRating episode={episode} compactOnPhones />
           <p className={timeClass}>
-            <time dateTime={listen.endedAt} className="block">
+            {/* One line on phones, beside the rating: "7:14 AM · 4 min". */}
+            <time dateTime={listen.endedAt} className="@2xl:block">
               {timeFormat.format(new Date(listen.endedAt))}
             </time>
+            <span aria-hidden className="@2xl:hidden"> · </span>
             <span>{formatListened(listen.listenedMs)}</span>
           </p>
         </>

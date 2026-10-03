@@ -24,7 +24,8 @@ import { usePlayingEpisodeId, usePlayingTrackId } from '../../lib/use-player.ts'
 import { usePlaylistEdit } from '../../lib/use-playlist-edits.ts'
 import { usePlayContext } from '../../lib/use-track-commands.ts'
 import { TrackNameLink } from '../../components/track-name-link.tsx'
-import { TrackChips, TrackRow, TrackRowActions } from '../../components/track-row.tsx'
+import { PlaylistShortcuts } from '../../components/playlist-shortcuts.tsx'
+import { TrackChips, TrackRow } from '../../components/track-row.tsx'
 
 export const Route = createFileRoute('/_app/playlists/$playlistId')({
   // The sort and page live in the URL: shareable, and the back button undoes a change.
@@ -215,12 +216,8 @@ function PlaylistEpisodeRow({ item, playing, actions }: { item: PlaylistEpisode;
       title={<EpisodeNameLink episode={episode} playing={playing} />}
       subtitle={<ShowLink show={episode.show} />}
       chips={<EpisodeProgress episode={episode} />}
-      actions={
-        <>
-          <PlayEpisodeButton episode={episode} />
-          <QueueEpisodeButton episode={episode} />
-        </>
-      }
+      play={<PlayEpisodeButton episode={episode} />}
+      actions={<QueueEpisodeButton episode={episode} />}
       side={
         <>
           <EpisodeRating episode={episode} compactOnPhones />
@@ -260,12 +257,17 @@ function PlaylistTrackRow({ item, playing, play, actions }: { item: PlaylistTrac
       title={<TrackNameLink track={track} playing={playing} />}
       subtitle={track.artists.map((artist) => artist.name).join(', ')}
       chips={<TrackChips playlists={alsoOn} playlistsLabel="Also on" genres={track.genres} />}
-      actions={<TrackRowActions track={track} play={play} />}
+      play={play}
+      actions={<PlaylistShortcuts track={track} />}
       side={
         <>
           <TrackRating track={track} compactOnPhones />
+          {/* On phones one line beside the rating, as on Tracks. */}
+          <p className="shrink-0 text-xs text-muted-foreground tabular-nums @2xl:hidden">
+            <span className="font-medium text-foreground">{item.playCount.toLocaleString()}</span> {item.playCount === 1 ? 'play' : 'plays'}
+          </p>
           {/* A steady width, so the stars line up down the list. */}
-          <div className="shrink-0 text-right @2xl:min-w-24">
+          <div className="hidden shrink-0 text-right @2xl:block @2xl:min-w-24">
             <p className="font-semibold tabular-nums">{item.playCount}</p>
             <p className="text-xs text-muted-foreground">
               {item.playCount === 1 ? 'play' : 'plays'}
