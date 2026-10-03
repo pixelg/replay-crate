@@ -1,5 +1,5 @@
 import type { PlayerItem } from '@replay-crate/api-client'
-import { Play } from 'lucide-react'
+import { Play, Star } from 'lucide-react'
 import { AlbumArt } from '../album-art.tsx'
 import { GenreChips } from '../genre-chips.tsx'
 import { IconButton } from './icon-button.tsx'
@@ -40,7 +40,7 @@ export function QueueList({
             </IconButton>
           )}
           {/* Every row keeps the slot, so the play buttons line up whether or not a track is rated. */}
-          <span className="w-8 shrink-0 text-right">
+          <span className="flex w-10 shrink-0 justify-end">
             {item.type === 'track' && item.rating !== null && <QueuedRating rating={item.rating} />}
           </span>
         </li>
@@ -49,14 +49,12 @@ export function QueueList({
   )
 }
 
-/** The user's rating out of five, read-only: Up next shows it but isn't where tracks get rated. */
+/** The user's rating, read-only (number and star, like a row's compact rating): Up next isn't where tracks get rated. */
 function QueuedRating({ rating }: { rating: number }) {
   return (
-    <span title={`Your rating: ${rating} of 5`} className="text-sm font-medium tabular-nums">
-      <span aria-hidden>
-        {rating}
-        <span className="text-xs font-normal text-muted-foreground">/5</span>
-      </span>
+    <span title={`Your rating: ${rating} of 5`} className="inline-flex items-center gap-1 text-sm font-medium tabular-nums">
+      <span aria-hidden>{rating}</span>
+      <Star aria-hidden className="size-4 fill-primary text-primary" />
       <span className="sr-only">Rated {rating} of 5</span>
     </span>
   )
