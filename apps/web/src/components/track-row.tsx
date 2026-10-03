@@ -13,7 +13,7 @@ import { PlayedFromChips } from './played-from-chips.tsx'
  * Narrower (a phone, or beside the sidebar on a tablet) it's three short lines: the title with the
  * rating right after it, the subtitle, and the chips as one line of text. The play button becomes
  * a badge on the art, and the last column holds the details over the menu. An `open` row (Now
- * playing) keeps its chips in full instead, with its actions on a line of their own under them.
+ * playing) keeps its chips in full instead, with its actions stacked under the art beside them.
  *
  * The row is a container: what goes in it switches with `@2xl:` too, not the viewport's `sm:`/`md:`,
  * so a row's details always match its layout.
@@ -61,7 +61,7 @@ export function TrackRow({
           // column after them takes up the rest.
           'grid items-center gap-x-2 py-2 @2xl:gap-x-3',
           open
-            ? "grid-cols-[auto_minmax(0,max-content)_auto_minmax(0,1fr)_auto] [grid-template-areas:'start_title_rating_._side'_'start_sub_sub_sub_sub'_'._chips_chips_chips_chips'_'._actions_actions_actions_menu']"
+            ? "grid-cols-[auto_minmax(0,max-content)_auto_minmax(0,1fr)_auto] [grid-template-areas:'start_title_rating_._side'_'start_sub_sub_sub_menu'_'actions_chips_chips_chips_chips']"
             : "grid-cols-[auto_minmax(0,max-content)_auto_minmax(0,1fr)_auto_auto] [grid-template-areas:'start_title_rating_._actions_side'_'start_sub_sub_sub_actions_menu'_'start_chips_chips_chips_actions_menu']",
           "@2xl:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto_auto] @2xl:[grid-template-areas:'start_title_play_actions_rating_side_menu'_'start_sub_play_actions_rating_side_menu'_'start_chips_play_actions_rating_side_menu']",
         )}
@@ -87,14 +87,17 @@ export function TrackRow({
         )}
         <div className="min-w-0 [grid-area:title]">{title}</div>
         <p className="truncate text-sm text-muted-foreground [grid-area:sub]">{subtitle}</p>
-        {chips && <div className={cn('min-w-0 [grid-area:chips]', open && 'mt-1 @2xl:mt-0')}>{chips}</div>}
+        {chips && <div className="min-w-0 [grid-area:chips]">{chips}</div>}
         {actions && (
-          <div className={cn('flex items-center [grid-area:actions]', open && 'mt-2 @2xl:mt-0')}>{actions}</div>
+          <div className={cn('flex items-center [grid-area:actions]', open && '@max-2xl:mt-1 @max-2xl:self-start @max-2xl:justify-self-center')}>
+            {actions}
+          </div>
         )}
         {/* The compact rating's padding is for its hover; close it up to the title. */}
         {rating && <div className="flex [grid-area:rating] @max-2xl:-ml-1.5">{rating}</div>}
         <div className="flex flex-col items-end justify-self-end [grid-area:side] @2xl:flex-row @2xl:items-center @2xl:gap-3">{side}</div>
-        <div className={cn('justify-self-end [grid-area:menu] @max-2xl:-mr-2', open && 'mt-2 @2xl:mt-0')}>{menu}</div>
+        {/* Open, the menu sits beside the subtitle without making its line taller. */}
+        <div className={cn('justify-self-end [grid-area:menu] @max-2xl:-mr-2', open && '@max-2xl:-my-2.5')}>{menu}</div>
       </div>
     </div>
   )
