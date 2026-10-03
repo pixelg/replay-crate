@@ -35,6 +35,33 @@ export const Playlists = meta.story({
   },
 })
 
+/**
+ * On a phone a long playlist name shortens instead of widening the list: nothing reaches past the
+ * screen, so the plays stay in view and the fixed tabs stay put (#269).
+ */
+export const PlaylistsOnPhoneFit = meta.story({
+  args: { path: '/playlists' },
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  beforeEach({ msw }) {
+    const [first, ...rest] = playlistsList.playlists
+    msw.use(
+      http.get('/api/v1/playlists', ({ response }) =>
+        response(200).json({
+          ...playlistsList,
+          playlists: [{ ...first!, name: 'What Do You Feel - Jean Tonique Remix (Extended Late Night Version)' }, ...rest],
+        }),
+      ),
+    )
+  },
+  play: async ({ canvas }) => {
+    const name = await canvas.findByText(/^What Do You Feel/)
+    const row = name.closest('a')!
+    await expect(within(row).getByText('318')).toBeVisible()
+    await expect(row.getBoundingClientRect().right).toBeLessThanOrEqual(document.documentElement.clientWidth)
+    await expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(document.documentElement.clientWidth)
+  },
+})
+
 /** Paused: nothing is marked, and the playlist shows when it was last played like the rest. */
 export const PlaylistsWhilePaused = meta.story({
   args: { path: '/playlists' },

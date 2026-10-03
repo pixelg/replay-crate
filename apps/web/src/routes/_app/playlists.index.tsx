@@ -87,7 +87,7 @@ function PlaylistsPage() {
 
       {data.playlists.length ? (
         <>
-          <ul className="grid gap-x-6 sm:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
             {pageOfItems(data.playlists, page, size).map((playlist) => (
               <li key={playlist.id}>
                 <PlaylistRow playlist={playlist} mode={mode} playing={playlist.id === playingId} />
