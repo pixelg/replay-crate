@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { Check, ListEnd, Play, RotateCcw } from 'lucide-react'
 import { cn } from 'cn'
 import { formatListened } from '../../lib/podcast-format.ts'
+import { AddEpisodeToPlaylist } from '../add-to-playlist.tsx'
 import { useEpisodeCommands } from '../../lib/use-track-commands.ts'
 import { IconButton } from '../player/icon-button.tsx'
 import { Progress } from '../ui/progress.tsx'
@@ -83,5 +84,18 @@ export function QueueEpisodeButton({ episode }: { episode: Pick<EpisodeSummary, 
     >
       <ListEnd aria-hidden className="size-4" />
     </IconButton>
+  )
+}
+
+/**
+ * A row's shortcuts: queue the episode, add it to a playlist. In a narrow row (a `TrackRow` is a
+ * container) they're left to the ⋯ menu (`EpisodeActions`), as a track row's are.
+ */
+export function EpisodeShortcuts({ episode }: { episode: Pick<EpisodeSummary, 'id' | 'name' | 'progress'> }) {
+  return (
+    <span className="inline-flex items-center @max-2xl:hidden">
+      <QueueEpisodeButton episode={episode} />
+      <AddEpisodeToPlaylist episode={episode} compact />
+    </span>
   )
 }

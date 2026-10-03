@@ -3,12 +3,12 @@ import { formatDayLabel, groupByDay } from '@replay-crate/core'
 import { AudioLines, Pause } from 'lucide-react'
 import type { Ref } from 'react'
 import { cn } from 'cn'
-import { AddEpisodeToPlaylist } from '../add-to-playlist.tsx'
 import { AlbumArt } from '../album-art.tsx'
 import { EpisodeRating } from '../star-rating.tsx'
 import { TrackRow } from '../track-row.tsx'
 import { formatListened } from '../../lib/podcast-format.ts'
-import { EpisodeNameLink, EpisodeProgress, PlayEpisodeButton, QueueEpisodeButton, ShowLink } from './episode-parts.tsx'
+import { EpisodeNameLink, EpisodeProgress, EpisodeShortcuts, PlayEpisodeButton, ShowLink } from './episode-parts.tsx'
+import { EpisodeActions } from './episode-actions.tsx'
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
 
@@ -61,13 +61,9 @@ function ListenRow({ listen, playing }: { listen: ListenItem; playing: boolean }
       subtitle={<ShowLink show={episode.show} />}
       chips={<EpisodeProgress episode={episode} />}
       play={<PlayEpisodeButton episode={episode} />}
-      actions={
-        <>
-          <QueueEpisodeButton episode={episode} />
-          <AddEpisodeToPlaylist episode={episode} compact />
-        </>
-      }
+      actions={<EpisodeShortcuts episode={episode} />}
       rating={<EpisodeRating episode={episode} compactOnPhones />}
+      menu={<EpisodeActions episode={episode} />}
       side={
         <>
           <p className={timeClass}>
