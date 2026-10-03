@@ -19,7 +19,8 @@ export function Segmented<T extends string>({
       value={[value]}
       // Pressing the active option would clear the group; keep the current value instead.
       onValueChange={(next) => next[0] && onChange(next[0] as T)}
-      className="inline-flex gap-1 rounded-full bg-muted p-1"
+      // Too wide for the screen, its options scroll sideways inside it, with no scrollbar.
+      className="inline-flex max-w-full min-w-0 gap-1 overflow-x-auto rounded-full bg-muted p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {options.map((option) => (
         <Toggle

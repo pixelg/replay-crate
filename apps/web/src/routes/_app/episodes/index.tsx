@@ -128,7 +128,7 @@ function EpisodesPage() {
               : "Every episode you've listened to."
         }
       />
-      <div className="mb-4 flex flex-wrap gap-2 overflow-x-auto">
+      <div className="mb-4 flex flex-wrap gap-2">
         <Segmented<View>
           label="View"
           value={view}
