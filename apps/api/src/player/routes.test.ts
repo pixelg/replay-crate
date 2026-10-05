@@ -81,6 +81,28 @@ describe('player', () => {
       expect(queue.queue[0]).toMatchObject({ id: 'solo', genres: [] })
     })
 
+    it("gives an episode its description and the user's rating, and records it so its page is there", async () => {
+      ctx.player.nowPlaying(episode('talk', { show: ['pod', 'The Pod'] }), { positionMs: 60_000 })
+      const { playback } = await json(await get(''))
+      expect(playback.item).toMatchObject({
+        type: 'episode',
+        id: 'talk',
+        show: { id: 'pod', name: 'The Pod' },
+        description: 'In this episode of The Pod…',
+        rating: null,
+      })
+      expect((await ctx.app.request('/api/v1/episodes/talk', { headers: { Cookie: cookie } })).status).toBe(200)
+
+      const rated = await ctx.app.request('/api/v1/episodes/talk/rating', {
+        method: 'PUT',
+        headers: { Cookie: cookie, Origin: ORIGIN, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating: 4 }),
+      })
+      expect(rated.status).toBe(200)
+      expect((await json(await get(''))).playback.item.rating).toBe(4)
+      expect((await json(await get('/queue'))).currentlyPlaying.rating).toBe(4)
+    })
+
     it('names the context when the app knows it', async () => {
       ctx.library.add('mix', [song], 'Late Night Crate')
       await ctx.db.insert(schema.contexts).values({ uri: 'spotify:playlist:mix', type: 'playlist', name: 'Late Night Crate' })

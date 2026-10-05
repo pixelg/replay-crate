@@ -2,6 +2,7 @@ import { playbackQueryOptions, upNext } from '@replay-crate/api-client'
 import { createFileRoute } from '@tanstack/react-router'
 import { MonitorSpeaker, RefreshCw } from 'lucide-react'
 import { ErrorPage } from '@/components/error-page'
+import { ExpandableText } from '@/components/expandable-text'
 import { InlineError } from '@/components/inline-error'
 import { PageHeader } from '@/components/page-header'
 import { DeviceList } from '@/components/player/device-list'
@@ -51,6 +52,23 @@ function PlayerPage() {
             )
           )}
           {controls.error && !refusal && <InlineError error={controls.error} action="Player" />}
+          {item?.type === 'episode' && item.description && (
+            <Card>
+              <CardHeader>
+                <CardTitle>About</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {/* Phones keep it to a couple of lines; big screens show a good part of it. */}
+                <ExpandableText
+                  key={item.id}
+                  clampClassName="line-clamp-2 md:line-clamp-4 lg:line-clamp-6"
+                  className="text-sm text-muted-foreground"
+                >
+                  {item.description}
+                </ExpandableText>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="grid gap-6 md:grid-cols-2">
             {item && (
@@ -68,7 +86,8 @@ function PlayerPage() {
                   {queue.data ? (
                     <QueueList
                       items={upNext(queue.data.queue, playback ?? null)}
-                      disabled={controls.isSending}
+                      // Only while what plays next is changing: a seek or a volume change leaves them be.
+                      disabled={controls.isChangingUpNext}
                       // The API gets there from the context or by skipping: a bare URI won't start on an iPhone.
                       onPlayNow={(next, index) => controls.send({ kind: 'playQueued', uri: next.uri, index })}
                     />

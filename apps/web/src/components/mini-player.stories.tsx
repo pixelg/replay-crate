@@ -1,7 +1,7 @@
 import preview from '#storybook/preview'
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import { expect, fn, waitFor, within } from 'storybook/test'
-import { devices, pausedPlayback, playback, queue } from '../test/fixtures.ts'
+import { devices, episodePlayback, pausedPlayback, playback, playingEpisode } from '../test/fixtures.ts'
 import { handlers, http } from '../test/handlers.ts'
 import { MiniPlayer, MiniPlayerBar } from './mini-player.tsx'
 
@@ -39,8 +39,11 @@ export const Playing = meta.story({
     await expect(region.getByRole('link', { name: 'Brass Monkey Business' })).toHaveAttribute('href', '/tracks/t1')
     await expect(region.getByText('The Loop Collective, MC Vinyl')).toBeVisible()
     await expect(region.getByRole('button', { name: 'Pause' })).toBeEnabled()
-    await expect(region.getByRole('button', { name: 'Back 15 seconds' })).toBeEnabled()
-    await expect(region.getByRole('button', { name: 'Forward 15 seconds' })).toBeEnabled()
+    // Music skips between tracks; only episodes jump.
+    await expect(region.getByRole('button', { name: 'Previous' })).toBeEnabled()
+    await expect(region.getByRole('button', { name: 'Next' })).toBeEnabled()
+    await expect(region.queryByRole('button', { name: 'Back 15 seconds' })).toBeNull()
+    await expect(region.queryByRole('button', { name: 'Forward 15 seconds' })).toBeNull()
     await expect(region.getByRole('progressbar', { name: 'Playback position' })).toHaveAttribute('aria-valuetext', '1:21 of 3:33')
   },
 })
@@ -48,13 +51,15 @@ export const Playing = meta.story({
 const seeks = fn()
 const startMs = pausedPlayback.progressMs ?? 0
 
-/** Jumps 15 seconds from where playback is (paused, so it stays put between). */
+/** An episode jumps 15 seconds from where playback is (paused, so it stays put between). */
 export const Jumps = meta.story({
   beforeEach({ msw }) {
     seeks.mockClear()
     let progressMs = startMs
     msw.use(
-      http.get('/api/v1/player', ({ response }) => response(200).json({ playback: { ...pausedPlayback, progressMs } })),
+      http.get('/api/v1/player', ({ response }) =>
+        response(200).json({ playback: { ...pausedPlayback, item: playingEpisode, progressMs } }),
+      ),
       http.put('/api/v1/player/seek', async ({ request, response }) => {
         const body = await request.json()
         seeks(body)
@@ -94,14 +99,21 @@ export const Paused = meta.story({
 })
 
 export const Episode = meta.story({
+  globals: { viewport: { value: 'desktop', isRotated: false } },
   beforeEach({ msw }) {
-    msw.use(http.get('/api/v1/player', ({ response }) => response(200).json({ playback: { ...playback, item: queue.queue[2]! } })))
+    msw.use(http.get('/api/v1/player', ({ response }) => response(200).json({ playback: episodePlayback })))
   },
   play: async ({ canvas }) => {
     const region = within(await player(canvas))
-    // Episodes aren't in the catalog: no link, and the show stands in for the artist.
-    await expect(region.getByText('The History of the Breakbeat')).not.toHaveAttribute('href')
+    await expect(region.getByRole('link', { name: 'The History of the Breakbeat' })).toHaveAttribute('href', '/episodes/e1')
+    // The show stands in for the artist.
     await expect(region.getByText('Sample Science')).toBeVisible()
+    await expect(region.getByRole('radiogroup', { name: 'Rating for The History of the Breakbeat' })).toBeVisible()
+    // Episodes jump instead of skipping.
+    await expect(region.getByRole('button', { name: 'Back 15 seconds' })).toBeEnabled()
+    await expect(region.getByRole('button', { name: 'Forward 15 seconds' })).toBeEnabled()
+    await expect(region.queryByRole('button', { name: 'Previous' })).toBeNull()
+    await expect(region.queryByRole('button', { name: 'Next' })).toBeNull()
   },
 })
 
@@ -231,12 +243,31 @@ export const PhoneBar = meta.story({
   play: async ({ canvas }) => {
     const region = within(await player(canvas))
     await expect(region.getByRole('button', { name: 'Pause' })).toBeVisible()
-    await expect(region.getByRole('button', { name: 'Back 15 seconds' })).toBeVisible()
-    await expect(region.getByRole('button', { name: 'Forward 15 seconds' })).toBeVisible()
-    await expect(region.queryByRole('button', { name: 'Next' })).toBeNull()
+    await expect(region.getByRole('button', { name: 'Previous' })).toBeVisible()
+    await expect(region.getByRole('button', { name: 'Next' })).toBeVisible()
+    await expect(region.queryByRole('button', { name: 'Forward 15 seconds' })).toBeNull()
     // The whole bar opens the player page.
     await expect(region.getByRole('link', { name: 'Brass Monkey Business' })).toHaveAttribute('href', '/player')
     await expect(region.getByRole('progressbar', { name: 'Playback position' })).toBeInTheDocument()
+  },
+})
+
+/** The phone bar with an episode: 15-second jumps in place of previous and next. */
+export const PhoneBarEpisode = meta.story({
+  render: () => (
+    <div className="fixed inset-x-0 bottom-0">
+      <MiniPlayerBar />
+    </div>
+  ),
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/player', ({ response }) => response(200).json({ playback: episodePlayback })))
+  },
+  play: async ({ canvas }) => {
+    const region = within(await player(canvas))
+    await expect(region.getByRole('button', { name: 'Back 15 seconds' })).toBeVisible()
+    await expect(region.getByRole('button', { name: 'Forward 15 seconds' })).toBeVisible()
+    await expect(region.queryByRole('button', { name: 'Next' })).toBeNull()
   },
 })
 
