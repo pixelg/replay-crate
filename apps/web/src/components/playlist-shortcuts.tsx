@@ -1,4 +1,11 @@
-import { addToPlaylist, playlistsQueryOptions, removeFromPlaylist, trackQueryOptions } from '@replay-crate/api-client'
+import {
+  addEpisodesToPlaylist,
+  addToPlaylist,
+  playlistsQueryOptions,
+  removeEpisodesFromPlaylist,
+  removeFromPlaylist,
+  trackQueryOptions,
+} from '@replay-crate/api-client'
 import { formatRelative } from '@replay-crate/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cn } from 'cn'
@@ -13,7 +20,16 @@ import { AlbumArt } from './album-art.tsx'
 import { CreatePlaylistDialog } from './create-playlist-dialog.tsx'
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from './ui/popover.tsx'
 
-type Track = { id: string; name: string }
+type Item = { id: string; name: string }
+/** A track or an episode: each goes to the playlists holding its kind. */
+type Target = Item & { kind: 'track' | 'episode' }
+
+/**
+ * `row`: hidden in a narrow row (a `TrackRow` is a container), left to the ⋯ menu. `stacked` (Now
+ * playing): kept in a narrow row, one above the other under the art. `inline` (the player): always
+ * shown, side by side.
+ */
+type Layout = 'row' | 'stacked' | 'inline'
 
 /** How many recently added-to playlists the Add button offers before "All playlists…". */
 const RECENT = 4
@@ -26,16 +42,20 @@ const shortcutClass = cn(
 )
 
 /**
- * Shortcuts on every track row, for catching a song while it plays (or a few songs later): add
- * it to a playlist you've been adding to (two taps), or start a new playlist with it. The ⋯ menu
- * still has everything. In a narrow row (a `TrackRow` is a container) both are left to the menu,
- * unless the row is `stacked` (Now playing), where they stay, one above the other under the art.
+ * Shortcuts on every track row and on the player, for catching a song (or an episode) while it
+ * plays, or a few later: add it to a playlist you've been adding to (two taps), or start a new
+ * playlist with it. The ⋯ menu still has everything. See `Layout` for where they show.
  */
-export function PlaylistShortcuts({ track, stacked = false }: { track: Track; stacked?: boolean }) {
+export function PlaylistShortcuts({
+  layout = 'row',
+  ...props
+}: ({ track: Item; episode?: undefined } | { episode: Item; track?: undefined }) & { layout?: Layout }) {
+  const target: Target = props.track ? { ...props.track, kind: 'track' } : { ...props.episode, kind: 'episode' }
+  const className = { row: '@max-2xl:hidden', stacked: stackedClass, inline: undefined }[layout]
   return (
-    <span className={cn('inline-flex items-center', stacked && '@max-2xl:flex-col @max-2xl:gap-1')}>
-      <AddToRecentPlaylist track={track} stacked={stacked} />
-      <NewPlaylistWith track={track} stacked={stacked} />
+    <span className={cn('inline-flex items-center', layout === 'stacked' && '@max-2xl:flex-col @max-2xl:gap-1')}>
+      <AddToRecentPlaylist target={target} className={className} />
+      <NewPlaylistWith target={target} className={className} />
     </span>
   )
 }
@@ -43,23 +63,25 @@ export function PlaylistShortcuts({ track, stacked = false }: { track: Track; st
 // On phones, a stacked shortcut stands out from the open row's background.
 const stackedClass = '@max-2xl:bg-background @max-2xl:text-foreground'
 
-function AddToRecentPlaylist({ track, stacked }: { track: Track; stacked: boolean }) {
+function AddToRecentPlaylist({ target: item, className }: { target: Target; className?: string }) {
   const [open, setOpen] = useState(false)
   const [browsing, setBrowsing] = useState(false)
   const queryClient = useQueryClient()
-  const { data, isPending } = useQuery({ ...playlistsQueryOptions(api, 'tracks'), enabled: open })
-  // Which playlists already have it; a track Replay Crate hasn't recorded yet has none.
-  const { data: detail } = useQuery({ ...trackQueryOptions(api, track.id), enabled: open, retry: false })
+  const episode = item.kind === 'episode'
+  const { data, isPending } = useQuery({ ...playlistsQueryOptions(api, episode ? 'episodes' : 'tracks'), enabled: open })
+  // Which playlists already have a track; a track Replay Crate hasn't recorded yet has none. (Episodes don't say.)
+  const { data: detail } = useQuery({ ...trackQueryOptions(api, item.id), enabled: open && !episode, retry: false })
   const onPlaylists = new Set(detail?.playlists.map((playlist) => playlist.id))
   const recent = recentPlaylists(data?.playlists ?? []).slice(0, RECENT)
 
   const refresh = () =>
     Promise.all([queryClient.invalidateQueries({ queryKey: ['playlists'] }), queryClient.invalidateQueries({ queryKey: ['tracks'] })])
   const add = useMutation({
-    mutationFn: (playlist: Playlist) => addToPlaylist(api, playlist.id, [track.id]),
+    mutationFn: (playlist: Playlist) =>
+      episode ? addEpisodesToPlaylist(api, playlist.id, [item.id]) : addToPlaylist(api, playlist.id, [item.id]),
     onSuccess: (_, playlist) => {
       setOpen(false)
-      toast.success(`Added “${track.name}” to ${playlist.name}`, {
+      toast.success(`Added “${item.name}” to ${playlist.name}`, {
         // Taking it off removes every copy, and it wasn't on there before: safe to undo.
         action: { label: 'Undo', onClick: () => void undo(playlist) },
       })
@@ -73,8 +95,8 @@ function AddToRecentPlaylist({ track, stacked }: { track: Track; stacked: boolea
   // Not a mutation of this row: the row may be gone (the list refreshed) by the time Undo is pressed.
   const undo = async (playlist: Playlist) => {
     try {
-      await removeFromPlaylist(api, playlist.id, [track.id])
-      toast(`Took “${track.name}” off ${playlist.name}`)
+      await (episode ? removeEpisodesFromPlaylist(api, playlist.id, [item.id]) : removeFromPlaylist(api, playlist.id, [item.id]))
+      toast(`Took “${item.name}” off ${playlist.name}`)
     } catch (error) {
       const { title, message } = describeError(error)
       toast.error(title, { description: message })
@@ -87,9 +109,9 @@ function AddToRecentPlaylist({ track, stacked }: { track: Track; stacked: boolea
     <>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
-          aria-label={`Add ${track.name} to a playlist`}
+          aria-label={`Add ${item.name} to a playlist`}
           title="Add to playlist"
-          className={cn(shortcutClass, stacked ? stackedClass : '@max-2xl:hidden')}
+          className={cn(shortcutClass, className)}
         >
           <ListPlus aria-hidden className="size-4" />
         </PopoverTrigger>
@@ -145,26 +167,39 @@ function AddToRecentPlaylist({ track, stacked }: { track: Track; stacked: boolea
           </button>
         </PopoverContent>
       </Popover>
-      <AddToPlaylistDialog open={browsing} onOpenChange={setBrowsing} trackIds={[track.id]} description={track.name} />
+      <AddToPlaylistDialog
+        open={browsing}
+        onOpenChange={setBrowsing}
+        {...(episode ? { episodeIds: [item.id] } : { trackIds: [item.id] })}
+        description={item.name}
+      />
     </>
   )
 }
 
-function NewPlaylistWith({ track, stacked }: { track: Track; stacked: boolean }) {
+function NewPlaylistWith({ target: item, className }: { target: Target; className?: string }) {
   const [open, setOpen] = useState(false)
+  const episode = item.kind === 'episode'
   return (
     <>
       <button
         type="button"
-        aria-label={`New playlist with ${track.name}`}
-        title="New playlist with this track"
+        aria-label={`New playlist with ${item.name}`}
+        title={`New playlist with this ${item.kind}`}
         onClick={() => setOpen(true)}
-        className={cn(shortcutClass, stacked ? stackedClass : '@max-2xl:hidden')}
+        className={cn(shortcutClass, className)}
       >
         <SquarePlus aria-hidden className="size-4" />
       </button>
       {/* Stays on the page: you're listening, and the next track may be one to add too. */}
-      <CreatePlaylistDialog open={open} onOpenChange={setOpen} trackIds={[track.id]} suggestedName={track.name} stay />
+      <CreatePlaylistDialog
+        open={open}
+        onOpenChange={setOpen}
+        trackIds={episode ? [] : [item.id]}
+        episodeIds={episode ? [item.id] : undefined}
+        suggestedName={item.name}
+        stay
+      />
     </>
   )
 }
