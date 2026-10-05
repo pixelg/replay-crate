@@ -1,7 +1,7 @@
 import { schema } from '@replay-crate/db'
 import { SpotifyApiError, SpotifyAuthError } from '@replay-crate/spotify'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createTestContext, track } from '../testing.ts'
+import { createTestContext, episode, track } from '../testing.ts'
 import { pausedUntil } from './budget.ts'
 import { enqueue, jobStatus, runJobs } from './queue.ts'
 
@@ -35,6 +35,17 @@ describe('job queue', () => {
     await enqueue(ctx.db, [trackJob('a'), trackJob('a'), trackJob('b')], ctx.deps.now!())
     await enqueue(ctx.db, [trackJob('a')], ctx.deps.now!())
     expect(await queued()).toHaveLength(2)
+  })
+
+  it('runs other jobs before a backfill of tracks, however long it has waited', async () => {
+    ctx.library.addEpisodes(episode('ep1'))
+    await enqueue(ctx.db, [trackJob('a'), trackJob('b')], ctx.deps.now!())
+    ctx.advance(60_000)
+    await enqueue(ctx.db, [{ kind: 'episode', ref: 'pixelg:ep1', userId: 'pixelg' }], ctx.deps.now!())
+
+    expect(await runJobs(ctx.deps, { ...noPause, limit: 1 })).toMatchObject({ done: 1, remaining: 2 })
+    expect(ctx.spotify.getEpisode).toHaveBeenCalledWith('access-1', 'ep1')
+    expect(ctx.spotify.getTrack).not.toHaveBeenCalled()
   })
 
   it('drops jobs for things Spotify no longer has', async () => {

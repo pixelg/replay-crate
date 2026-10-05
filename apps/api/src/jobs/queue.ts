@@ -26,6 +26,7 @@ const handlers: Record<JobKind, Handler> = {
    */
   track: {
     api: 'spotify',
+    backfill: true,
     run: async (deps, id, { accessToken }) => {
       await upsertCatalog(deps.db, [await deps.spotify.getTrack(await accessToken(), id)])
       await promote(deps.db, [id])
@@ -35,6 +36,7 @@ const handlers: Record<JobKind, Handler> = {
   /** Fetch an artist for its image (artists in plays come without one). */
   artist: {
     api: 'spotify',
+    backfill: true,
     run: async (deps, id, { accessToken }) => {
       const artist = await deps.spotify.getArtist(await accessToken(), id)
       await deps.db
@@ -99,6 +101,10 @@ function laneFilter(api: Api): SQL {
     ? notInArray(jobs.kind, kinds.filter((kind) => handlers[kind].api !== 'spotify'))
     : inArray(jobs.kind, kinds.filter((kind) => handlers[kind].api === api))
 }
+
+/** 1 for backfill kinds, else 0: what `claim()` sorts on first. */
+const backfillKinds = (Object.keys(handlers) as JobKind[]).filter((kind) => handlers[kind].backfill)
+const backfillLast = sql<number>`case when ${inArray(jobs.kind, backfillKinds)} then 1 else 0 end`
 
 const MINUTE = 60_000
 /** 1, 2, 4… minutes, capped at 6 hours. */
@@ -233,15 +239,16 @@ export async function runJobs(
 }
 
 /**
- * Reserves up to `n` due jobs, oldest due first: one statement picks them (skipping any another
- * runner is reserving right now) and pushes their `run_after` out by `CLAIM_MS`.
+ * Reserves up to `n` due jobs, backfill last and otherwise oldest due first: one statement picks
+ * them (skipping any another runner is reserving right now) and pushes their `run_after` out by
+ * `CLAIM_MS`.
  */
 async function claim(db: Db, n: number, now: Date, lane: SQL): Promise<Job[]> {
   const due = db
     .select({ id: jobs.id })
     .from(jobs)
     .where(and(lte(jobs.runAfter, now), lane))
-    .orderBy(asc(jobs.runAfter), asc(jobs.id))
+    .orderBy(asc(backfillLast), asc(jobs.runAfter), asc(jobs.id))
     .limit(n)
     .for('update', { skipLocked: true })
   const claimed = await db
