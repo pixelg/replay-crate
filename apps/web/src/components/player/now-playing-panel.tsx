@@ -6,6 +6,7 @@ import { cn } from 'cn'
 import { useId, useState } from 'react'
 import { AlbumArt } from '../album-art.tsx'
 import { GenreChips } from '../genre-chips.tsx'
+import { PlaylistShortcuts } from '../playlist-shortcuts.tsx'
 import { Slider } from '../ui/slider.tsx'
 import { EpisodeRating, TrackRating } from '../star-rating.tsx'
 import { ShowLink } from '../podcasts/episode-parts.tsx'
@@ -66,10 +67,19 @@ export function NowPlayingPanel({
             {item.type === 'episode' ? <ShowLink show={item.show} /> : subtitleOf(item)}
           </p>
           {item.type === 'track' && <GenreChips genres={item.genres} className="mt-2 justify-center md:justify-start" />}
+          {/* Rate it, add it to a playlist, or start one with it (not local files: Spotify can't add those). */}
           {item.type === 'episode' ? (
-            <EpisodeRating episode={item} size="md" className="mt-2" />
+            <div className="mt-2 flex items-center justify-center gap-2 md:justify-start">
+              <EpisodeRating episode={item} size="md" />
+              <PlaylistShortcuts episode={item} layout="inline" />
+            </div>
           ) : (
-            item.id && <TrackRating track={{ ...item, id: item.id }} size="md" className="mt-2" />
+            item.id && (
+              <div className="mt-2 flex items-center justify-center gap-2 md:justify-start">
+                <TrackRating track={{ ...item, id: item.id }} size="md" />
+                <PlaylistShortcuts track={{ id: item.id, name: item.name }} layout="inline" />
+              </div>
+            )
           )}
         </div>
 

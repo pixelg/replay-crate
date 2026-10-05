@@ -1,6 +1,6 @@
 import preview from '#storybook/preview'
 import { HttpResponse } from 'msw'
-import { expect, screen, waitFor, within } from 'storybook/test'
+import { expect, fn, screen, waitFor, within } from 'storybook/test'
 import { devices, episodePlayback, pausedPlayback, playback, queue } from './test/fixtures.ts'
 import { defaultHandlers, http } from './test/handlers.ts'
 import { App } from './test/app-story.tsx'
@@ -77,6 +77,9 @@ export const Player = meta.story({
     const genres = within(panel.getByRole('list', { name: 'Genres' }))
     await expect(genres.getAllByRole('link').map((link) => link.textContent)).toEqual(['hip hop', 'boom bap', 'jazz'])
     await expect(genres.getByRole('link', { name: 'hip hop' })).toHaveAttribute('href', expect.stringMatching(/^\/history\?genre=/))
+    // After the stars: add it to a playlist, or start one with it.
+    await expect(panel.getByRole('button', { name: 'Add Brass Monkey Business to a playlist' })).toBeVisible()
+    await expect(panel.getByRole('button', { name: 'New playlist with Brass Monkey Business' })).toBeVisible()
     await expect(panel.getByRole('slider', { name: 'Seek' })).toHaveAttribute('aria-valuetext', expect.stringMatching(/^1:2\d of 3:33$/))
     // The position counts up; the length beside it stays put.
     await expect(panel.getByText('3:33')).toBeVisible()
@@ -295,6 +298,52 @@ export const PlayerEpisode = meta.story({
     await expect(getComputedStyle(text).webkitLineClamp).toBe('none')
     await userEvent.click(about.getByRole('button', { name: 'Show less' }))
     await expect(about.getByRole('button', { name: 'Show more' })).toHaveAttribute('aria-expanded', 'false')
+  },
+})
+
+const playlistRequests = fn()
+
+/** The player's playlist shortcuts take an episode to the playlists holding episodes. */
+export const PlayerEpisodeToPlaylist = meta.story({
+  args: { path: '/player' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    playlistRequests.mockClear()
+    msw.use(
+      http.get('/api/v1/player', ({ response }) => response(200).json({ playback: episodePlayback })),
+      http.post('/api/v1/playlists/{id}/episodes', async ({ request, params, response }) => {
+        playlistRequests('add', params.id, await request.json())
+        return response(200).json({ ok: true })
+      }),
+      http.post('/api/v1/playlists', async ({ request, response }) => {
+        playlistRequests('create', await request.json())
+        return response(201).json({ id: 'p9' })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    const panel = within(await main.findByRole('region', { name: 'The History of the Breakbeat' }))
+    await userEvent.click(panel.getByRole('button', { name: 'Add The History of the Breakbeat to a playlist' }))
+    const popup = within(await screen.findByRole('dialog', { name: 'Add to playlist' }))
+    const recent = within(await popup.findByRole('list', { name: 'Recently added to' })).getAllByRole('button')
+    await expect(recent.map((button) => button.textContent)).toEqual([
+      expect.stringMatching(/^Boom Bap Essentials/),
+      expect.stringMatching(/^Commute/),
+    ])
+    await userEvent.click(recent[1]!)
+    await waitFor(() => expect(playlistRequests).toHaveBeenCalledWith('add', 'p5', { episodeIds: ['e1'] }))
+
+    await userEvent.click(panel.getByRole('button', { name: 'New playlist with The History of the Breakbeat' }))
+    const dialog = within(await screen.findByRole('dialog', { name: 'Create playlist' }))
+    await waitFor(() => expect(dialog.getByText('With 1 episode')).toBeVisible())
+    await userEvent.click(dialog.getByRole('button', { name: 'Create playlist' }))
+    await waitFor(() =>
+      expect(playlistRequests).toHaveBeenCalledWith('create', expect.objectContaining({ name: 'The History of the Breakbeat', episodeIds: ['e1'] })),
+    )
+    // It stays on the player.
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Create playlist' })).toBeNull())
+    await expect(canvas.getByRole('heading', { level: 1, name: 'Player' })).toBeVisible()
   },
 })
 

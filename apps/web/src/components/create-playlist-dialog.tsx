@@ -6,26 +6,29 @@ import { Dialog } from './ui/dialog.tsx'
 import { TextField } from './ui/text-field.tsx'
 
 /**
- * Names and creates a playlist on Spotify from chosen tracks, then opens it (or, with
- * `stay`, closes and stays where it was).
+ * Names and creates a playlist on Spotify from chosen tracks (or episodes), then opens it (or,
+ * with `stay`, closes and stays where it was).
  */
 export function CreatePlaylistDialog({
   open,
   onOpenChange,
   trackIds,
+  episodeIds = [],
   suggestedName,
   stay = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   trackIds: string[]
+  episodeIds?: string[]
   suggestedName: string
   stay?: boolean
 }) {
   const [name, setName] = useState<string | null>(null)
   const create = useCreatePlaylist({ open: !stay })
   const finalName = (name ?? suggestedName).trim()
-  const count = trackIds.length
+  const count = trackIds.length + episodeIds.length
+  const noun = episodeIds.length && !trackIds.length ? 'episode' : 'track'
 
   return (
     <Dialog
@@ -38,14 +41,14 @@ export function CreatePlaylistDialog({
         }
       }}
       title="Create playlist"
-      description={count === 1 ? 'With 1 track' : `With ${count} tracks`}
+      description={count === 1 ? `With 1 ${noun}` : `With ${count} ${noun}s`}
     >
       <form
         className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault()
           create.mutate(
-            { name: finalName, trackIds },
+            { name: finalName, trackIds, episodeIds },
             {
               onSuccess: () => {
                 if (!stay) return
