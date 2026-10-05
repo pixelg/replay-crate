@@ -1,8 +1,7 @@
 import { sql } from 'drizzle-orm'
-import { bigint, boolean, check, index, integer, pgTable, primaryKey, smallint, text, timestamp, unique } from 'drizzle-orm/pg-core'
+import { bigint, boolean, check, index, integer, pgEnum, pgTable, primaryKey, smallint, text, timestamp, unique } from 'drizzle-orm/pg-core'
 import { users } from './auth.ts'
 import { playlists } from './playlists.ts'
-import { playSource } from './plays.ts'
 
 // Podcasts, apart from the music catalog and plays so nothing about music changes. Spotify's
 // recently-played never lists episodes: listens come from polling the player (see `mergeListen`
@@ -55,6 +54,13 @@ export const episodes = pgTable(
  * (`lastSeenAt` and `endPositionMs` are where it was last seen); imported ones arrive whole, with
  * no positions. Times are the episode's own, so a listen at 2× is half as long on the clock.
  */
+/**
+ * Where a listen came from: the player (`poll`), the streaming-history import, or an `estimate`
+ * from Spotify's resume point moving on while nobody watched the player (`podcasts/estimates.ts`),
+ * which spans the window it happened in rather than the listen itself.
+ */
+export const listenSource = pgEnum('listen_source', ['poll', 'import', 'estimate'])
+
 export const episodeListens = pgTable(
   'episode_listens',
   {
@@ -75,7 +81,7 @@ export const episodeListens = pgTable(
     /** How much of the episode was heard. */
     listenedMs: integer('listened_ms').notNull(),
     contextUri: text('context_uri'),
-    source: playSource('source').notNull(),
+    source: listenSource('source').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

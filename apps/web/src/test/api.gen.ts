@@ -258,6 +258,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/history/listens/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Catch up on podcast listening
+         * @description Spotify's recently-played never lists episodes, so this reads the shows you follow and refreshes each one's latest episodes now (skipping shows refreshed in the last 10 minutes). Where a resume point moved on while the app wasn't watching the player, the difference is recorded as an `estimate` listen spanning the window it happened in. Needs the `user-library-read` scope.
+         */
+        post: operations["syncListens"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/history/listens/timeline": {
         parameters: {
             query?: never;
@@ -1507,6 +1527,15 @@ export interface components {
             context: components["schemas"]["ContextRef"];
             plays: number;
         };
+        ForbiddenError: {
+            /** @enum {string} */
+            error: "forbidden";
+            message?: string;
+        };
+        NotFoundError: {
+            /** @enum {string} */
+            error: "not_found";
+        };
         ListenedShow: components["schemas"]["ShowRef"] & {
             listens: number;
         };
@@ -1532,7 +1561,7 @@ export interface components {
             startPositionMs: number | null;
             endPositionMs: number | null;
             /** @enum {string} */
-            source: "poll" | "import";
+            source: "poll" | "import" | "estimate";
             episode: components["schemas"]["EpisodeSummary"];
         };
         EpisodeSummary: {
@@ -1554,15 +1583,6 @@ export interface components {
             resumePositionMs: number;
             fullyPlayed: boolean;
         } | null;
-        ForbiddenError: {
-            /** @enum {string} */
-            error: "forbidden";
-            message?: string;
-        };
-        NotFoundError: {
-            /** @enum {string} */
-            error: "not_found";
-        };
         TrackDetail: {
             track: {
                 id: string;
@@ -1670,7 +1690,7 @@ export interface components {
                 startPositionMs: number | null;
                 endPositionMs: number | null;
                 /** @enum {string} */
-                source: "poll" | "import";
+                source: "poll" | "import" | "estimate";
             }[];
         };
         LibraryShow: {
@@ -2927,6 +2947,87 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    syncListens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Caught up. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Shows followed. */
+                        total: number;
+                        /** @description Shows whose latest episodes were fetched. */
+                        refreshed: number;
+                        /** @description Estimated listens recorded. */
+                        estimated: number;
+                    };
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"];
+                };
+            };
+            /** @description not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+            /** @description reauth_required */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthRequiredError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+            /** @description rate_limited */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedError"];
                 };
             };
         };

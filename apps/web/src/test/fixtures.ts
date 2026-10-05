@@ -847,6 +847,26 @@ export const listens: ListenItem[] = [
 
 export const listensPage: ListensPage = { items: listens, nextCursor: null }
 
+/**
+ * What podcast History's Sync finds (`POST /history/listens/sync`): an episode finished on another
+ * device while the app wasn't watching, estimated from its resume point. It spans the window it
+ * could have happened in, from two days ago to now.
+ */
+export const estimatedListen: ListenItem = {
+  id: 6,
+  startedAt: dayAt(2, 20),
+  endedAt: today(1),
+  listenedMs: 30 * MIN,
+  startPositionMs: 10 * MIN,
+  endPositionMs: 40 * MIN,
+  source: 'estimate',
+  episode: episodeSummary('e6', 'Loops for the Weekend', crateTalk, {
+    durationMs: 40 * MIN,
+    releaseDate: '2026-09-29',
+    progress: { resumePositionMs: 40 * MIN, fullyPlayed: true },
+  }),
+}
+
 export const listenedShows: ListenedShow[] = [
   { ...sampleScience, listens: 4 },
   { ...crateTalk, listens: 1 },

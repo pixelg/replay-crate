@@ -4,9 +4,10 @@ import { and, eq, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
 import { enqueue } from '../jobs/enqueue.ts'
 import { getAccessToken } from '../spotify/access-token.ts'
-import { DESCRIPTION_LIMIT, saveProgress, upsertEpisodes } from './catalog.ts'
+import { DESCRIPTION_LIMIT, upsertEpisodes } from './catalog.ts'
+import { saveResumePoint } from './estimates.ts'
 
-const { shows, userShows, users } = schema
+const { episodes, jobs, shows, userShows, users } = schema
 
 /** A followed show's latest episodes are fetched again after this long. */
 export const SHOW_EPISODES_STALE_MS = 12 * 60 * 60_000
@@ -88,36 +89,93 @@ export async function syncFollowedShows(deps: AppDeps, userId: string): Promise<
   return { total: saved.length, queued: stale.length }
 }
 
-/** The `show` job: the show's latest episodes, with the user's resume points, into the catalog. */
-export async function refreshShowEpisodes(deps: AppDeps, ref: string, accessToken: string): Promise<void> {
+/**
+ * The `show` job: the show's latest episodes, with the user's resume points, into the catalog.
+ * A resume point that moved on unseen becomes an estimated listen (`saveResumePoint`). Returns how
+ * many it recorded.
+ */
+export async function refreshShowEpisodes(deps: AppDeps, ref: string, accessToken: string): Promise<number> {
   const { db } = deps
   const now = deps.now?.() ?? new Date()
   const { userId, showId } = parseShowJobRef(ref)
-  const [show] = await db.select({ id: shows.id, name: shows.name }).from(shows).where(eq(shows.id, showId))
-  if (!show) return
+  const [show] = await db
+    .select({ id: shows.id, name: shows.name, checkedAt: shows.episodesCheckedAt })
+    .from(shows)
+    .where(eq(shows.id, showId))
+  if (!show) return 0
   const page = await deps.spotify.getShowEpisodes(accessToken, showId)
   const items = page.items.filter((item) => item?.id)
+  // Episodes already in the catalog at the last refresh were listed then: with no progress, unstarted.
+  const listedBefore = new Set(
+    show.checkedAt && items.length
+      ? (await db.select({ id: episodes.id }).from(episodes).where(inArray(episodes.id, items.map((item) => item.id)))).map((row) => row.id)
+      : [],
+  )
   // The list leaves the show out; the stored one stands in (no images: `upsertEpisodes` keeps what's there).
   const showRef: SpotifyEpisode['show'] = { id: show.id, name: show.name, uri: `spotify:show:${show.id}`, images: [] }
   await upsertEpisodes(
     db,
     items.map((item) => ({ ...item, type: 'episode' as const, show: showRef })),
   )
+  let estimated = 0
   for (const item of items) {
     if (!item.resume_point) continue
     // Never started: no progress to keep.
     if (!item.resume_point.fully_played && item.resume_point.resume_position_ms === 0) continue
-    await saveProgress(
+    const recorded = await saveResumePoint(
       db,
       {
         userId,
-        episodeId: item.id,
+        episode: { id: item.id, durationMs: item.duration_ms, releaseDate: item.release_date || null },
         resumePositionMs: item.resume_point.resume_position_ms,
         fullyPlayed: item.resume_point.fully_played,
-        authoritative: true,
+        unstartedAt: listedBefore.has(item.id) ? show.checkedAt : null,
       },
       now,
     )
+    if (recorded) estimated++
   }
   await db.update(shows).set({ episodesCheckedAt: now }).where(eq(shows.id, showId))
+  return estimated
+}
+
+/** A show refreshed this recently is left alone by `refreshFollowedShows`. */
+export const SHOW_REFRESH_FRESH_MS = 10 * 60_000
+/** Between the Spotify calls of one `refreshFollowedShows`: the job queue's pace. */
+const REFRESH_PACE_MS = 300
+
+/**
+ * Podcast History's Sync: reads the shows the user follows, then refreshes each one's latest
+ * episodes now rather than through the job queue (where an import's backfill can hold them up),
+ * turning resume points that moved on unseen into estimated listens. Shows refreshed in the last
+ * few minutes are skipped, and their queued `show` jobs dropped. Stops at the first failure
+ * (a 429 included), keeping what it got.
+ */
+export async function refreshFollowedShows(
+  deps: AppDeps,
+  userId: string,
+  { sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)) }: { sleep?: (ms: number) => Promise<void> } = {},
+): Promise<{ total: number; refreshed: number; estimated: number }> {
+  const { db } = deps
+  const now = deps.now?.() ?? new Date()
+  const { total } = await syncFollowedShows(deps, userId)
+  const due = await db
+    .select({ id: shows.id })
+    .from(userShows)
+    .innerJoin(shows, eq(shows.id, userShows.showId))
+    .where(
+      and(
+        eq(userShows.userId, userId),
+        or(isNull(shows.episodesCheckedAt), lt(shows.episodesCheckedAt, new Date(now.getTime() - SHOW_REFRESH_FRESH_MS))),
+      ),
+    )
+  const accessToken = await getAccessToken(deps, userId)
+  let estimated = 0
+  for (const { id } of due) {
+    await sleep(REFRESH_PACE_MS)
+    const ref = showJobRef(userId, id)
+    estimated += await refreshShowEpisodes(deps, ref, accessToken)
+    await db.delete(jobs).where(and(eq(jobs.kind, 'show'), eq(jobs.ref, ref)))
+  }
+  return { total, refreshed: due.length, estimated }
 }

@@ -1,11 +1,15 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import { schema } from '@replay-crate/db'
+import { SpotifyApiError } from '@replay-crate/spotify'
 import { and, count, desc, eq, gte, lt, max, sql } from 'drizzle-orm'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
 import { IsoDateTime, jsonResponse } from '../lib/schemas.ts'
+import { pausedUntil, pauseSpotify } from '../jobs/budget.ts'
 import { ListenItem, loadEpisodeSummaries, ShowRef } from '../podcasts/present.ts'
+import { refreshFollowedShows } from '../podcasts/shows.ts'
+import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { listenMonths } from '../stats/podcasts.ts'
 import { timeZone } from '../stats/ranges.ts'
 
@@ -82,11 +86,55 @@ const getListensTimeline = createRoute({
   },
 })
 
+const syncListens = createRoute({
+  method: 'post',
+  path: '/history/listens/sync',
+  tags: ['History'],
+  operationId: 'syncListens',
+  summary: 'Catch up on podcast listening',
+  description:
+    "Spotify's recently-played never lists episodes, so this reads the shows you follow and refreshes each one's " +
+    'latest episodes now (skipping shows refreshed in the last 10 minutes). Where a resume point moved on while the ' +
+    "app wasn't watching the player, the difference is recorded as an `estimate` listen spanning the window it " +
+    'happened in. Needs the `user-library-read` scope.',
+  security: signedIn,
+  responses: {
+    200: jsonResponse(
+      z.object({
+        total: z.number().int().openapi({ description: 'Shows followed.' }),
+        refreshed: z.number().int().openapi({ description: 'Shows whose latest episodes were fetched.' }),
+        estimated: z.number().int().openapi({ description: 'Estimated listens recorded.' }),
+      }),
+      'Caught up.',
+    ),
+    ...errorResponses('unauthorized', 'forbidden', 'not_found', 'reauth_required', 'rate_limited'),
+  },
+})
+
 export function listenRoutes(deps: AppDeps) {
   const { db } = deps
   const auth = requireUser(deps)
+  const now = () => deps.now?.() ?? new Date()
 
   return createRouter()
+    .openapi({ ...syncListens, middleware: auth }, async (c) => {
+      // While Spotify's Retry-After runs, say so without asking it again.
+      const paused = await pausedUntil(db, now())
+      if (paused) {
+        return c.json({ error: 'rate_limited' as const, retryAfter: Math.ceil((paused.getTime() - now().getTime()) / 1000) }, 503)
+      }
+      try {
+        return c.json(await refreshFollowedShows(deps, c.var.user.id), 200)
+      } catch (error) {
+        if (error instanceof SpotifyApiError && error.status === 429) {
+          await pauseSpotify(db, new Date(now().getTime() + (error.retryAfter ?? 60) * 1000), now())
+        }
+        const response = spotifyErrorResponse(c, error)
+        if (response) return response
+        throw error
+      }
+    })
+
     .openapi({ ...getListensTimeline, middleware: auth }, async (c) =>
       c.json({ months: await listenMonths(db, c.var.user.id, c.req.valid('query').tz) }, 200),
     )

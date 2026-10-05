@@ -184,6 +184,11 @@ describe('responses match the spec', () => {
     await call('DELETE', '/episodes/{id}/rating', { id: 'talk' })
     ctx.library.followShow(episode('talk', { show: ['pod', 'The Pod'] }).show)
     await call('POST', '/shows/sync')
+    // Heard on another device a day later: an estimated listen.
+    ctx.library.setResumePoint('talk', { fully_played: false, resume_position_ms: 30 * 60_000 })
+    ctx.advance(24 * 60 * 60_000)
+    await call('POST', '/history/listens/sync')
+    await call('GET', '/history/listens?limit=1')
     await call('GET', '/shows/new-episodes')
     await call('GET', '/shows/new-episodes?days=0')
     await call('GET', '/shows')

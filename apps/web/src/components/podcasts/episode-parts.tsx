@@ -48,8 +48,12 @@ export function EpisodeProgress({
   if (progress.fullyPlayed) {
     return (
       <p className={cn('mt-1 flex items-center gap-1 text-xs text-muted-foreground', className)}>
-        <Check aria-hidden className="size-3.5 text-primary" /> Finished
-        {children}
+        <Check aria-hidden className="size-3.5 shrink-0 text-primary" />
+        {/* One run of text, so what follows wraps as a line rather than squeezing into columns. */}
+        <span className="min-w-0">
+          Finished
+          {children}
+        </span>
       </p>
     )
   }
