@@ -40,7 +40,7 @@ function PaginationLink({ className, isActive, render, ...props }: PaginationLin
   })
 }
 
-// Icon-only: the name is text, since a disabled one is a plain <span> that can't take aria-label.
+// The names are text, not aria-label: a disabled one is a plain <span>, which can't take aria-label.
 function PaginationFirst({ className, ...props }: PaginationLinkProps) {
   return (
     <PaginationLink title="First page" className={className} {...props}>
@@ -52,17 +52,19 @@ function PaginationFirst({ className, ...props }: PaginationLinkProps) {
 
 function PaginationPrevious({ className, ...props }: PaginationLinkProps) {
   return (
-    <PaginationLink aria-label="Previous page" className={cn('gap-1 pl-1.5', className)} {...props}>
+    <PaginationLink className={cn('gap-1 pl-1.5', className)} {...props}>
       <ChevronLeftIcon aria-hidden className="size-4" />
-      <span className="hidden sm:block">Previous</span>
+      <span aria-hidden className="hidden sm:block">Previous</span>
+      <span className="sr-only">Previous page</span>
     </PaginationLink>
   )
 }
 
 function PaginationNext({ className, ...props }: PaginationLinkProps) {
   return (
-    <PaginationLink aria-label="Next page" className={cn('gap-1 pr-1.5', className)} {...props}>
-      <span className="hidden sm:block">Next</span>
+    <PaginationLink className={cn('gap-1 pr-1.5', className)} {...props}>
+      <span aria-hidden className="hidden sm:block">Next</span>
+      <span className="sr-only">Next page</span>
       <ChevronRightIcon aria-hidden className="size-4" />
     </PaginationLink>
   )

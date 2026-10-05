@@ -1,6 +1,7 @@
 import { formatRange, PAGE_SIZES, pageCount, pageWindow, parsePageSize, type PageSize } from '@replay-crate/core'
 import { cn } from 'cn'
 import { useId, type ReactElement } from 'react'
+import { BackToTop } from './back-to-top.tsx'
 import {
   Pagination,
   PaginationContent,
@@ -20,6 +21,10 @@ const toItems = (sizes: readonly PageSize[]) => sizes.map((size) => ({ value: St
  * Under a list: which items are showing, links to the other pages (first and last too), and how many to show per
  * page. With `All`, only the size picker shows; the list keeps its own "Load more".
  * Page links are real links (`linkTo`), so they can be opened in a new tab and preload on hover.
+ *
+ * From `md` up it sticks to the bottom of the window while its list scrolls by (`sticky`, so it stays in the
+ * page's flow and settles under the list's end), with the way back to the top at its end. Phones, whose bottom
+ * edge holds the tabs and the player bar, find it at the end of the list.
  */
 export function ListPagination({
   page,
@@ -48,7 +53,15 @@ export function ListPagination({
   const pages = paged ? pageCount(total, size) : 1
 
   return (
-    <div className={cn('mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-3', className)}>
+    <div
+      data-list-pagination=""
+      className={cn(
+        'mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-3',
+        // Edge to edge of the page, over the rows passing under it, like the header.
+        'md:sticky md:bottom-0 md:z-[3] md:-mx-8 md:border-t md:border-border md:bg-background/90 md:px-8 md:py-3 md:backdrop-blur',
+        className,
+      )}
+    >
       {paged && (
         <p className="text-sm text-muted-foreground tabular-nums" aria-live="polite">
           {formatRange(page, size, total)}
@@ -126,6 +139,8 @@ export function ListPagination({
             ))}
           </SelectContent>
         </Select>
+        {/* In the bar rather than floating over the rows' own buttons. */}
+        <BackToTop keepSpace className="size-8 shadow-none" />
       </div>
     </div>
   )

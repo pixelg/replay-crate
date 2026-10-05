@@ -9,6 +9,7 @@ import { useMode } from '../lib/mode.ts'
 import { useTheme } from '../lib/theme.ts'
 import { useIsPlaying } from '../lib/use-player.ts'
 import { SearchPalette } from './search/search-palette.tsx'
+import { BackToTop } from './back-to-top.tsx'
 import { ThemeToggle } from './theme-toggle.tsx'
 import { MiniPlayer, MiniPlayerBar } from './mini-player.tsx'
 import { ModeOffer } from './mode-offer.tsx'
@@ -78,9 +79,15 @@ export function AppShell({
           </header>
           {banner}
           <ModeOffer />
-          <main className="flex-1 px-4 pt-6 pb-[calc(5rem+var(--player-bar)+env(safe-area-inset-bottom))] md:px-8 md:pb-10">
+          {/* Focusable so Back to top can leave focus at the top of the page. */}
+          <main
+            tabIndex={-1}
+            className="flex-1 px-4 pt-6 pb-[calc(5rem+var(--player-bar)+env(safe-area-inset-bottom))] outline-none md:px-8 md:pb-10"
+          >
             {children}
           </main>
+          {/* A list's sticky pagination carries its own. */}
+          <BackToTop className="fixed right-8 bottom-6 md:in-[body:has([data-list-pagination])]:hidden" />
         </div>
 
         <BottomTabs />
