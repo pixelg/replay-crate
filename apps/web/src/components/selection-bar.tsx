@@ -50,6 +50,7 @@ export function SelectionBar({
       <div
         role="toolbar"
         aria-label="Selected tracks"
+        data-selection-bar=""
         className="fixed inset-x-4 bottom-[calc(4.5rem+var(--player-bar)+env(safe-area-inset-bottom))] z-20 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-2 shadow-lg md:inset-x-auto md:bottom-6 md:left-[calc(15rem+2rem)] md:right-8"
       >
         <p role="status" className="px-2 text-sm font-medium">

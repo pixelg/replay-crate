@@ -529,3 +529,73 @@ export const TracksSelectAcrossPages = meta.story({
     await expect(await main.findByRole('checkbox', { name: 'Select Crate Cut 02' })).toBeChecked()
   },
 })
+
+const longPage = manyTracks(60)
+const longPageHandler = http.get('/api/v1/tracks', ({ query, response }) => {
+  const { items, rest } = pageBy(longPage, query)
+  return response(200).json({ items, nextCursor: null, total: longPage.length, ...rest })
+})
+const paginationOf = (main: HTMLElement) => main.querySelector<HTMLElement>('[data-list-pagination]')!
+const visibleBackToTop = () => screen.queryAllByRole('button', { name: 'Back to top' }).filter((button) => button.checkVisibility())
+
+/** On a big screen the pages stay in reach at the bottom of the window, with a way back up beside them. */
+export const TracksPaginationSticks = meta.story({
+  args: { path: '/tracks?size=30' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(longPageHandler)
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = await canvas.findByRole('main')
+    await expect(await within(main).findByText('1–30 of 60')).toBeVisible()
+    const pagination = paginationOf(main)
+    // Pinned to the window's bottom edge while the list runs on below it.
+    await expect(pagination.getBoundingClientRect().bottom).toBeCloseTo(window.innerHeight, 0)
+    await expect(visibleBackToTop()).toEqual([])
+
+    // At the end of the list it rests under it, with Back to top at its end (the window's own steps aside).
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' })
+    await waitFor(() => expect(visibleBackToTop()).toHaveLength(1))
+    await expect(pagination.getBoundingClientRect().bottom).toBeLessThan(window.innerHeight - 20)
+    await expect(pagination).toContainElement(visibleBackToTop()[0]!)
+
+    await userEvent.click(visibleBackToTop()[0]!)
+    await waitFor(() => expect(window.scrollY).toBe(0), { timeout: 3_000 })
+    await expect(main).toHaveFocus()
+    await expect(visibleBackToTop()).toEqual([])
+  },
+})
+
+/** Pages without pagination get Back to top at the window's bottom right. */
+export const BackToTopWithoutPagination = meta.story({
+  args: { path: '/tracks/t1' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  play: async ({ canvas }) => {
+    const main = await canvas.findByRole('main')
+    await expect(await within(main).findByRole('heading', { level: 1 })).toBeVisible()
+    // Room to scroll, however short the page.
+    main.style.minHeight = '400vh'
+    window.scrollTo({ top: 2_000, behavior: 'instant' })
+    await waitFor(() => expect(visibleBackToTop()).toHaveLength(1))
+    const button = visibleBackToTop()[0]!
+    await expect(getComputedStyle(button).position).toBe('fixed')
+    await expect(window.innerHeight - button.getBoundingClientRect().bottom).toBeCloseTo(24, 0)
+  },
+})
+
+/** Phones find the pages at the end of the list, as before: the tabs and the player bar hold the bottom edge. */
+export const TracksPaginationOnPhone = meta.story({
+  args: { path: '/tracks?size=30' },
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(longPageHandler)
+  },
+  play: async ({ canvas }) => {
+    const main = await canvas.findByRole('main')
+    await expect(await within(main).findByText('1–30 of 60')).toBeInTheDocument()
+    await expect(getComputedStyle(paginationOf(main)).position).toBe('static')
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' })
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await expect(visibleBackToTop()).toEqual([])
+  },
+})
