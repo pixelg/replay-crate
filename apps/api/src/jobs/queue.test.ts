@@ -48,6 +48,19 @@ describe('job queue', () => {
     expect(ctx.spotify.getTrack).not.toHaveBeenCalled()
   })
 
+  it('keeps backfill last within a batch that mixes kinds', async () => {
+    ctx.library.addEpisodes(episode('ep1'))
+    ctx.library.remember([track('a'), track('b')])
+    await enqueue(ctx.db, [trackJob('a'), trackJob('b')], ctx.deps.now!())
+    ctx.advance(60_000)
+    await enqueue(ctx.db, [{ kind: 'episode', ref: 'pixelg:ep1', userId: 'pixelg' }], ctx.deps.now!())
+
+    // One batch holds all three, the tracks with the older ids; the budget allows one call.
+    expect(await runJobs(ctx.deps, { ...noPause, budget: { perDay: 2_400, burst: 1 } })).toMatchObject({ done: 1, remaining: 2 })
+    expect(ctx.spotify.getEpisode).toHaveBeenCalledOnce()
+    expect(ctx.spotify.getTrack).not.toHaveBeenCalled()
+  })
+
   it('drops jobs for things Spotify no longer has', async () => {
     ctx.spotify.getTrack.mockRejectedValueOnce(new SpotifyApiError(404, 'gone'))
     await enqueue(ctx.db, [trackJob('gone'), trackJob('fine')], ctx.deps.now!())

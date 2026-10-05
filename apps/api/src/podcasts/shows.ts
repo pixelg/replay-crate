@@ -171,8 +171,8 @@ export async function refreshFollowedShows(
     )
   const accessToken = await getAccessToken(deps, userId)
   let estimated = 0
-  for (const { id } of due) {
-    await sleep(REFRESH_PACE_MS)
+  for (const [i, { id }] of due.entries()) {
+    if (i > 0) await sleep(REFRESH_PACE_MS)
     const ref = showJobRef(userId, id)
     estimated += await refreshShowEpisodes(deps, ref, accessToken)
     await db.delete(jobs).where(and(eq(jobs.kind, 'show'), eq(jobs.ref, ref)))

@@ -113,6 +113,7 @@ function laneFilter(api: Api): SQL {
 /** 1 for backfill kinds, else 0: what `claim()` sorts on first. */
 const backfillKinds = (Object.keys(handlers) as JobKind[]).filter((kind) => handlers[kind].backfill)
 const backfillLast = sql<number>`case when ${inArray(jobs.kind, backfillKinds)} then 1 else 0 end`
+const isBackfill = (job: Job) => (handlers[job.kind as JobKind]?.backfill ? 1 : 0)
 
 const MINUTE = 60_000
 /** 1, 2, 4… minutes, capped at 6 hours. */
@@ -264,7 +265,8 @@ async function claim(db: Db, n: number, now: Date, lane: SQL): Promise<Job[]> {
     .set({ runAfter: new Date(now.getTime() + CLAIM_MS) })
     .where(inArray(jobs.id, due))
     .returning()
-  return claimed.toSorted((a, b) => a.id - b.id)
+  // Worked in the order picked: `returning` gives no order, and `run_after` is now the same for all.
+  return claimed.toSorted((a, b) => isBackfill(a) - isBackfill(b) || a.id - b.id)
 }
 
 /** Hands reserved jobs back, due at `at`. */
