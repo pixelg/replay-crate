@@ -192,6 +192,8 @@ export function usePlayerControls() {
     /** The last command sent, which `error` belongs to. */
     command: mutation.variables,
     isSending: mutation.isPending,
+    /** A command that changes Up next (what plays next, or the order) is on its way. */
+    isChangingUpNext: mutation.isPending && mutation.variables !== undefined && QUEUE_CHANGERS.has(mutation.variables.kind),
     reset: mutation.reset,
   }
 }

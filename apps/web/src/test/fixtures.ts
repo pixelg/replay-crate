@@ -595,6 +595,8 @@ export const queue: PlayerQueue = {
       show: { id: 's1', name: 'Sample Science' },
       imageUrl: null,
       thumbUrl: null,
+      description: null,
+      rating: null,
     },
   ],
 }
@@ -943,6 +945,13 @@ export const playingEpisode: Extract<PlayerItem, { type: 'episode' }> = {
   show: { id: 's1', name: 'Sample Science' },
   imageUrl: null,
   thumbUrl: null,
+  // Long enough to be cut short on any screen.
+  description: [
+    'Where the break came from: a drummer, a turntable, and a block party in the Bronx.',
+    "We follow the four bars of drums that DJs looped by hand in 1973, the records they were lifted from, and the crate diggers who spent the next decade hunting down every copy. Along the way: why a funk B-side became the most sampled recording ever, how two turntables turned a break into a song, and what the drummers thought when they finally heard it.",
+    "Plus: listener mail, a correction about last week's drum machine, and the record we can't stop playing.",
+  ].join('\n\n'),
+  rating: null,
 }
 
 export const episodePlayback: Playback = { ...playback, context: null, item: playingEpisode, progressMs: 18 * MIN }

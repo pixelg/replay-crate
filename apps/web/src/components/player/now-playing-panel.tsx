@@ -7,7 +7,8 @@ import { useId, useState } from 'react'
 import { AlbumArt } from '../album-art.tsx'
 import { GenreChips } from '../genre-chips.tsx'
 import { Slider } from '../ui/slider.tsx'
-import { TrackRating } from '../star-rating.tsx'
+import { EpisodeRating, TrackRating } from '../star-rating.tsx'
+import { ShowLink } from '../podcasts/episode-parts.tsx'
 import { useIsLibraryPlaylist } from '../../lib/use-library-playlist.ts'
 import { playlistIdOf } from '../../lib/play-context.ts'
 import { IconButton } from './icon-button.tsx'
@@ -49,7 +50,11 @@ export function NowPlayingPanel({
             playback.context && <PlayingFrom context={playback.context} />
           )}
           <h2 id={titleId} className="truncate text-2xl font-semibold tracking-tight">
-            {item.type === 'track' && item.id ? (
+            {item.type === 'episode' ? (
+              <Link to="/episodes/$episodeId" params={{ episodeId: item.id }} className="hover:underline">
+                {item.name}
+              </Link>
+            ) : item.id ? (
               <Link to="/tracks/$trackId" params={{ trackId: item.id }} className="hover:underline">
                 {item.name}
               </Link>
@@ -57,10 +62,14 @@ export function NowPlayingPanel({
               item.name
             )}
           </h2>
-          <p className="truncate text-muted-foreground">{subtitleOf(item)}</p>
+          <p className="truncate text-muted-foreground">
+            {item.type === 'episode' ? <ShowLink show={item.show} /> : subtitleOf(item)}
+          </p>
           {item.type === 'track' && <GenreChips genres={item.genres} className="mt-2 justify-center md:justify-start" />}
-          {item.type === 'track' && item.id && (
-            <TrackRating track={{ ...item, id: item.id }} size="md" className="mt-2" />
+          {item.type === 'episode' ? (
+            <EpisodeRating episode={item} size="md" className="mt-2" />
+          ) : (
+            item.id && <TrackRating track={{ ...item, id: item.id }} size="md" className="mt-2" />
           )}
         </div>
 

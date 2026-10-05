@@ -1,10 +1,21 @@
 import { schema, type Db } from '@replay-crate/db'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
 import { getAccessToken } from '../spotify/access-token.ts'
 import { upsertEpisodes } from './catalog.ts'
 
 const { episodeRatings, episodes } = schema
+
+/** The user's ratings of `episodeIds` (unrated ones are simply absent). */
+export async function loadEpisodeRatings(db: Db, userId: string, episodeIds: string[]): Promise<Map<string, number>> {
+  const ids = [...new Set(episodeIds)]
+  if (!ids.length) return new Map()
+  const rows = await db
+    .select({ episodeId: episodeRatings.episodeId, rating: episodeRatings.rating })
+    .from(episodeRatings)
+    .where(and(eq(episodeRatings.userId, userId), inArray(episodeRatings.episodeId, ids)))
+  return new Map(rows.map((row) => [row.episodeId, row.rating]))
+}
 
 /**
  * Rates an episode 1–5, replacing any earlier rating. An episode the app hasn't seen yet is

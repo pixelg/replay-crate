@@ -2541,6 +2541,16 @@
               "string",
               "null"
             ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Plain text, at most 2000 characters."
+          },
+          "rating": {
+            "$ref": "#/components/schemas/Rating"
           }
         },
         "required": [
@@ -2552,7 +2562,9 @@
           "explicit",
           "show",
           "imageUrl",
-          "thumbUrl"
+          "thumbUrl",
+          "description",
+          "rating"
         ]
       },
       "PremiumRequiredError": {

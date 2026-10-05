@@ -11,7 +11,7 @@ import { IconButton } from './player/icon-button.tsx'
 import { JumpButton } from './player/jump-button.tsx'
 import { imageOf, subtitleOf, thumbOf } from './player/items.ts'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from './ui/hover-card.tsx'
-import { TrackRating } from './star-rating.tsx'
+import { EpisodeRating, TrackRating } from './star-rating.tsx'
 
 // What Spotify is playing, with transport controls: in the header from `md` up, and as a bar
 // above the bottom tabs on phones. Both read the same polled playback (lib/use-player.ts).
@@ -30,8 +30,10 @@ export function MiniPlayer({ className }: { className?: string }) {
     <section aria-label="Now playing" className={cn('flex min-w-0 items-center gap-3', className)}>
       {/* Keeps a little room when a long up-next title takes its share. */}
       <NowPlaying item={item} message={player.message} className="min-w-48" />
-      {item?.type === 'track' && item.id && (
-        <TrackRating track={{ ...item, id: item.id }} className="hidden shrink-0 lg:inline-flex" />
+      {item?.type === 'episode' ? (
+        <EpisodeRating episode={item} className="hidden shrink-0 lg:inline-flex" />
+      ) : (
+        item?.id && <TrackRating track={{ ...item, id: item.id }} className="hidden shrink-0 lg:inline-flex" />
       )}
       <Transport playback={playback} progressMs={progressMs} send={player.send} />
       {item && (
@@ -48,7 +50,7 @@ export function MiniPlayer({ className }: { className?: string }) {
   )
 }
 
-/** The phone bar: art, title, play/pause between 15-second jumps, with the position along its top edge. */
+/** The phone bar: art, title and the transport, with the position along its top edge. */
 export function MiniPlayerBar() {
   const player = useMiniPlayer()
   // Nothing to control: leave the space to the page.
@@ -63,11 +65,7 @@ export function MiniPlayerBar() {
       <ProgressLine progressMs={progressMs} durationMs={item.durationMs} className="absolute inset-x-0 top-0" />
       {/* The title's link covers the bar; the controls sit above it. */}
       <NowPlaying item={item} message={player.message} opens="player" />
-      <div className="relative z-10 flex shrink-0 items-center gap-1">
-        <JumpButton direction="back" playback={playback} progressMs={progressMs} send={player.send} iconClassName="size-5" />
-        <PlayPause playback={playback} send={player.send} />
-        <JumpButton direction="forward" playback={playback} progressMs={progressMs} send={player.send} iconClassName="size-5" />
-      </div>
+      <Transport playback={playback} progressMs={progressMs} send={player.send} className="relative z-10" />
     </section>
   )
 }
@@ -135,7 +133,7 @@ function NowPlaying({
 }: {
   item: PlayerItem | null
   message: string | null
-  /** Where the title leads: the track's page, or (on phones) the player page. */
+  /** Where the title leads: the track's or episode's page, or (on phones) the player page. */
   opens?: 'track' | 'player'
   className?: string
 }) {
@@ -145,7 +143,11 @@ function NowPlaying({
       <Link to="/player" className="truncate font-medium after:absolute after:inset-0">
         {item.name}
       </Link>
-    ) : item.type === 'track' && item.id ? (
+    ) : item.type === 'episode' ? (
+      <Link to="/episodes/$episodeId" params={{ episodeId: item.id }} className="truncate font-medium hover:underline">
+        {item.name}
+      </Link>
+    ) : item.id ? (
       <Link to="/tracks/$trackId" params={{ trackId: item.id }} className="truncate font-medium hover:underline">
         {item.name}
       </Link>
@@ -216,27 +218,40 @@ function UpNext({ item }: { item: PlayerItem }) {
   )
 }
 
+/**
+ * Play/pause between 15-second jumps for an episode, or between previous and next for a track,
+ * as Spotify's own mini player does. The player page has both.
+ */
 function Transport({
   playback,
   progressMs,
   send,
+  className,
 }: {
   playback: Playback
   progressMs: number
   send: (command: PlayerCommand) => void
+  className?: string
 }) {
   const disallowed = new Set(playback.disallows)
+  const episode = playback.item?.type === 'episode'
   return (
-    <div className="flex shrink-0 items-center gap-1">
-      <JumpButton direction="back" playback={playback} progressMs={progressMs} send={send} iconClassName="size-5" />
-      <IconButton label="Previous" disabled={disallowed.has('skipping_prev')} onClick={() => send({ kind: 'previous' })}>
-        <SkipBack aria-hidden className="size-4" />
-      </IconButton>
+    <div className={cn('flex shrink-0 items-center gap-1', className)}>
+      {episode ? (
+        <JumpButton direction="back" playback={playback} progressMs={progressMs} send={send} iconClassName="size-5" />
+      ) : (
+        <IconButton label="Previous" disabled={disallowed.has('skipping_prev')} onClick={() => send({ kind: 'previous' })}>
+          <SkipBack aria-hidden className="size-4" />
+        </IconButton>
+      )}
       <PlayPause playback={playback} send={send} />
-      <IconButton label="Next" disabled={disallowed.has('skipping_next')} onClick={() => send({ kind: 'next' })}>
-        <SkipForward aria-hidden className="size-4" />
-      </IconButton>
-      <JumpButton direction="forward" playback={playback} progressMs={progressMs} send={send} iconClassName="size-5" />
+      {episode ? (
+        <JumpButton direction="forward" playback={playback} progressMs={progressMs} send={send} iconClassName="size-5" />
+      ) : (
+        <IconButton label="Next" disabled={disallowed.has('skipping_next')} onClick={() => send({ kind: 'next' })}>
+          <SkipForward aria-hidden className="size-4" />
+        </IconButton>
+      )}
     </div>
   )
 }

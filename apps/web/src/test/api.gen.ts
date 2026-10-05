@@ -2065,6 +2065,9 @@ export interface components {
             };
             imageUrl: string | null;
             thumbUrl: string | null;
+            /** @description Plain text, at most 2000 characters. */
+            description: string | null;
+            rating: components["schemas"]["Rating"];
         };
         /** @description The Spotify account isn't Premium, which every player call needs. */
         PremiumRequiredError: {

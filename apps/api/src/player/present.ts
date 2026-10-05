@@ -4,6 +4,8 @@ import { pickImage, type SpotifyDevice, type SpotifyPlaybackState, type SpotifyP
 import { eq } from 'drizzle-orm'
 import { loadArtistGenres, TRACK_GENRES, type GenreRef as Genre } from '../genres/queries.ts'
 import { ArtistRef, ContextRef, GenreRef, IsoDateTime, Rating } from '../lib/schemas.ts'
+import { DESCRIPTION_LIMIT } from '../podcasts/catalog.ts'
+import { loadEpisodeRatings } from '../podcasts/ratings.ts'
 import { loadRatings } from '../tracks/ratings.ts'
 import { inContext } from './in-context.ts'
 
@@ -59,6 +61,8 @@ const EpisodeItem = z
     show: z.object({ id: z.string(), name: z.string() }),
     imageUrl: z.string().nullable(),
     thumbUrl: z.string().nullable(),
+    description: z.string().nullable().openapi({ description: `Plain text, at most ${DESCRIPTION_LIMIT} characters.` }),
+    rating: Rating,
   })
   .openapi('PlayerEpisode')
 
@@ -126,7 +130,10 @@ export function toRememberedDevice(remembered: PlayerDevice): z.infer<typeof Lis
   }
 }
 
-/** What the app adds to Spotify's items: the user's ratings by track id, and genres by artist id. */
+/**
+ * What the app adds to Spotify's items: the user's ratings by track or episode id (Spotify's ids
+ * never clash), and genres by artist id.
+ */
 export type ItemLookups = { ratings: ReadonlyMap<string, number>; genres: ReadonlyMap<string, Genre[]> }
 
 export function toItem(item: SpotifyPlayable, { ratings, genres }: ItemLookups): z.infer<typeof PlayerItem> {
@@ -141,6 +148,8 @@ export function toItem(item: SpotifyPlayable, { ratings, genres }: ItemLookups):
       show: { id: item.show.id, name: item.show.name },
       imageUrl: pickImage(item.images, 300),
       thumbUrl: pickImage(item.images, 64),
+      description: item.description?.slice(0, DESCRIPTION_LIMIT) || null,
+      rating: ratings.get(item.id) ?? null,
     }
   }
   return {
@@ -198,19 +207,21 @@ export async function toPlayback(db: Db, userId: string, state: SpotifyPlaybackS
   }
 }
 
-/** The user's ratings of the tracks among `items` and their artists' genres (episodes have neither). */
+/** The user's ratings of the tracks and episodes among `items`, and the tracks' artists' genres. */
 export async function lookupsFor(db: Db, userId: string, items: SpotifyPlayable[]): Promise<ItemLookups> {
   const tracks = items.flatMap((item) => (item.type === 'track' ? [item] : []))
-  const [ratings, genres] = await Promise.all([
+  const episodeIds = items.flatMap((item) => (item.type === 'episode' ? [item.id] : []))
+  const [trackRatings, episodeRatings, genres] = await Promise.all([
     loadRatings(
       db,
       userId,
       tracks.flatMap((track) => (track.id ? [track.id] : [])),
     ),
+    loadEpisodeRatings(db, userId, episodeIds),
     loadArtistGenres(
       db,
       tracks.flatMap((track) => track.artists.map((artist) => artist.id)),
     ),
   ])
-  return { ratings, genres }
+  return { ratings: new Map([...trackRatings, ...episodeRatings]), genres }
 }

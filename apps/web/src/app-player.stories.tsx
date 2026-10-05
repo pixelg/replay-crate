@@ -1,7 +1,7 @@
 import preview from '#storybook/preview'
 import { HttpResponse } from 'msw'
 import { expect, screen, waitFor, within } from 'storybook/test'
-import { devices, pausedPlayback, playback, queue } from './test/fixtures.ts'
+import { devices, episodePlayback, pausedPlayback, playback, queue } from './test/fixtures.ts'
 import { defaultHandlers, http } from './test/handlers.ts'
 import { App } from './test/app-story.tsx'
 import { playerRequests, preloadRoutes, recordPlayerCommands } from './test/app-story-helpers.ts'
@@ -243,6 +243,73 @@ export const PlayerJumpsSeconds = meta.story({
     await waitFor(() => expect(playerRequests).toHaveBeenLastCalledWith('seek', { positionMs: 66_000 }))
     await userEvent.click(panel.getByRole('button', { name: 'Forward 15 seconds' }))
     await waitFor(() => expect(playerRequests).toHaveBeenLastCalledWith('seek', { positionMs: 81_000 }))
+  },
+})
+
+/** A seek leaves Up next's play buttons be: only a command changing what plays next holds them. */
+export const PlayerSeekKeepsUpNext = meta.story({
+  args: { path: '/player' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    playerRequests.mockClear()
+    msw.use(
+      http.put('/api/v1/player/seek', async ({ request, response }) => {
+        playerRequests('seek', await request.json())
+        await new Promise((resolve) => setTimeout(resolve, 1_000))
+        return response(204).empty()
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    const playNow = await main.findByRole('button', { name: 'Play Crate Digger now' })
+    main.getByRole('slider', { name: 'Seek' }).focus()
+    await userEvent.keyboard('{End}')
+    await waitFor(() => expect(playerRequests).toHaveBeenCalledWith('seek', { positionMs: 213_000 }))
+    await expect(playNow).toBeEnabled()
+  },
+})
+
+/** An episode: its page and its show's are a click away, it can be rated, and what it's about shows below. */
+export const PlayerEpisode = meta.story({
+  args: { path: '/player' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/player', ({ response }) => response(200).json({ playback: episodePlayback })))
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    const panel = within(await main.findByRole('region', { name: 'The History of the Breakbeat' }))
+    await expect(panel.getByRole('link', { name: 'The History of the Breakbeat' })).toHaveAttribute('href', '/episodes/e1')
+    await expect(panel.getByRole('link', { name: 'Sample Science' })).toHaveAttribute('href', '/shows/s1')
+    const rating = panel.getByRole('radiogroup', { name: 'Rating for The History of the Breakbeat' })
+    await userEvent.click(within(rating).getByRole('radio', { name: '4 stars' }))
+    await waitFor(() => expect(within(rating).getByRole('radio', { name: '4 stars' })).toHaveAttribute('aria-checked', 'true'))
+
+    // About: a good part of it on a big screen, all of it on request.
+    const about = within(main.getByText('About', { selector: '[data-slot=card-title]' }).closest<HTMLElement>('[data-slot=card]')!)
+    const text = about.getByText(/^Where the break came from/)
+    await expect(getComputedStyle(text).webkitLineClamp).toBe('6')
+    await userEvent.click(about.getByRole('button', { name: 'Show more' }))
+    await expect(about.getByRole('button', { name: 'Show less' })).toHaveAttribute('aria-expanded', 'true')
+    await expect(getComputedStyle(text).webkitLineClamp).toBe('none')
+    await userEvent.click(about.getByRole('button', { name: 'Show less' }))
+    await expect(about.getByRole('button', { name: 'Show more' })).toHaveAttribute('aria-expanded', 'false')
+  },
+})
+
+/** On a phone, About keeps to two lines until asked. */
+export const PlayerEpisodeOnPhone = meta.story({
+  args: { path: '/player' },
+  globals: { viewport: { value: 'mobile2', isRotated: false } },
+  beforeEach({ msw }) {
+    msw.use(http.get('/api/v1/player', ({ response }) => response(200).json({ playback: episodePlayback })))
+  },
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    const text = await main.findByText(/^Where the break came from/)
+    await expect(getComputedStyle(text).webkitLineClamp).toBe('2')
+    await expect(main.getByRole('button', { name: 'Show more' })).toBeVisible()
   },
 })
 
