@@ -44,7 +44,7 @@ export const ListenItem = z
     listenedMs: z.number().int().openapi({ description: 'How much of the episode was heard (at 2×, twice the time on the clock).' }),
     startPositionMs: z.number().int().nullable(),
     endPositionMs: z.number().int().nullable(),
-    source: z.enum(schema.playSource.enumValues),
+    source: z.enum(schema.listenSource.enumValues),
     episode: EpisodeSummary,
   })
   .openapi('ListenItem')

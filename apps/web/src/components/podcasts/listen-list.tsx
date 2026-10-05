@@ -11,6 +11,7 @@ import { EpisodeNameLink, EpisodeProgress, EpisodeShortcuts, PlayEpisodeButton, 
 import { EpisodeActions } from './episode-actions.tsx'
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
+const sinceFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })
 
 // Day headings stick under the header, and under Now playing when that's there (see HistoryList).
 const headingClass =
@@ -22,7 +23,9 @@ const timeClass = 'shrink-0 text-right text-xs text-muted-foreground tabular-num
 /**
  * Podcast listens under sticky day headings (the day each ended), newest first. An episode heard
  * more than once in a day is one row: at the time of the day's last listen, with the time heard
- * added up. The listens themselves are all still recorded.
+ * added up. The listens themselves are all still recorded. An estimate (heard while the app wasn't
+ * watching, found from Spotify's resume point) sits on the day it was found, marked as such, with
+ * when it could have been.
  */
 export function ListenList({
   listens,
@@ -55,18 +58,31 @@ export function ListenList({
   )
 }
 
+type DayListen = ListenItem & {
+  /** Some of the time heard is an estimate. */
+  approximate: boolean
+}
+
 /** A day's listens, one per episode: the newest, with the time heard in all of them. */
-function byEpisode(listens: ListenItem[]): ListenItem[] {
-  const combined = new Map<string, ListenItem>()
+function byEpisode(listens: ListenItem[]): DayListen[] {
+  const combined = new Map<string, DayListen>()
   for (const listen of listens) {
     const newer = combined.get(listen.episode.id)
-    combined.set(listen.episode.id, newer ? { ...newer, listenedMs: newer.listenedMs + listen.listenedMs } : listen)
+    const estimated = listen.source === 'estimate'
+    combined.set(
+      listen.episode.id,
+      newer
+        ? { ...newer, listenedMs: newer.listenedMs + listen.listenedMs, approximate: newer.approximate || estimated }
+        : { ...listen, approximate: estimated },
+    )
   }
   return [...combined.values()]
 }
 
-function ListenRow({ listen, playing }: { listen: ListenItem; playing: boolean }) {
+function ListenRow({ listen, playing }: { listen: DayListen; playing: boolean }) {
   const { episode } = listen
+  const estimate = listen.source === 'estimate'
+  const listened = `${listen.approximate ? '~' : ''}${formatListened(listen.listenedMs)}`
   return (
     <TrackRow
       playing={playing}
@@ -78,8 +94,13 @@ function ListenRow({ listen, playing }: { listen: ListenItem; playing: boolean }
           {/* On phones the time listened is here, leaving the right-hand column to the time. */}
           <span className="@2xl:hidden">
             {episode.progress && ' · '}
-            {formatListened(listen.listenedMs)} listened
+            {listened} listened
           </span>
+          {estimate && (
+            <span>
+              {' · '}heard since <time dateTime={listen.startedAt}>{sinceFormat.format(new Date(listen.startedAt))}</time>
+            </span>
+          )}
         </EpisodeProgress>
       }
       play={<PlayEpisodeButton episode={episode} />}
@@ -89,11 +110,16 @@ function ListenRow({ listen, playing }: { listen: ListenItem; playing: boolean }
       side={
         <>
           <p className={timeClass}>
-            <time dateTime={listen.endedAt} className="block">
-              {timeFormat.format(new Date(listen.endedAt))}
-            </time>
+            {/* An estimate has no time of its own: when it could have been is on the progress line. */}
+            {estimate ? (
+              <span className="block">Estimated</span>
+            ) : (
+              <time dateTime={listen.endedAt} className="block">
+                {timeFormat.format(new Date(listen.endedAt))}
+              </time>
+            )}
             {/* On phones it's on the progress line instead. */}
-            <span className="hidden @2xl:block">{formatListened(listen.listenedMs)}</span>
+            <span className="hidden @2xl:block">{listened}</span>
           </p>
         </>
       }

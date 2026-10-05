@@ -3,7 +3,7 @@ import { HttpResponse } from 'msw'
 import { expect, screen, waitFor, within } from 'storybook/test'
 import { setMode } from './lib/mode.ts'
 import type { createAppRouter } from './router.ts'
-import { episodePlayback } from './test/fixtures.ts'
+import { episodePlayback, estimatedListen, listensPage } from './test/fixtures.ts'
 import { defaultHandlers, http } from './test/handlers.ts'
 import { App } from './test/app-story.tsx'
 import { preloadRoutes } from './test/app-story-helpers.ts'
@@ -39,7 +39,7 @@ export const SwitchesHistoryToPodcasts = meta.story({
     await expect(sidebar.getByRole('button', { name: 'Podcasts' })).toHaveAttribute('aria-pressed', 'true')
     // History lists listens now, and the library tab is Episodes.
     await expect(await main.findByRole('link', { name: 'Digging in Osaka' })).toBeVisible()
-    await expect(main.queryByRole('button', { name: 'Sync' })).toBeNull()
+    await expect(main.getByText("Every episode you've listened to, and how far you got.")).toBeVisible()
     const nav = sidebar.getByRole('navigation', { name: 'Main' })
     await expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Player', 'History', 'Episodes', 'Playlists', 'Stats'])
     // The player carries on as it was.
@@ -69,6 +69,40 @@ export const PodcastHistory = meta.story({
     const yesterday = within(main.getByRole('region', { name: 'Yesterday' }))
     await expect(yesterday.getAllByRole('link', { name: 'The History of the Breakbeat' })).toHaveLength(1)
     await expect(yesterday.getByText('18 min', { exact: true })).toBeInTheDocument()
+  },
+})
+
+/**
+ * Spotify's recently-played leaves episodes out, so podcast History's Sync asks for the followed
+ * shows' resume points: listening the app missed comes back as an estimate, marked as one, with
+ * when it could have been.
+ */
+export const PodcastHistorySyncsMissedListening = meta.story({
+  beforeEach({ msw }) {
+    inPodcastMode()
+    let synced = false
+    msw.use(
+      http.post('/api/v1/history/listens/sync', ({ response }) => {
+        synced = true
+        return response(200).json({ total: 2, refreshed: 2, estimated: 1 })
+      }),
+      http.get('/api/v1/history/listens', ({ response }) =>
+        response(200).json({ ...listensPage, items: synced ? [estimatedListen, ...listensPage.items] : listensPage.items }),
+      ),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByRole('link', { name: 'Digging in Osaka' })).toBeVisible()
+    await expect(main.queryByRole('link', { name: 'Loops for the Weekend' })).toBeNull()
+
+    await userEvent.click(main.getByRole('button', { name: 'Sync' }))
+    await expect(await main.findByText("Synced: 1 estimated listen from Spotify's resume points")).toBeVisible()
+    const today = within(main.getByRole('region', { name: 'Today' }))
+    await expect(await today.findByRole('link', { name: 'Loops for the Weekend' })).toBeVisible()
+    await expect(today.getByText('Estimated', { exact: true })).toBeVisible()
+    await expect(today.getByText('~30 min', { exact: true })).toBeVisible()
+    await expect(today.getByText(/heard since/)).toBeVisible()
   },
 })
 

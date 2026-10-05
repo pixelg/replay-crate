@@ -44,6 +44,7 @@ import { useJustPlayed, withJustPlayed } from '../../lib/just-played.ts'
 import { getMode, useMode } from '../../lib/mode.ts'
 import { isMonthSort, type MonthSort, type MonthView } from '../../lib/month-view.ts'
 import { useNowPlaying, usePlayingEpisodeId, usePlayingTrackId } from '../../lib/use-player.ts'
+import { useListensSync } from '../../lib/use-listens-sync.ts'
 import { useSync } from '../../lib/use-sync.ts'
 
 /** A genre id from the URL: a positive whole number, else none. */
@@ -615,8 +616,8 @@ function useListens(page: number, size: PageSize, filter: ListensFilter, before:
 
 /**
  * Podcast History: every listen to an episode, under the day it ended, with how much was heard
- * and how far through the episode is. Listens record themselves as the player is looked at, so
- * there's no sync button, and no timeline yet.
+ * and how far through the episode is. Listens record themselves as the player is looked at; Sync
+ * catches up on listening the app missed, as estimates from the followed shows' resume points.
  */
 function PodcastHistoryPage() {
   const search = Route.useSearch()
@@ -632,6 +633,7 @@ function PodcastHistoryPage() {
   // After a jump the list reads from the past, so what's playing now doesn't head it.
   const playingEpisode = nowPlaying?.item.type === 'episode' && before === undefined ? nowPlaying.item : null
   const [nowPlayingRef, nowPlayingHeight] = useHeight()
+  const { sync, isSyncing, result: synced, error: syncError } = useListensSync()
 
   const lastPage = total !== undefined && size !== 'all' ? pageCount(total, size) : undefined
   useEffect(() => {
@@ -647,21 +649,36 @@ function PodcastHistoryPage() {
 
   return (
     <div style={{ '--now-playing-height': `${nowPlayingHeight}px` } as CSSProperties}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <PageHeader title="History" description="Every episode you've listened to, and how far you got." />
-        <HistoryFilter
-          filter={{
-            label: 'Show',
-            allLabel: 'All shows',
-            options: shows.map((known) => ({ value: known.id, name: known.name, count: known.listens })),
-            value: show,
-            onChange: (next) => void navigate({ search: (prev) => ({ size: prev.size, before: prev.before, when: prev.when, show: next }) }),
-          }}
-          when={when}
-          // A date range and a jump into the past don't mix: the range wins.
-          onWhenChange={(next) => void navigate({ search: (prev) => ({ size: prev.size, show: prev.show, when: next }) })}
-        />
-      </div>
+      <PageHeader
+        title="History"
+        description="Every episode you've listened to, and how far you got."
+        status={
+          <>
+            {synced && !isSyncing && <p>{syncedStatus(synced.estimated)}</p>}
+            {syncError && !isSyncing && <InlineError error={syncError} action="Sync" />}
+          </>
+        }
+        actions={
+          <>
+            <HistoryFilter
+              filter={{
+                label: 'Show',
+                allLabel: 'All shows',
+                options: shows.map((known) => ({ value: known.id, name: known.name, count: known.listens })),
+                value: show,
+                onChange: (next) => void navigate({ search: (prev) => ({ size: prev.size, before: prev.before, when: prev.when, show: next }) }),
+              }}
+              when={when}
+              // A date range and a jump into the past don't mix: the range wins.
+              onWhenChange={(next) => void navigate({ search: (prev) => ({ size: prev.size, show: prev.show, when: next }) })}
+            />
+            <Button variant="secondary" size="sm" onClick={() => sync()} disabled={isSyncing}>
+              <RefreshCw aria-hidden className={cn('size-4', isSyncing && 'motion-safe:animate-spin')} />
+              {isSyncing ? 'Syncing…' : 'Sync'}
+            </Button>
+          </>
+        }
+      />
 
       {before !== undefined && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2 text-sm">
@@ -723,9 +740,15 @@ function PodcastHistoryPage() {
       ) : (
         <EmptyState icon={Podcast} title="No podcast listens yet">
           Play an episode on Spotify. Replay Crate records it as it plays: every couple of minutes while it's running,
-          and as you watch here.
+          and as you watch here. Press Sync to catch up on what you heard while it wasn't running.
         </EmptyState>
       )}
     </div>
   )
+}
+
+/** What podcast History's Sync found. */
+function syncedStatus(estimated: number) {
+  if (!estimated) return 'Synced: nothing missed'
+  return `Synced: ${estimated} estimated ${estimated === 1 ? 'listen' : 'listens'} from Spotify's resume points`
 }

@@ -119,6 +119,7 @@ export const handlers = {
       const { items, rest } = pageBy(matching, query)
       return response(200).json({ ...listensPage, items, ...rest })
     }),
+    http.post('/api/v1/history/listens/sync', ({ response }) => response(200).json({ total: 2, refreshed: 2, estimated: 0 })),
     http.get('/api/v1/history/listens/shows', ({ response }) => response(200).json({ shows: listenedShows })),
     http.get('/api/v1/episodes', ({ query, response }) => {
       const unfinished = query.get('unfinished') === 'true'

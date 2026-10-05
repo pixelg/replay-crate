@@ -740,6 +740,37 @@
           "plays"
         ]
       },
+      "ForbiddenError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "forbidden"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "NotFoundError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "not_found"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
       "ListenedShow": {
         "allOf": [
           {
@@ -816,7 +847,8 @@
             "type": "string",
             "enum": [
               "poll",
-              "import"
+              "import",
+              "estimate"
             ]
           },
           "episode": {
@@ -904,37 +936,6 @@
           "fullyPlayed"
         ],
         "description": "Null when the user has never played it."
-      },
-      "ForbiddenError": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string",
-            "enum": [
-              "forbidden"
-            ]
-          },
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "error"
-        ]
-      },
-      "NotFoundError": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string",
-            "enum": [
-              "not_found"
-            ]
-          }
-        },
-        "required": [
-          "error"
-        ]
       },
       "TrackDetail": {
         "type": "object",
@@ -1271,7 +1272,8 @@
                   "type": "string",
                   "enum": [
                     "poll",
-                    "import"
+                    "import",
+                    "estimate"
                   ]
                 }
               },
@@ -4510,6 +4512,115 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/history/listens/sync": {
+      "post": {
+        "tags": [
+          "History"
+        ],
+        "operationId": "syncListens",
+        "summary": "Catch up on podcast listening",
+        "description": "Spotify's recently-played never lists episodes, so this reads the shows you follow and refreshes each one's latest episodes now (skipping shows refreshed in the last 10 minutes). Where a resume point moved on while the app wasn't watching the player, the difference is recorded as an `estimate` listen spanning the window it happened in. Needs the `user-library-read` scope.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Caught up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer",
+                      "description": "Shows followed."
+                    },
+                    "refreshed": {
+                      "type": "integer",
+                      "description": "Shows whose latest episodes were fetched."
+                    },
+                    "estimated": {
+                      "type": "integer",
+                      "description": "Estimated listens recorded."
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "refreshed",
+                    "estimated"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthRequiredError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
                 }
               }
             }

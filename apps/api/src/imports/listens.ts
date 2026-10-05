@@ -39,7 +39,9 @@ export async function addListens(db: Db, importId: number, userId: string, liste
 /**
  * Moves staged listens whose episode is in the catalog into `episode_listens` (optionally only
  * for `episodeIds`), skipping any that overlap a listen already recorded, then clears them from
- * staging. Safe to run repeatedly: a listen imported twice starts at the same moment.
+ * staging. Imported listens are the real thing an `estimate` guessed at: one of the same episode
+ * ending inside an estimate's window replaces it. Safe to run repeatedly: a listen imported twice
+ * starts at the same moment.
  */
 export async function promoteListens(db: Db, episodeIds?: string[]): Promise<void> {
   if (episodeIds && !episodeIds.length) return
@@ -52,6 +54,17 @@ export async function promoteListens(db: Db, episodeIds?: string[]): Promise<voi
   const overlap = sql.raw(`interval '${LISTEN_OVERLAP}'`)
 
   await db.execute(sql`
+    delete from episode_listens el
+    where el.source = 'estimate'
+      and exists (
+        select 1 from import_listens il
+        where il.user_id = el.user_id
+          and il.episode_id = el.episode_id
+          and exists (select 1 from episodes e where e.id = il.episode_id) ${onlyEpisodes}
+          and il.ended_at between el.started_at - ${overlap} and el.ended_at + ${overlap}
+      )
+  `)
+  await db.execute(sql`
     insert into episode_listens (user_id, episode_id, started_at, ended_at, last_seen_at, listened_ms, source)
     select il.user_id, il.episode_id, il.ended_at - il.ms_played * interval '1 millisecond', il.ended_at, il.ended_at, il.ms_played, 'import'
     from import_listens il
@@ -60,6 +73,7 @@ export async function promoteListens(db: Db, episodeIds?: string[]): Promise<voi
         select 1 from episode_listens el
         where el.user_id = il.user_id
           and el.episode_id = il.episode_id
+          and el.source <> 'estimate'
           and el.started_at <= il.ended_at + ${overlap}
           and el.ended_at >= il.ended_at - il.ms_played * interval '1 millisecond' - ${overlap}
       )

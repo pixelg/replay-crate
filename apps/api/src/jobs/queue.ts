@@ -6,7 +6,8 @@ import { genreHandlers } from '../genres/jobs.ts'
 import { getAccessToken, ReauthRequiredError } from '../spotify/access-token.ts'
 import { discardEpisode, promoteListens } from '../imports/listens.ts'
 import { discardTrack, promote } from '../imports/service.ts'
-import { saveProgress, upsertEpisodes } from '../podcasts/catalog.ts'
+import { upsertEpisodes } from '../podcasts/catalog.ts'
+import { saveResumePoint } from '../podcasts/estimates.ts'
 import { parseEpisodeJobRef } from '../podcasts/listens.ts'
 import { refreshShowEpisodes } from '../podcasts/shows.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
@@ -49,8 +50,9 @@ const handlers: Record<JobKind, Handler> = {
     },
   },
   /**
-   * Fetch an episode for its details (the player leaves some out) and the user's resume point,
-   * then move any imported listens that were waiting for it into history.
+   * Fetch an episode for its details (the player leaves some out), move any imported listens that
+   * were waiting for it into history, then store the user's resume point (an estimated listen if
+   * it moved on unseen).
    */
   episode: {
     api: 'spotify',
@@ -58,15 +60,19 @@ const handlers: Record<JobKind, Handler> = {
       const { userId, episodeId } = parseEpisodeJobRef(ref)
       const item = await deps.spotify.getEpisode(await accessToken(), episodeId)
       await upsertEpisodes(deps.db, [item])
+      await promoteListens(deps.db, [episodeId])
       if (item.resume_point) {
-        const { fully_played, resume_position_ms } = item.resume_point
-        await saveProgress(
+        await saveResumePoint(
           deps.db,
-          { userId, episodeId, resumePositionMs: resume_position_ms, fullyPlayed: fully_played, authoritative: true },
+          {
+            userId,
+            episode: { id: item.id, durationMs: item.duration_ms, releaseDate: item.release_date || null },
+            resumePositionMs: item.resume_point.resume_position_ms,
+            fullyPlayed: item.resume_point.fully_played,
+          },
           deps.now?.() ?? new Date(),
         )
       }
-      await promoteListens(deps.db, [episodeId])
     },
     gone: (deps, ref) => {
       const { userId, episodeId } = parseEpisodeJobRef(ref)
@@ -76,7 +82,9 @@ const handlers: Record<JobKind, Handler> = {
   /** Fetch a followed show's latest episodes, with the user's resume points. */
   show: {
     api: 'spotify',
-    run: async (deps, ref, { accessToken }) => refreshShowEpisodes(deps, ref, await accessToken()),
+    run: async (deps, ref, { accessToken }) => {
+      await refreshShowEpisodes(deps, ref, await accessToken())
+    },
   },
   ...genreHandlers,
 }

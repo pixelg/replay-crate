@@ -72,6 +72,30 @@ describe('streaming history import', () => {
     expect((await storedPlays()).filter((p) => p.source === 'import')).toHaveLength(1)
   })
 
+  it('takes the file again while the first import still waits on lookups, without starting over', async () => {
+    const plays = [
+      { ts: '2025-01-01T12:00:00Z', trackId: NEW },
+      { ts: '2026-09-19T08:00:00Z', trackId: KNOWN },
+    ]
+    await importPlays(plays)
+    // The same file again, now with a podcast listen the first upload couldn't send.
+    const { id } = await json(await send('POST', '/api/v1/imports'))
+    await send('POST', `/api/v1/imports/${id}/plays`, {
+      plays: plays.map((p) => ({ ms: 200_000, ...p })),
+      listens: [{ ts: '2026-09-18T08:00:00Z', ms: 600_000, episodeId: 'Episode000000000000000' }],
+    })
+    expect(await json(await send('POST', `/api/v1/imports/${id}/finish`))).toEqual({ tracksToFetch: 1, episodesToFetch: 1 })
+    // The track lookup already queued is the one both imports wait on.
+    expect(await ctx.db.select().from(schema.jobs).where(eq(schema.jobs.kind, 'track'))).toHaveLength(1)
+
+    await runJobs(ctx.deps, { intervalMs: 0 })
+    expect(ctx.spotify.getTrack).toHaveBeenCalledOnce()
+    expect((await storedPlays()).filter((p) => p.source === 'import')).toEqual([
+      { trackId: NEW, playedAt: new Date('2025-01-01T12:00:00Z'), source: 'import', ms: 200_000 },
+      { trackId: KNOWN, playedAt: new Date('2026-09-19T08:00:00Z'), source: 'import', ms: 200_000 },
+    ])
+  })
+
   it('fetches unknown tracks in the background, then moves their plays over', async () => {
     const { id, finished } = await importPlays([
       { ts: '2025-01-01T12:00:00Z', trackId: NEW },

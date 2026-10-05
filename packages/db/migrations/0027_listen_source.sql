@@ -1,0 +1,2 @@
+CREATE TYPE "public"."listen_source" AS ENUM('poll', 'import', 'estimate');--> statement-breakpoint
+ALTER TABLE "episode_listens" ALTER COLUMN "source" SET DATA TYPE "public"."listen_source" USING "source"::text::"public"."listen_source";
