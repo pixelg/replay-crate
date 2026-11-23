@@ -34,3 +34,6 @@ coverage
 
 # Turborepo
 .turbo
+
+# Compose-only settings (PGDATA_DIR)
+.env

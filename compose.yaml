@@ -1,5 +1,7 @@
 # Local Postgres for development: `pnpm db:up` starts it, `pnpm db:down` stops it.
 # The data lives in the `pgdata` volume, so it survives restarts and `docker compose down`.
+# Set PGDATA_DIR (shell or a `.env` beside this file) to an absolute path to keep it in a
+# directory instead, e.g. one shared between Linux and Windows/WSL2 (see README, "Use it from Windows").
 # Neon takes over when the app is deployed; see DATABASE_URL in .env.schema.
 #
 # Elasticsearch and Kibana are optional (the `search` profile): `pnpm search:up` / `search:down`.
@@ -18,7 +20,7 @@ services:
       - 127.0.0.1:54320:5432
     volumes:
       # Postgres 18 images keep data in a versioned directory under /var/lib/postgresql.
-      - pgdata:/var/lib/postgresql
+      - ${PGDATA_DIR:-pgdata}:/var/lib/postgresql
     healthcheck:
       test: [CMD-SHELL, pg_isready -U replay -d replay_crate]
       interval: 2s
