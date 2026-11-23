@@ -89,6 +89,37 @@ For everyday use, run the built app and the API as one server on http://127.0.0.
 
 The app works on one origin only, so `http://127.0.0.1:4173` now moves you over to the ts.net address, and you sign in again there once. Install Tailscale on your phone or laptop to reach it from anywhere. Run `./scripts/install-service.sh` without an address to go back to local-only.
 
+## Use it from Windows (dual boot)
+
+If you dual boot Linux and Windows (WSL2 + Docker Desktop with WSL integration), both can use one database by keeping Postgres's data in a directory on the Linux disk and mounting that disk in WSL2. Only one OS runs at a time, so nothing touches the data concurrently.
+
+1. **Linux, once:** move the data out of the Docker volume into a directory on the shared ext4 disk and point Compose at it. The container's postgres user is uid 999, so the files must keep that owner (`cp -a` does).
+
+   ```bash
+   pnpm db:down
+   mkdir -p ~/replay-crate-pgdata
+   docker run --rm -v replay-crate_pgdata:/from -v ~/replay-crate-pgdata:/to alpine cp -a /from/. /to/
+   echo "PGDATA_DIR=$HOME/replay-crate-pgdata" > .env   # Compose reads it; `.env` is git-ignored
+   pnpm db:up
+   ```
+
+2. **Windows, each boot:** attach the Linux disk to WSL2 from an administrator PowerShell. Find the disk with `GET-CimInstance -query "SELECT * from Win32_DiskDrive"` (its `DeviceID` is the `\\.\PHYSICALDRIVEn` name), then:
+
+   ```powershell
+   wsl --mount \\.\PHYSICALDRIVE1 --partition 1 --type ext4
+   ```
+
+   It appears inside WSL at `/mnt/wsl/PHYSICALDRIVE1p1`. Never mount that disk in Windows itself, and turn off Windows Fast Startup (it can leave disks half-hibernated).
+
+3. **Windows, once:** in the WSL distro, clone this repo (or use the checkout on the mounted disk), put the data path in `.env`, and run as usual:
+
+   ```bash
+   echo "PGDATA_DIR=/mnt/wsl/PHYSICALDRIVE1p1/blee/replay-crate-pgdata" > .env
+   pnpm db:up
+   ```
+
+   Adjust the path to wherever `~/replay-crate-pgdata` sits on that disk (the `/home` partition's root is `/mnt/wsl/PHYSICALDRIVE1p1`, so `/home/blee/...` becomes `/mnt/wsl/PHYSICALDRIVE1p1/blee/...`). Postgres must be the same major version (18) on both sides; shut it down (`pnpm db:down`) before switching OS.
+
 ## Import your full history
 
 Replay Crate only sees plays (and podcast listens) from while it's running. To fill in everything before that, and any gaps since:
