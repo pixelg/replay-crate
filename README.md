@@ -103,22 +103,26 @@ If you dual boot Linux and Windows (WSL2 + Docker Desktop with WSL integration),
    pnpm db:up
    ```
 
-2. **Windows, each boot:** attach the Linux disk to WSL2 from an administrator PowerShell. Find the disk with `GET-CimInstance -query "SELECT * from Win32_DiskDrive"` (its `DeviceID` is the `\\.\PHYSICALDRIVEn` name), then:
+2. **Windows, each boot:** attach the Linux disk to WSL2 from an administrator PowerShell. `wsl --mount` takes the whole disk away from Windows, so the data must be on a disk Windows doesn't boot from (a Linux partition on the Windows system disk can't be mounted), and any other partitions on that disk (a `D:` drive, say) go offline while it's attached. Find the disk with `Get-CimInstance Win32_DiskDrive` and its partitions with `Get-Partition` (Linux ones have the GPT type `{0fc63daf-…}`); the disk's `DeviceID` is the `\\.\PHYSICALDRIVEn` name. For example, for partition 1 of disk 2:
 
    ```powershell
-   wsl --mount \\.\PHYSICALDRIVE1 --partition 1 --type ext4
+   wsl --mount \\.\PHYSICALDRIVE2 --partition 1 --type ext4
    ```
 
-   It appears inside WSL at `/mnt/wsl/PHYSICALDRIVE1p1`. Never mount that disk in Windows itself, and turn off Windows Fast Startup (it can leave disks half-hibernated).
+   It appears inside WSL at `/mnt/wsl/PHYSICALDRIVE2p1`. Never mount that disk in Windows itself, and turn off Windows Fast Startup (it can leave disks half-hibernated).
 
-3. **Windows, once:** in the WSL distro, clone this repo (or use the checkout on the mounted disk), put the data path in `.env`, and run as usual:
+3. **Windows, once:** install Node 24 in the WSL distro with [nvm](https://github.com/nvm-sh/nvm) (`nvm install 24`) and pnpm with `corepack enable`, then clone this repo into the distro's own filesystem, copy `.env.local` over from the Linux checkout, put the data path in `.env`, and run as usual:
 
    ```bash
-   echo "PGDATA_DIR=/mnt/wsl/PHYSICALDRIVE1p1/blee/replay-crate-pgdata" > .env
-   pnpm db:up
+   cp /mnt/wsl/PHYSICALDRIVE2p1/blee/dev/pixelg/replay-crate/.env.local .
+   echo "PGDATA_DIR=/mnt/wsl/PHYSICALDRIVE2p1/blee/replay-crate-pgdata" > .env
+   pnpm install
+   pnpm dev   # or pnpm serve
    ```
 
-   Adjust the path to wherever `~/replay-crate-pgdata` sits on that disk (the `/home` partition's root is `/mnt/wsl/PHYSICALDRIVE1p1`, so `/home/blee/...` becomes `/mnt/wsl/PHYSICALDRIVE1p1/blee/...`). Postgres must be the same major version (18) on both sides; shut it down (`pnpm db:down`) before switching OS.
+   Adjust the paths to where things sit on that disk: a `/home` partition's root is `/mnt/wsl/PHYSICALDRIVE2p1`, so `/home/blee/...` becomes `/mnt/wsl/PHYSICALDRIVE2p1/blee/...`. Don't run Windows from the Linux checkout on the mounted disk: its `.env` must keep the Linux path. Pointed at `/mnt/wsl/...`, it makes Linux's Postgres (and the `replay-crate` service) start on an empty directory, which Docker creates, and so on a fresh, empty database without any error. Postgres must be the same major version (18) on both sides.
+
+4. **Switching OS:** stop Postgres first (`pnpm db:down`). Leaving Windows, also detach the disk in an administrator PowerShell (`wsl --unmount \\.\PHYSICALDRIVE2`, or `wsl --shutdown`). Each OS has its own search index, while plays recorded on the other OS only reach that OS's index, so with Elasticsearch run `pnpm search:reindex` after switching. (`pnpm serve` starts Elasticsearch and fills a brand-new index by itself; `pnpm dev` needs `pnpm search:up` first.)
 
 ## Import your full history
 
