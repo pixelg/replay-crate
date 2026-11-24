@@ -120,6 +120,8 @@ describe('responses match the spec', () => {
     await call('GET', `/tracks?sort=first_played_oldest&cursor=${oldest}`)
     await call('GET', '/tracks/{id}', { id: '4uLU6hMCjMI75M1A2tKUQC' })
     await call('GET', '/tracks/{id}', { id: 'nope' })
+    await call('GET', '/tracks/{id}/plays-over-time', { id: '4uLU6hMCjMI75M1A2tKUQC' })
+    await call('GET', '/tracks/{id}/plays-over-time?range=all&tz=Nowhere/Land', { id: '4uLU6hMCjMI75M1A2tKUQC' })
     await call('GET', '/playlists')
     await call('GET', '/playlists?contains=episodes')
     await call('GET', '/playlists?contains=albums')

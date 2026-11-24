@@ -1,7 +1,7 @@
 import preview from '#storybook/preview'
 import { HttpResponse } from 'msw'
 import { expect, fn, screen, waitFor, within } from 'storybook/test'
-import { libraryPage, manyTracks } from './test/fixtures.ts'
+import { libraryPage, manyTracks, trackPlaysOverTime } from './test/fixtures.ts'
 import { defaultHandlers, http, pageBy } from './test/handlers.ts'
 import { App } from './test/app-story.tsx'
 import { playerRequests, preloadRoutes, recordPlays, requests, rowNames, rowsOf } from './test/app-story-helpers.ts'
@@ -22,6 +22,32 @@ const meta = preview.meta({
 export const TrackMobile = meta.story({
   args: { path: '/tracks/t1' },
   globals: { viewport: { value: 'mobile2', isRotated: false } },
+})
+
+/** A chart of its plays over time sits above the list of recent plays, with a range to pick. */
+export const TrackPlaysOverTimeChart = meta.story({
+  args: { path: '/tracks/t1' },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get('/api/v1/tracks/{id}/plays-over-time', ({ query, response }) => {
+        const range = (query.get('range') as '90d' | '1y' | 'all' | null) ?? '1y'
+        const series = trackPlaysOverTime(range)
+        // All time has nothing more; 90 days has none at all.
+        return response(200).json(range === '90d' ? { ...series, bucket: 'week', series: series.series.map((point) => ({ ...point, plays: 0 })) } : series)
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const section = within((await canvas.findByRole('heading', { name: 'Recent plays' })).closest('section')!)
+    await expect(await section.findByText('12 plays · per month')).toBeVisible()
+    await expect(section.getByRole('button', { name: 'Year' })).toHaveAttribute('aria-pressed', 'true')
+    await waitFor(() => expect(section.getByRole('application')).toBeVisible())
+    // The list stays under it.
+    await expect(section.getAllByRole('listitem').length).toBeGreaterThan(0)
+    await userEvent.click(section.getByRole('button', { name: '90 days' }))
+    await expect(await section.findByText('No plays in this range.')).toBeVisible()
+    await expect(section.getByText('0 plays · per week')).toBeVisible()
+  },
 })
 
 export const TrackNotFound = meta.story({

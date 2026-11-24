@@ -382,6 +382,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tracks/{id}/plays-over-time": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A track's plays over time
+         * @description Plays per bucket up to today, empty buckets as zeros, in local days of `tz`: `90d` by week (Monday first), `1y` by month, `all` by month from the first play (by year once that is more than three years ago; no points for a track never played). Counts the recording, whichever copy's id is given.
+         */
+        get: operations["getTrackPlaysOverTime"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tracks/{id}": {
         parameters: {
             query?: never;
@@ -1583,6 +1603,27 @@ export interface components {
             resumePositionMs: number;
             fullyPlayed: boolean;
         } | null;
+        TrackPlaysOverTime: {
+            /**
+             * @description The last 90 days, the last 12 months, or since the first play.
+             * @default 1y
+             * @enum {string}
+             */
+            range: "90d" | "1y" | "all";
+            /**
+             * @description IANA time zone for day boundaries.
+             * @default UTC
+             * @example America/Los_Angeles
+             */
+            tz: string;
+            /** @enum {string} */
+            bucket: "week" | "month" | "year";
+            series: {
+                /** @description Bucket start, YYYY-MM-DD. */
+                date: string;
+                plays: number;
+            }[];
+        };
         TrackDetail: {
             track: {
                 id: string;
@@ -3374,6 +3415,61 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    getTrackPlaysOverTime: {
+        parameters: {
+            query?: {
+                /** @description The last 90 days, the last 12 months, or since the first play. */
+                range?: "90d" | "1y" | "all";
+                /** @description IANA time zone for day boundaries. */
+                tz?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Spotify track id. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The series, echoing the query. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackPlaysOverTime"];
+                };
             };
             /** @description invalid_request */
             400: {

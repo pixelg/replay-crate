@@ -1,4 +1,5 @@
 import { createOpenApiHttp } from 'openapi-msw'
+import type { TrackPlaysOverTime } from '@replay-crate/api-client'
 import type { paths } from './api.gen.ts'
 import {
   devices,
@@ -37,6 +38,7 @@ import {
   statsTop,
   timeline,
   trackDetail,
+  trackPlaysOverTime,
 } from './fixtures.ts'
 
 /**
@@ -164,6 +166,9 @@ export const handlers = {
       return response(200).json({ ...libraryPage, ...rest, items })
     }),
     http.get('/api/v1/tracks/{id}', ({ response }) => response(200).json(trackDetail)),
+    http.get('/api/v1/tracks/{id}/plays-over-time', ({ query, response }) =>
+      response(200).json(trackPlaysOverTime((query.get('range') as TrackPlaysOverTime['range'] | null) ?? '1y')),
+    ),
   ],
   genres: [http.get('/api/v1/genres', ({ response }) => response(200).json({ genres }))],
   playlists: [

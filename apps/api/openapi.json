@@ -937,6 +937,58 @@
         ],
         "description": "Null when the user has never played it."
       },
+      "TrackPlaysOverTime": {
+        "type": "object",
+        "properties": {
+          "range": {
+            "type": "string",
+            "enum": [
+              "90d",
+              "1y",
+              "all"
+            ],
+            "default": "1y",
+            "description": "The last 90 days, the last 12 months, or since the first play."
+          },
+          "tz": {
+            "type": "string",
+            "default": "UTC",
+            "description": "IANA time zone for day boundaries.",
+            "example": "America/Los_Angeles"
+          },
+          "bucket": {
+            "type": "string",
+            "enum": [
+              "week",
+              "month",
+              "year"
+            ]
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "description": "Bucket start, YYYY-MM-DD."
+                },
+                "plays": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "date",
+                "plays"
+              ]
+            }
+          }
+        },
+        "required": [
+          "bucket",
+          "series"
+        ]
+      },
       "TrackDetail": {
         "type": "object",
         "properties": {
@@ -5281,6 +5333,107 @@
         "responses": {
           "204": {
             "description": "Unrated."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tracks/{id}/plays-over-time": {
+      "get": {
+        "tags": [
+          "Tracks"
+        ],
+        "operationId": "getTrackPlaysOverTime",
+        "summary": "A track's plays over time",
+        "description": "Plays per bucket up to today, empty buckets as zeros, in local days of `tz`: `90d` by week (Monday first), `1y` by month, `all` by month from the first play (by year once that is more than three years ago; no points for a track never played). Counts the recording, whichever copy's id is given.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify track id."
+            },
+            "required": true,
+            "description": "Spotify track id.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "90d",
+                "1y",
+                "all"
+              ],
+              "default": "1y",
+              "description": "The last 90 days, the last 12 months, or since the first play."
+            },
+            "required": false,
+            "description": "The last 90 days, the last 12 months, or since the first play.",
+            "name": "range",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "default": "UTC",
+              "description": "IANA time zone for day boundaries.",
+              "example": "America/Los_Angeles"
+            },
+            "required": false,
+            "description": "IANA time zone for day boundaries.",
+            "name": "tz",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The series, echoing the query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackPlaysOverTime"
+                }
+              }
+            }
           },
           "400": {
             "description": "invalid_request",
