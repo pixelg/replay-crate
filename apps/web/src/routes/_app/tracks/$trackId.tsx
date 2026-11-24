@@ -10,6 +10,7 @@ import { ContextChip } from '../../../components/context-chip.tsx'
 import { ErrorPage } from '../../../components/error-page.tsx'
 import { GenreChips, GenreCredit } from '../../../components/genre-chips.tsx'
 import { CreatePlaylistDialog } from '../../../components/create-playlist-dialog.tsx'
+import { TrackPlaysChart } from '../../../components/track-plays-chart.tsx'
 import { TrackRating } from '../../../components/star-rating.tsx'
 import { Button } from '../../../components/ui/button.tsx'
 import { api } from '../../../lib/api.ts'
@@ -123,6 +124,7 @@ function TrackPage() {
 
       {recentPlays.length > 0 && (
         <Section title="Recent plays">
+          <TrackPlaysChart trackId={track.id} />
           <ol className="flex flex-col divide-y divide-border">
             {recentPlays.map((play) => (
               <li key={play.playedAt} className="flex flex-wrap items-center justify-between gap-2 py-2">

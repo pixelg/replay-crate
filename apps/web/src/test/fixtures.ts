@@ -40,6 +40,7 @@ import type {
   StatsOverview,
   StatsTop,
   TrackDetail,
+  TrackPlaysOverTime,
 } from '@replay-crate/api-client'
 import { localDayKey } from '@replay-crate/core'
 
@@ -191,6 +192,21 @@ export const trackDetail: TrackDetail = {
     { id: 'p1', name: 'Late Night Crate', thumbUrl: null },
     { id: 'p2', name: 'Boom Bap Essentials', thumbUrl: null },
   ],
+}
+
+/** The last 12 months by month: quiet, then picked up again lately. */
+export function trackPlaysOverTime(range: TrackPlaysOverTime['range'] = '1y'): TrackPlaysOverTime {
+  const plays = [0, 0, 1, 0, 0, 0, 2, 1, 0, 3, 2, 3]
+  const now = new Date()
+  return {
+    range,
+    tz: 'UTC',
+    bucket: 'month',
+    series: plays.map((count, index) => {
+      const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (plays.length - 1 - index), 1))
+      return { date: month.toISOString().slice(0, 10), plays: count }
+    }),
+  }
 }
 
 export const playlistsList: PlaylistsList = {

@@ -11,6 +11,8 @@ import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { clearRating, loadRatings, rateTrack } from './ratings.ts'
 import { canonicalTrackId, isCopyOf } from './recordings.ts'
 import { decodeCursor, listTracks, TRACK_SORTS } from './library.ts'
+import { TRACK_RANGES, trackPlaysOverTime } from './plays-over-time.ts'
+import { timeZone } from '../stats/ranges.ts'
 
 const { albums, contexts, playlistItems, playlists, plays, tracks, userPlaylists } = schema
 
@@ -134,8 +136,38 @@ const getTrack = createRoute({
   responses: { 200: jsonResponse(TrackDetail, 'The track.'), ...errorResponses('unauthorized', 'not_found') },
 })
 
+const PlaysOverTimeQuery = z.object({
+  range: z.enum(TRACK_RANGES).default('1y').openapi({ description: 'The last 90 days, the last 12 months, or since the first play.' }),
+  tz: timeZone.default('UTC').openapi({ description: 'IANA time zone for day boundaries.', example: 'America/Los_Angeles' }),
+})
+
+const getPlaysOverTime = createRoute({
+  method: 'get',
+  path: '/tracks/{id}/plays-over-time',
+  tags: ['Tracks'],
+  operationId: 'getTrackPlaysOverTime',
+  summary: "A track's plays over time",
+  description:
+    'Plays per bucket up to today, empty buckets as zeros, in local days of `tz`: `90d` by week (Monday first), `1y` ' +
+    'by month, `all` by month from the first play (by year once that is more than three years ago; no points for a ' +
+    "track never played). Counts the recording, whichever copy's id is given.",
+  security: signedIn,
+  request: { params: TrackParams, query: PlaysOverTimeQuery },
+  responses: {
+    200: jsonResponse(
+      PlaysOverTimeQuery.extend({
+        bucket: z.enum(['week', 'month', 'year']),
+        series: z.array(z.object({ date: z.string().openapi({ description: 'Bucket start, YYYY-MM-DD.' }), plays: z.number().int() })),
+      }).openapi('TrackPlaysOverTime'),
+      'The series, echoing the query.',
+    ),
+    ...errorResponses('invalid_request', 'unauthorized'),
+  },
+})
+
 export function trackRoutes(deps: AppDeps) {
   const { db } = deps
+  const now = deps.now ?? (() => new Date())
   const auth = requireUser(deps)
 
   return createRouter()
@@ -161,6 +193,11 @@ export function trackRoutes(deps: AppDeps) {
     .openapi({ ...unrate, middleware: auth }, async (c) => {
       await clearRating(db, c.var.user.id, c.req.valid('param').id)
       return c.body(null, 204)
+    })
+    .openapi({ ...getPlaysOverTime, middleware: auth }, async (c) => {
+      const { range, tz } = c.req.valid('query')
+      const trackId = await canonicalTrackId(db, c.req.valid('param').id)
+      return c.json({ range, tz, ...(await trackPlaysOverTime(db, c.var.user.id, trackId, { range, tz, now: now() })) }, 200)
     })
     .openapi({ ...getTrack, middleware: auth }, async (c) => {
       const user = c.var.user

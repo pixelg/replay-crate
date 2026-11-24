@@ -291,6 +291,22 @@ export const trackQueryOptions = (api: ApiClient, trackId: string) =>
     },
   })
 
+export type TrackPlaysOverTime = InferResponseType<ApiClient['tracks'][':id']['plays-over-time']['$get'], 200>
+export type TrackPlaysRange = TrackPlaysOverTime['range']
+
+/** A track's plays per week, month or year. Under `['tracks', id]`, so it refreshes with the track. */
+export const trackPlaysOverTimeQueryOptions = (api: ApiClient, trackId: string, range: TrackPlaysRange, tz: string) =>
+  queryOptions({
+    queryKey: ['tracks', trackId, 'plays-over-time', range, tz],
+    queryFn: async (): Promise<TrackPlaysOverTime> => {
+      const endpoint = `GET /api/v1/tracks/${trackId}/plays-over-time`
+      return expectOk(
+        await send(endpoint, () => api.tracks[':id']['plays-over-time'].$get({ param: { id: trackId }, query: { range, tz } })),
+        endpoint,
+      )
+    },
+  })
+
 /**
  * The genres in the user's plays, most played first. Starts with `['plays']`: a sync can bring
  * new ones, and genres fill in as the background lookups get to artists.
