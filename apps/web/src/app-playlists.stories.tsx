@@ -38,6 +38,32 @@ export const Playlists = meta.story({
   },
 })
 
+/** The order is named (Spotify's by default), and the list sorts and narrows; the sort is remembered. */
+export const PlaylistsSortAndFilter = meta.story({
+  args: { path: '/playlists' },
+  play: async ({ canvas, userEvent }) => {
+    const names = () => canvas.getAllByRole('link', { name: /plays?$/ }).map((row) => within(row).getAllByRole('paragraph')[0]!.textContent)
+    await expect(await canvas.findByText(/3 playlists · in the order they have in Spotify/)).toBeVisible()
+    await expect(names()).toEqual(['Late Night Crate', 'Boom Bap Essentials', 'Road Trip (with Sam)'])
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Recently added to' }))
+    await waitFor(() => expect(names()).toEqual(['Boom Bap Essentials', 'Late Night Crate', 'Road Trip (with Sam)']))
+    await expect(canvas.getByText('Boom Bap Essentials').closest('a')!).toHaveTextContent(/Added to \d+ minutes ago/)
+    await expect(localStorage.getItem('rc:playlists-sort')).toBe('added')
+
+    await userEvent.click(canvas.getByRole('button', { name: 'A–Z' }))
+    await waitFor(() => expect(names()).toEqual(['Boom Bap Essentials', 'Late Night Crate', 'Road Trip (with Sam)']))
+    await userEvent.click(canvas.getByRole('button', { name: 'Never played' }))
+    await waitFor(() => expect(names()).toEqual(['Road Trip (with Sam)']))
+    await expect(canvas.getByText(/1 of 3 playlists · by name/)).toBeVisible()
+
+    await userEvent.type(canvas.getByRole('searchbox', { name: 'Filter playlists by name' }), 'crate')
+    await expect(await canvas.findByRole('heading', { name: 'No playlists match' })).toBeVisible()
+    await userEvent.click(canvas.getByRole('link', { name: 'Show all playlists' }))
+    await waitFor(() => expect(names()).toHaveLength(3))
+  },
+})
+
 /**
  * On a phone a long playlist name shortens instead of widening the list: nothing reaches past the
  * screen, so the plays stay in view and the fixed tabs stay put (#269).
