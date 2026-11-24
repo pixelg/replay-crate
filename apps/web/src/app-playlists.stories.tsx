@@ -242,6 +242,38 @@ export const PlaylistMovesTrackToTop = meta.story({
 })
 
 /**
+ * Rows drag to a new place: here from the keyboard, on the row's grip (Space, arrows, Space). The
+ * new order shows at once and is saved to Spotify. Sorted by plays, nothing drags.
+ */
+export const PlaylistDragsTrack = meta.story({
+  args: { path: '/playlists/p1' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    requests.mockClear()
+    msw.use(
+      http.put('/api/v1/playlists/{id}/items/move', async ({ request }) => {
+        requests(await request.json())
+        return HttpResponse.json({ ok: true })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const tracks = await canvas.findByRole('region', { name: 'Tracks' })
+    const names = () => rowsOf(tracks).map((row) => within(row).getAllByRole('link')[0]!.textContent)
+    await waitFor(() => expect(names()[3]).toBe('Searched And Played'))
+    within(tracks).getByRole('button', { name: 'Move Searched And Played' }).focus()
+    await userEvent.keyboard(' ')
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}{ArrowUp}')
+    await userEvent.keyboard(' ')
+    await waitFor(() => expect(requests).toHaveBeenCalledWith({ from: 3, to: 0 }))
+    await expect(names()[0]).toBe('Searched And Played')
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Most played' }))
+    await waitFor(() => expect(within(tracks).queryByRole('button', { name: /^Move / })).toBeNull())
+  },
+})
+
+/**
  * A playlist chip on a History row opens the playlist where that track is: on its page, scrolled
  * to it and marked. The playlist holds another copy of the recording, which counts.
  */

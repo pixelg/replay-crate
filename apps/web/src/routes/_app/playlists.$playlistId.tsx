@@ -15,6 +15,7 @@ import { EpisodeNameLink, EpisodeProgress, EpisodeShortcuts, PlayEpisodeButton, 
 import { EpisodeRating, TrackRating } from '../../components/star-rating.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { Segmented } from '../../components/ui/segmented.tsx'
+import { SortableList } from '../../components/sortable-list.tsx'
 import { api } from '../../lib/api.ts'
 import { useMode } from '../../lib/mode.ts'
 import { moveTargets } from '../../lib/playlist-moves.ts'
@@ -132,15 +133,21 @@ function PlaylistPage() {
             {edit.isPending && <p className="text-xs text-muted-foreground">Saving to Spotify…</p>}
             {edit.error && !edit.isPending && <InlineError error={edit.error} action="Updating the playlist" />}
           </div>
-          <ol className="flex flex-col divide-y divide-border" aria-busy={edit.isPending}>
-            {pageOfItems(sorted, page, size).map((item) => (
-              <li
-                key={`${item.position}-${item.track.id}`}
-                data-marked={item.position === marked || undefined}
-                className="rounded-md transition-colors duration-1000 data-marked:bg-accent"
-              >
+          {/* In the playlist's own order, rows drag to a new place (press and hold on a phone). */}
+          <SortableList
+            items={pageOfItems(sorted, page, size)}
+            getId={(item) => `${item.position}-${item.track.id}`}
+            getLabel={(item) => item.track.name}
+            disabled={sort !== 'order' || edit.isPending}
+            onMove={(item, target) => edit.mutateAsync({ kind: 'move', playlistId, from: item.position, to: target.position })}
+            className="flex flex-col divide-y divide-border"
+            aria-busy={edit.isPending}
+            itemClassName="rounded-md transition-colors duration-1000 data-marked:bg-accent"
+            isMarked={(item) => item.position === marked}
+            renderItem={(item, grip) => (
                 <PlaylistTrackRow
                   item={item}
+                  grip={grip}
                   playing={item.track.id === playingTrackId}
                   play={<PlayTrackButton track={item.track} from={{ uri: playlistUri, name: playlist.name }} />}
                   actions={
@@ -155,9 +162,8 @@ function PlaylistPage() {
                     />
                   }
                 />
-              </li>
-            ))}
-          </ol>
+            )}
+          />
           <ListPagination
             page={page}
             size={size}
@@ -191,17 +197,24 @@ function PlaylistEpisodes({ data }: { data: PlaylistDetail }) {
         {edit.isPending && <p className="text-xs text-muted-foreground">Saving to Spotify…</p>}
         {edit.error && !edit.isPending && <InlineError error={edit.error} action="Updating the playlist" />}
       </div>
-      <ol className="flex flex-col divide-y divide-border" aria-busy={edit.isPending}>
-        {episodes.map((item, index) => (
-          <li key={`${item.position}-${item.episode.id}`}>
+      <SortableList
+        items={episodes}
+        getId={(item) => `${item.position}-${item.episode.id}`}
+        getLabel={(item) => item.episode.name}
+        disabled={edit.isPending}
+        onMove={(item, target) => edit.mutateAsync({ kind: 'move', playlistId: playlist.id, from: item.position, to: target.position })}
+        className="flex flex-col divide-y divide-border"
+        aria-busy={edit.isPending}
+        renderItem={(item, grip) => (
             <PlaylistEpisodeRow
               item={item}
+              grip={grip}
               playing={item.episode.id === playingEpisodeId}
               actions={
                 <PlaylistEpisodeActions
                   episode={item.episode}
                   playlistName={playlist.name}
-                  moves={moveTargets(positions, index)}
+                  moves={moveTargets(positions, positions.indexOf(item.position))}
                   canReorder
                   disabled={edit.isPending}
                   onMove={(to) => edit.mutate({ kind: 'move', playlistId: playlist.id, from: item.position, to })}
@@ -209,20 +222,19 @@ function PlaylistEpisodes({ data }: { data: PlaylistDetail }) {
                 />
               }
             />
-          </li>
-        ))}
-      </ol>
+        )}
+      />
     </section>
   )
 }
 
-function PlaylistEpisodeRow({ item, playing, actions }: { item: PlaylistEpisode; playing: boolean; actions: ReactNode }) {
+function PlaylistEpisodeRow({ item, grip, playing, actions }: { item: PlaylistEpisode; grip: ReactNode; playing: boolean; actions: ReactNode }) {
   const { episode } = item
   return (
     <TrackRow
       playing={playing}
       className={playing ? playingRing : undefined}
-      lead={<span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums @2xl:block">{item.position + 1}</span>}
+      lead={<Lead grip={grip} position={item.position} />}
       art={<AlbumArt src={episode.thumbUrl} className="size-11" />}
       title={<EpisodeNameLink episode={episode} playing={playing} />}
       subtitle={<ShowLink show={episode.show} />}
@@ -289,16 +301,36 @@ function PlayPlaylistButton({ playlist }: { playlist: { uri: string; name: strin
   )
 }
 
-function PlaylistTrackRow({ item, playing, play, actions }: { item: PlaylistTrack; playing: boolean; play: ReactNode; actions: ReactNode }) {
+/** Before the art when wide: the drag grip (when the list can be reordered) and the item's place in the playlist. */
+function Lead({ grip, position }: { grip: ReactNode; position: number }) {
+  return (
+    <span className="hidden shrink-0 items-center gap-1 @2xl:flex">
+      {grip}
+      <span className="w-6 text-right text-sm text-muted-foreground tabular-nums">{position + 1}</span>
+    </span>
+  )
+}
+
+function PlaylistTrackRow({
+  item,
+  grip,
+  playing,
+  play,
+  actions,
+}: {
+  item: PlaylistTrack
+  grip: ReactNode
+  playing: boolean
+  play: ReactNode
+  actions: ReactNode
+}) {
   const { track, alsoOn } = item
   return (
     // The track Spotify is playing is marked, as in History and Tracks.
     <TrackRow
       playing={playing}
       className={playing ? playingRing : undefined}
-      lead={
-        <span className="hidden w-6 shrink-0 text-right text-sm text-muted-foreground tabular-nums @2xl:block">{item.position + 1}</span>
-      }
+      lead={<Lead grip={grip} position={item.position} />}
       art={<AlbumArt src={track.album.thumbUrl} className="size-11" />}
       title={<TrackNameLink track={track} playing={playing} />}
       subtitle={track.artists.map((artist) => artist.name).join(', ')}
