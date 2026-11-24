@@ -183,10 +183,10 @@ importers:
         version: 9.5.1(supports-color@10.2.2)
       '@hono/node-server':
         specifier: ^2.1.1
-        version: 2.1.1(hono@4.13.8)
+        version: 2.1.1(hono@4.13.16)
       '@hono/zod-openapi':
         specifier: ^1.6.3
-        version: 1.6.3(hono@4.13.8)(zod@4.6.5)
+        version: 1.6.3(hono@4.13.16)(zod@4.6.5)
       '@replay-crate/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -201,13 +201,13 @@ importers:
         version: link:../../packages/spotify
       '@scalar/hono-api-reference':
         specifier: ^0.12.5
-        version: 0.12.5(hono@4.13.8)
+        version: 0.12.5(hono@4.13.16)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@electric-sql/pglite@0.5.8)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.0)
       hono:
-        specifier: ^4.13.8
-        version: 4.13.8
+        specifier: ^4.13.16
+        version: 4.13.16
       pg:
         specifier: ^8.23.0
         version: 8.23.0
@@ -355,8 +355,8 @@ importers:
   packages/api-client:
     dependencies:
       hono:
-        specifier: ^4.13.8
-        version: 4.13.8
+        specifier: ^4.13.16
+        version: 4.13.16
     devDependencies:
       '@replay-crate/api':
         specifier: workspace:*
@@ -3034,8 +3034,8 @@ packages:
   headers-polyfill@5.0.1:
     resolution: {integrity: sha512-1TJ6Fih/b8h5TIcv+1+Hw0PDQWJTKDKzFZzcKOiW1wJza3XoAQlkCuXLbymPYB8+ZQyw8mHvdw560e8zVFIWyA==}
 
-  hono@4.13.8:
-    resolution: {integrity: sha512-/Gng7NfoykZl2pjukW5Z6+8Yxm3BPRf86GTbQnt0SbySkvax4fyL4H3HhY1cCpBGmiW9XDRFzRV+CXK2W8QudQ==}
+  hono@4.13.16:
+    resolution: {integrity: sha512-AOLOEhvrV+iH92xXCnFr/5+3KjPKcI3xP63XJtX5spAnkznPdHijlIsUTpi7/9EhWqrTCekw5c5zh1K+YsVw7A==}
     engines: {node: '>=16.9.0'}
 
   hpagent@1.2.0:
@@ -5081,21 +5081,21 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@hono/node-server@2.1.1(hono@4.13.8)':
+  '@hono/node-server@2.1.1(hono@4.13.16)':
     dependencies:
-      hono: 4.13.8
+      hono: 4.13.16
 
-  '@hono/zod-openapi@1.6.3(hono@4.13.8)(zod@4.6.5)':
+  '@hono/zod-openapi@1.6.3(hono@4.13.16)(zod@4.6.5)':
     dependencies:
       '@asteasolutions/zod-to-openapi': 9.1.0(zod@4.6.5)
-      '@hono/zod-validator': 0.9.1(hono@4.13.8)(zod@4.6.5)
-      hono: 4.13.8
+      '@hono/zod-validator': 0.9.1(hono@4.13.16)(zod@4.6.5)
+      hono: 4.13.16
       openapi3-ts: 4.6.1
       zod: 4.6.5
 
-  '@hono/zod-validator@0.9.1(hono@4.13.8)(zod@4.6.5)':
+  '@hono/zod-validator@0.9.1(hono@4.13.16)(zod@4.6.5)':
     dependencies:
-      hono: 4.13.8
+      hono: 4.13.16
       zod: 4.6.5
 
   '@inquirer/ansi@2.0.8': {}
@@ -5154,7 +5154,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.30.0(supports-color@10.2.2)(zod@3.25.76)':
     dependencies:
-      '@hono/node-server': 2.1.1(hono@4.13.8)
+      '@hono/node-server': 2.1.1(hono@4.13.16)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
@@ -5164,7 +5164,7 @@ snapshots:
       eventsource-parser: 3.1.1
       express: 5.2.1(supports-color@10.2.2)
       express-rate-limit: 8.7.0(express@5.2.1(supports-color@10.2.2))(supports-color@10.2.2)
-      hono: 4.13.8
+      hono: 4.13.16
       jose: 6.2.12
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
@@ -5519,10 +5519,10 @@ snapshots:
 
   '@scalar/helpers@0.14.0': {}
 
-  '@scalar/hono-api-reference@0.12.5(hono@4.13.8)':
+  '@scalar/hono-api-reference@0.12.5(hono@4.13.16)':
     dependencies:
       '@scalar/client-side-rendering': 0.4.4
-      hono: 4.13.8
+      hono: 4.13.16
 
   '@scalar/schemas@0.12.0':
     dependencies:
@@ -6753,7 +6753,7 @@ snapshots:
       '@types/set-cookie-parser': 2.4.10
       set-cookie-parser: 3.1.2
 
-  hono@4.13.8: {}
+  hono@4.13.16: {}
 
   hpagent@1.2.0: {}
 
