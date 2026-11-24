@@ -132,7 +132,7 @@ If you dual boot Linux and Windows (WSL2 + Docker Desktop with WSL integration),
 
    `net stop winnat` waits for Docker and WSL to let go, which can take a while.
 
-4. **Switching OS:** `pnpm os:down` before you reboot, `pnpm os:up` after, on either OS. Each prints its steps as it goes and ends with what's left for you to do (`pnpm os:status` shows the same state without changing anything):
+4. **Switching OS:** `pnpm os:down` before you reboot, `pnpm os:up` after, on either OS. Each prints its steps as it goes, with why and the exact command (`$ …`, SQL as `psql> …` for `pnpm db:psql`) so you can do any step by hand, and ends with what's left for you to do (`pnpm os:status` shows the same state without changing anything):
 
    ```bash
    pnpm os:down   # refuses while pnpm dev / pnpm serve runs (Ctrl-C them first); stops the replay-crate
