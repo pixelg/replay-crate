@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
 import { getAccessToken } from '../spotify/access-token.ts'
 import { syncPlaylistItems } from '../sync/playlists.ts'
+import { discardMoves, retryMoves, saveMove, sendPendingMoves } from './edits.ts'
 
 const { playlists, userPlaylists } = schema
 
@@ -21,8 +22,9 @@ export class PlaylistNotEditableError extends Error {
 export const trackUri = (trackId: string) => `spotify:track:${trackId}`
 export const episodeUri = (episodeId: string) => `spotify:episode:${episodeId}`
 
-// Every change goes to Spotify first, then the playlist is re-read from Spotify so the
-// stored copy (positions, snapshot) always matches what Spotify actually holds.
+// Adding and removing go to Spotify first, then the playlist is re-read from Spotify so the
+// stored copy (positions, snapshot) matches what Spotify actually holds. Moves are saved here
+// first and sent after (`edits.ts`); any still unsent go to Spotify before another change.
 
 export async function createPlaylistFor(
   deps: AppDeps,
@@ -77,6 +79,7 @@ export async function addItems(
 ): Promise<void> {
   await requireInLibrary(deps, userId, playlistId)
   const accessToken = await getAccessToken(deps, userId)
+  await sendPendingMoves(deps, userId, playlistId, accessToken)
 
   let snapshotId = ''
   for (let i = 0; i < itemUris.length; i += BATCH) {
@@ -95,6 +98,7 @@ export const addTracks = (deps: AppDeps, userId: string, playlistId: string, tra
 export async function removeItems(deps: AppDeps, userId: string, playlistId: string, itemUris: string[]): Promise<void> {
   await requireInLibrary(deps, userId, playlistId)
   const accessToken = await getAccessToken(deps, userId)
+  await sendPendingMoves(deps, userId, playlistId, accessToken)
 
   let snapshotId = ''
   for (let i = 0; i < itemUris.length; i += BATCH) {
@@ -107,22 +111,23 @@ export async function removeItems(deps: AppDeps, userId: string, playlistId: str
 export const removeTracks = (deps: AppDeps, userId: string, playlistId: string, trackIds: string[]) =>
   removeItems(deps, userId, playlistId, trackIds.map(trackUri))
 
-/** Moves the item at `from` so it ends up at index `to` (both are Spotify positions). */
-export async function moveTrack(deps: AppDeps, userId: string, playlistId: string, from: number, to: number): Promise<void> {
-  const playlist = await requireInLibrary(deps, userId, playlistId)
-  if (from === to) return
-  const accessToken = await getAccessToken(deps, userId)
+/** Moves the item at `from` so it ends up at index `to` (both are Spotify positions): saved now, sent to Spotify after. */
+export async function moveItem(deps: AppDeps, userId: string, playlistId: string, from: number, to: number): Promise<void> {
+  await requireInLibrary(deps, userId, playlistId)
+  await saveMove(deps, userId, playlistId, from, to)
+}
 
-  // Spotify inserts *before* an index of the original list, so moving down targets to + 1.
-  const insertBefore = to > from ? to + 1 : to
-  const { snapshot_id } = await deps.spotify.reorderPlaylistItems(accessToken, playlistId, {
-    rangeStart: from,
-    insertBefore,
-    // The version our stored positions came from, so Spotify applies the move to the list
-    // the user was looking at even if the playlist changed since.
-    snapshotId: playlist.itemsSnapshotId ?? undefined,
-  })
-  await syncPlaylistItems(deps, accessToken, playlistId, snapshot_id)
+/** Sends the moves Spotify refused again. */
+export async function retryUnsentMoves(deps: AppDeps, userId: string, playlistId: string): Promise<void> {
+  await requireInLibrary(deps, userId, playlistId)
+  await retryMoves(deps, userId, playlistId)
+}
+
+/** Drops the moves Spotify doesn't have and takes Spotify's order back. */
+export async function discardUnsentMoves(deps: AppDeps, userId: string, playlistId: string): Promise<void> {
+  await requireInLibrary(deps, userId, playlistId)
+  await discardMoves(deps.db, userId, playlistId)
+  await syncPlaylistItems(deps, await getAccessToken(deps, userId), playlistId)
 }
 
 async function requireInLibrary(deps: AppDeps, userId: string, playlistId: string) {

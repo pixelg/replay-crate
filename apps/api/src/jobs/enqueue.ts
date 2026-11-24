@@ -4,10 +4,10 @@ const { jobs } = schema
 
 /**
  * Every kind of job. Spotify's: `track`, `artist`, `episode` (ref `userId:episodeId`), `show` (ref
- * `userId:showId`). The genre chain (see `genres/jobs.ts`):
+ * `userId:showId`), `playlist-edit` (ref `userId:playlistId:editId`, see `playlists/edits.ts`). The genre chain (see `genres/jobs.ts`):
  * `genres-lastfm` on Last.fm, then `genres-mb-id` → `genres-mb-search` → `genres-mb` on MusicBrainz.
  */
-export type JobKind = 'track' | 'artist' | 'episode' | 'show' | 'genres-lastfm' | 'genres-mb-id' | 'genres-mb-search' | 'genres-mb'
+export type JobKind = 'track' | 'artist' | 'episode' | 'show' | 'playlist-edit' | 'genres-lastfm' | 'genres-mb-id' | 'genres-mb-search' | 'genres-mb'
 
 export type NewJob = {
   kind: JobKind

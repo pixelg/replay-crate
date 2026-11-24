@@ -242,6 +242,80 @@ export const PlaylistMovesTrackToTop = meta.story({
 })
 
 /**
+ * Rows drag to a new place: here from the keyboard, on the row's grip (Space, arrows, Space). The
+ * new order shows at once and is saved to Spotify. Sorted by plays, nothing drags.
+ */
+export const PlaylistDragsTrack = meta.story({
+  args: { path: '/playlists/p1' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    requests.mockClear()
+    msw.use(
+      http.put('/api/v1/playlists/{id}/items/move', async ({ request }) => {
+        requests(await request.json())
+        return HttpResponse.json({ ok: true })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const tracks = await canvas.findByRole('region', { name: 'Tracks' })
+    const names = () => rowsOf(tracks).map((row) => within(row).getAllByRole('link')[0]!.textContent)
+    await waitFor(() => expect(names()[3]).toBe('Searched And Played'))
+    within(tracks).getByRole('button', { name: 'Move Searched And Played' }).focus()
+    await userEvent.keyboard(' ')
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}{ArrowUp}')
+    await userEvent.keyboard(' ')
+    await waitFor(() => expect(requests).toHaveBeenCalledWith({ from: 3, to: 0 }))
+    await expect(names()[0]).toBe('Searched And Played')
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Most played' }))
+    await waitFor(() => expect(within(tracks).queryByRole('button', { name: /^Move / })).toBeNull())
+  },
+})
+
+/** A move saved here but not yet on Spotify marks the playlist until Spotify has it. */
+export const PlaylistMovesOnTheirWay = meta.story({
+  args: { path: '/playlists/p1' },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get('/api/v1/playlists/{id}', ({ response }) =>
+        response(200).json({ ...playlistDetail, playlist: { ...playlistDetail.playlist, unsentMoves: { moves: 2, failed: false, error: null } } }),
+      ),
+    )
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText(/2 moves not on Spotify yet/)).toHaveAttribute('role', 'status')
+  },
+})
+
+/** Spotify refused a move: the playlist says so and offers Retry or Spotify's own order. */
+export const PlaylistMovesRefused = meta.story({
+  args: { path: '/playlists/p1' },
+  beforeEach({ msw }) {
+    requests.mockClear()
+    let unsent: { moves: number; failed: boolean; error: string | null } | null = { moves: 1, failed: true, error: 'Spotify refused the move.' }
+    msw.use(
+      http.get('/api/v1/playlists/{id}', ({ response }) =>
+        response(200).json({ ...playlistDetail, playlist: { ...playlistDetail.playlist, unsentMoves: unsent } }),
+      ),
+      http.post('/api/v1/playlists/{id}/moves/retry', ({ response }) => {
+        requests('retry')
+        unsent = null
+        return response(200).json({ ok: true })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const alert = await canvas.findByRole('alert')
+    await expect(alert).toHaveTextContent("Spotify doesn't have this order")
+    await expect(within(alert).getByRole('button', { name: "Use Spotify's order" })).toBeEnabled()
+    await userEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(requests).toHaveBeenCalledWith('retry'))
+    await waitFor(() => expect(canvas.queryByRole('alert')).toBeNull())
+  },
+})
+
+/**
  * A playlist chip on a History row opens the playlist where that track is: on its page, scrolled
  * to it and marked. The playlist holds another copy of the recording, which counts.
  */

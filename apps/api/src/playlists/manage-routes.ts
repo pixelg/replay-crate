@@ -10,12 +10,15 @@ import {
   addItems as addPlaylistUris,
   addTracks,
   createPlaylistFor,
+  discardUnsentMoves,
   episodeUri,
-  moveTrack,
+  moveItem as moveStoredItem,
   PlaylistNotEditableError,
   removeItems as removePlaylistUris,
   removeTracks,
+  retryUnsentMoves,
 } from './manage.ts'
+import { MoveOutOfRangeError, UnsavedMovesError } from './edits.ts'
 import { evaluateRule, playlistRule } from './rules.ts'
 
 const trackIds = z.array(z.string().min(1).max(64).openapi({ description: 'Spotify track id.' })).max(500)
@@ -30,6 +33,7 @@ const writeErrors = errorResponses(
   'forbidden',
   'not_found',
   'reauth_required',
+  'unsaved_moves',
   'rate_limited',
 )
 
@@ -160,13 +164,39 @@ const moveItem = createRoute({
   tags: ['Playlists'],
   operationId: 'movePlaylistItem',
   summary: 'Move a track or episode',
-  description: 'Moves the item at `from` so it ends up at `to` (0-based Spotify positions, counting tracks and episodes).',
+  description:
+    'Moves the item at `from` so it ends up at `to` (0-based Spotify positions, counting tracks and episodes). ' +
+    'Saved at once and sent to Spotify in the background, in order; `unsentMoves` on the playlist says what Spotify is still missing.',
   security: signedIn,
   request: {
     params: PlaylistParams,
     body: jsonBody(z.object({ from: z.number().int().min(0), to: z.number().int().min(0) })),
   },
   responses: { 200: jsonResponse(Ok, 'Moved.'), ...writeErrors },
+})
+
+const retryMoves = createRoute({
+  method: 'post',
+  path: '/playlists/{id}/moves/retry',
+  tags: ['Playlists'],
+  operationId: 'retryPlaylistMoves',
+  summary: 'Send refused moves again',
+  description: 'Queues the moves Spotify refused to be sent again, in order.',
+  security: signedIn,
+  request: { params: PlaylistParams },
+  responses: { 200: jsonResponse(Ok, 'Queued.'), ...writeErrors },
+})
+
+const discardMoves = createRoute({
+  method: 'delete',
+  path: '/playlists/{id}/moves',
+  tags: ['Playlists'],
+  operationId: 'discardPlaylistMoves',
+  summary: "Go back to Spotify's order",
+  description: 'Forgets the moves Spotify does not have yet and re-reads the playlist from Spotify.',
+  security: signedIn,
+  request: { params: PlaylistParams },
+  responses: { 200: jsonResponse(Ok, 'Re-read.'), ...writeErrors },
 })
 
 /** Creating playlists and changing their tracks. Every route writes to Spotify first. */
@@ -184,6 +214,13 @@ export function playlistManageRoutes(deps: AppDeps) {
     } catch (error) {
       if (error instanceof PlaylistNotEditableError) {
         return { value: null, response: c.json({ error: 'not_found' as const }, 404) }
+      }
+      if (error instanceof UnsavedMovesError) {
+        return { value: null, response: c.json({ error: 'unsaved_moves' as const }, 409) }
+      }
+      if (error instanceof MoveOutOfRangeError) {
+        const issues = [{ path: 'to', message: error.message }]
+        return { value: null, response: c.json({ error: 'invalid_request' as const, issues }, 400) }
       }
       const response = spotifyErrorResponse(c, error)
       if (response) return { value: null, response }
@@ -233,7 +270,17 @@ export function playlistManageRoutes(deps: AppDeps) {
 
     .openapi({ ...moveItem, middleware: auth }, async (c) => {
       const { from, to } = c.req.valid('json')
-      const result = await change(c, () => moveTrack(deps, c.var.user.id, c.req.valid('param').id, from, to))
+      const result = await change(c, () => moveStoredItem(deps, c.var.user.id, c.req.valid('param').id, from, to))
+      return result.response ?? c.json({ ok: true as const }, 200)
+    })
+
+    .openapi({ ...retryMoves, middleware: auth }, async (c) => {
+      const result = await change(c, () => retryUnsentMoves(deps, c.var.user.id, c.req.valid('param').id))
+      return result.response ?? c.json({ ok: true as const }, 200)
+    })
+
+    .openapi({ ...discardMoves, middleware: auth }, async (c) => {
+      const result = await change(c, () => discardUnsentMoves(deps, c.var.user.id, c.req.valid('param').id))
       return result.response ?? c.json({ ok: true as const }, 200)
     })
 }

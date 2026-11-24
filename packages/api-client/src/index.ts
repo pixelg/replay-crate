@@ -418,6 +418,20 @@ export async function moveInPlaylist(api: ApiClient, playlistId: string, from: n
   await expectOk(res, endpoint)
 }
 
+/** Queues the moves Spotify refused to be sent again. */
+export async function retryPlaylistMoves(api: ApiClient, playlistId: string) {
+  const endpoint = `POST /api/v1/playlists/${playlistId}/moves/retry`
+  const res = await send(endpoint, () => api.playlists[':id'].moves.retry.$post({ param: { id: playlistId } }))
+  await expectOk(res, endpoint)
+}
+
+/** Forgets the moves Spotify doesn't have and takes its order back. */
+export async function discardPlaylistMoves(api: ApiClient, playlistId: string) {
+  const endpoint = `DELETE /api/v1/playlists/${playlistId}/moves`
+  const res = await send(endpoint, () => api.playlists[':id'].moves.$delete({ param: { id: playlistId } }))
+  await expectOk(res, endpoint)
+}
+
 export type StatsRange = '7d' | '30d' | '90d' | '1y' | 'all'
 export type StatsOverview = InferResponseType<ApiClient['stats']['overview']['$get'], 200>
 export type StatsTop = InferResponseType<ApiClient['stats']['top']['$get'], 200>

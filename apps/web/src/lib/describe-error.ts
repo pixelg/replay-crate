@@ -107,6 +107,9 @@ export function describeError(error: unknown): ErrorDescription {
       const device = error.device ?? 'the device'
       return api('refused', "It didn't start", `Spotify took it, but ${device} didn't start playing. Open Spotify there and try again.`, 'retry')
     }
+    if (error.code === 'unsaved_moves') {
+      return api('refused', 'Moves not on Spotify', "Spotify refused a move made here. Retry it, or use Spotify's order, before changing this playlist.", 'home')
+    }
     if (error.code === 'command_refused') {
       return api('refused', "Spotify couldn't do that", refusal(error.reason), 'retry')
     }

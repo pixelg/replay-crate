@@ -46,6 +46,34 @@ export const userPlaylists = pgTable(
 )
 
 /**
+ * Moves made in Replay Crate that Spotify doesn't have yet, oldest first. The stored items already
+ * show them (`move_playlist_item()`); a `playlist-edit` job sends them in order, and while any are
+ * left the playlist's items aren't re-read from Spotify (that would undo them). `failedAt` is set
+ * when Spotify refused one: the rest wait until the user retries or goes back to Spotify's order.
+ */
+export const playlistEdits = pgTable(
+  'playlist_edits',
+  {
+    id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    playlistId: text('playlist_id')
+      .notNull()
+      .references(() => playlists.id, { onDelete: 'cascade' }),
+    /** Spotify positions, as for `PUT /playlists/{id}/items/move`. */
+    fromPosition: integer('from_position').notNull(),
+    toPosition: integer('to_position').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    failedAt: timestamp('failed_at', { withTimezone: true }),
+    error: text('error'),
+    /** A sender's claim on the move while it calls Spotify, so it's never sent twice. */
+    sendingUntil: timestamp('sending_until', { withTimezone: true }),
+  },
+  (t) => [index('playlist_edits_playlist_idx').on(t.playlistId, t.id)],
+)
+
+/**
  * Tracks in a playlist. `position` is the index in Spotify's list (local files are skipped
  * but keep their slot, and episodes are in `playlist_episodes`), so positions line up for reorders.
  */

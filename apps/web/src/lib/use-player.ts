@@ -3,6 +3,7 @@ import {
   expectedPlayback,
   forgetDevice,
   isApiError,
+  moveInUpNext,
   playbackQueryOptions,
   progressAt,
   queueQueryOptions,
@@ -218,6 +219,23 @@ export function refreshUpNextAfterEdit(queryClient: QueryClient, playlistId: str
   const refetch = () => void queryClient.invalidateQueries({ queryKey: ['player', 'queue'] })
   refetch()
   setTimeout(refetch, SETTLE_MS[1])
+}
+
+/**
+ * Moves an item in Up next (by moving it in the playing playlist). Up next is fetched again once
+ * Spotify has had a moment to play the new order, and shows what Spotify then says.
+ */
+export function useMoveInUpNext() {
+  const queryClient = useQueryClient()
+  const refetchQueue = () => void queryClient.invalidateQueries({ queryKey: ['player', 'queue'] })
+  return useMutation({
+    mutationFn: (move: { uri: string; index: number; toIndex: number }) => moveInUpNext(api, move),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['playlists'] })
+      setTimeout(refetchQueue, SETTLE_MS[1])
+    },
+    onError: refetchQueue,
+  })
 }
 
 /** Commands that change Up next: what plays next, or the order it plays in. */
