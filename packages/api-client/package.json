@@ -11,7 +11,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "hono": "^4.13.8"
+    "hono": "^4.13.16"
   },
   "peerDependencies": {
     "@tanstack/react-query": "^5.103.1"
