@@ -27,12 +27,12 @@ export default definePreview({
   },
   initialGlobals: { theme: 'light' },
   beforeEach() {
-    // Forget what earlier stories picked: the theme, the mode and the lists' page sizes live in localStorage.
+    // Forget what earlier stories picked: the theme, the mode and the lists' page sizes and the playlists' sort live in localStorage.
     setThemePreference('system')
     setMode('music')
     resetModeOffers()
     clearJustPlayed()
-    for (const key of Object.keys(localStorage)) if (key.startsWith('rc:page-size:')) localStorage.removeItem(key)
+    for (const key of Object.keys(localStorage)) if (key.startsWith('rc:page-size:') || key === 'rc:playlists-sort') localStorage.removeItem(key)
   },
   decorators: [
     (Story, { globals }) => {
