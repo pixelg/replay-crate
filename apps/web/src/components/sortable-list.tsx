@@ -37,6 +37,7 @@ export function SortableList<T>({
   itemClassName,
   isMarked,
   canMove,
+  onBlocked,
   ...props
 }: {
   items: T[]
@@ -51,8 +52,10 @@ export function SortableList<T>({
   itemClassName?: string
   /** Marks a row with `data-marked` (a row opened from a link, for a moment). */
   isMarked?: (item: T) => boolean
-  /** Rows that stay put: they don't drag, get no grip, and others don't land on them. */
+  /** Rows that stay put: they don't drag and get no grip; a row dropped on one goes back (`onBlocked`). */
   canMove?: (item: T) => boolean
+  /** A row was dropped on one that stays put, so it went back. */
+  onBlocked?: (item: T) => void
   'aria-busy'?: boolean
 }) {
   // The dropped order, until the saved one arrives (`items` with other ids) or saving fails.
@@ -79,6 +82,10 @@ export function SortableList<T>({
     const from = ids.indexOf(String(active.id))
     const to = ids.indexOf(String(over.id))
     if (from < 0 || to < 0) return
+    if (canMove?.(shown[to]!) === false) {
+      onBlocked?.(shown[from]!)
+      return
+    }
     setDropped({ of: itemIds, order: arrayMove(shown, from, to) })
     Promise.resolve(onMove(shown[from]!, shown[to]!)).catch(() => setDropped(null))
   }
@@ -92,7 +99,8 @@ export function SortableList<T>({
               key={getId(item)}
               id={getId(item)}
               label={getLabel(item)}
-              disabled={disabled || canMove?.(item) === false}
+              disabled={disabled}
+              locked={canMove?.(item) === false}
               className={itemClassName} marked={isMarked?.(item)}>
               {(grip) => renderItem(item, grip)}
             </SortableItem>
@@ -107,6 +115,7 @@ function SortableItem({
   id,
   label,
   disabled,
+  locked,
   className,
   marked,
   children,
@@ -114,15 +123,21 @@ function SortableItem({
   id: string
   label: string
   disabled: boolean
+  /** Doesn't drag, but others can be dropped on it (and go back). */
+  locked: boolean
   className?: string
   marked?: boolean
   children: (grip: ReactNode) => ReactNode
 }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    disabled: disabled || (locked && { draggable: true, droppable: false }),
+  })
+  const still = disabled || locked
   // The pointer starts a drag anywhere on the row; the keyboard only from the grip, so Enter and
   // Space still work on the row's own links and buttons.
   const { onKeyDown, ...pointer } = (listeners ?? {}) as Record<string, (event: unknown) => void>
-  const grip = disabled ? null : (
+  const grip = still ? null : (
     <button
       type="button"
       ref={setActivatorNodeRef}
@@ -139,14 +154,14 @@ function SortableItem({
     <li
       ref={setNodeRef}
       data-marked={marked || undefined}
-      {...(disabled ? {} : pointer)}
+      {...(still ? {} : pointer)}
       // No browser drag of the row's links and images: this list does the dragging.
       onDragStart={(event) => event.preventDefault()}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
         className,
         // A held finger shouldn't select text or open the link menu.
-        !disabled && 'touch-manipulation select-none [-webkit-touch-callout:none]',
+        !still && 'touch-manipulation select-none [-webkit-touch-callout:none]',
         isDragging && 'relative z-10 rounded-lg bg-card shadow-lg ring-1 ring-border',
       )}
     >

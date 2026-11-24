@@ -466,6 +466,14 @@ export const PlayerUpNextDrags = meta.story({
     await expect(await main.findByText(/this moves tracks in Late Night Crate/)).toBeVisible()
     // The queued track has no grip.
     await expect(main.queryByRole('button', { name: 'Move Sunday Morning Static' })).toBeNull()
+    // Above a queued track it can't go: the drop goes back and says why.
+    main.getByRole('button', { name: 'Move Crate Digger' }).focus()
+    await userEvent.keyboard(' ')
+    await userEvent.keyboard('{ArrowUp}')
+    await userEvent.keyboard(' ')
+    await expect(await main.findByText(/Tracks you queued yourself always play first/)).toBeVisible()
+    await expect(playerRequests).not.toHaveBeenCalled()
+
     main.getByRole('button', { name: 'Move The History of the Breakbeat' }).focus()
     await userEvent.keyboard(' ')
     await userEvent.keyboard('{ArrowUp}')
