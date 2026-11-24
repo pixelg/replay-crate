@@ -199,6 +199,41 @@ describe('player', () => {
     })
   })
 
+  describe('moving in Up next', () => {
+    const [one, two, three, four, queued] = ['one', 'two', 'three', 'four', 'queued'].map((id) => track(id))
+    beforeEach(async () => {
+      ctx.library.add('mix', [one!, two!, three!, four!], 'Late Night Crate')
+      ctx.library.remember([queued!])
+      await ctx.app.request('/api/v1/playlists/sync', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN } })
+      await send('PUT', '/play', { contextUri: 'spotify:playlist:mix', offset: { uri: 'spotify:track:one' } })
+      await send('POST', '/queue', { uri: 'spotify:track:queued' })
+    })
+
+    it("says which of Up next is the playlist's, by position", async () => {
+      const queue = await json(await get('/queue'))
+      expect(queue.queue.map((item: { id: string }) => item.id)).toEqual(['queued', 'two', 'three', 'four'])
+      expect(queue.playlist).toEqual({ id: 'mix', name: 'Late Night Crate', positions: [null, 1, 2, 3] })
+    })
+
+    it('moves an item by moving it in the playlist, sent to Spotify straight away', async () => {
+      const res = await send('POST', '/queue/move', { uri: 'spotify:track:four', index: 3, toIndex: 1 })
+      expect(res.status).toBe(204)
+      expect(ctx.library.trackIds('mix')).toEqual(['one', 'four', 'two', 'three'])
+      expect(await ctx.db.select().from(schema.playlistEdits)).toEqual([])
+    })
+
+    it("refuses items that aren't the playlist's, and a queue that has moved on", async () => {
+      expect((await send('POST', '/queue/move', { uri: 'spotify:track:queued', index: 0, toIndex: 2 })).status).toBe(404)
+      expect((await send('POST', '/queue/move', { uri: 'spotify:track:two', index: 2, toIndex: 3 })).status).toBe(404)
+      expect(ctx.library.trackIds('mix')).toEqual(['one', 'two', 'three', 'four'])
+    })
+
+    it('leaves Up next alone on shuffle', async () => {
+      await send('PUT', '/shuffle', { on: true })
+      expect((await json(await get('/queue'))).playlist).toBeNull()
+    })
+  })
+
   describe('devices', () => {
     const DAY = 24 * 60 * 60_000
     const listed = async () =>

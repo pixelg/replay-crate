@@ -1,5 +1,5 @@
 import { schema, type Db } from '@replay-crate/db'
-import { and, asc, count, eq, isNotNull, isNull, max, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, eq, isNotNull, isNull, lt, max, or, sql, type SQL } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
 import { enqueue } from '../jobs/enqueue.ts'
 
@@ -59,39 +59,76 @@ export async function saveMove(deps: AppDeps, userId: string, playlistId: string
   await enqueue(db, [{ kind: 'playlist-edit', ref: editJobRef(userId, playlistId, edit!.id), userId }], deps.now?.())
 }
 
+/** How long a sender holds a move while it calls Spotify; a crashed one's claim lapses after it. */
+const SENDING_MS = 30_000
+
+export type SendResult = 'sent' | 'none' | 'blocked' | 'busy'
+
 /**
  * Sends the playlist's oldest unsent move to Spotify (one call), against the version the stored
- * items came from. 'none' when nothing is left (another job sent it), 'blocked' behind a refused one.
+ * items came from. 'none' when nothing is left, 'blocked' behind a refused one, 'busy' while
+ * another sender (a job, or a request sending them at once) has it.
  */
-export async function sendOldestMove(deps: AppDeps, userId: string, playlistId: string, accessToken: string): Promise<'sent' | 'none' | 'blocked'> {
+export async function sendOldestMove(deps: AppDeps, userId: string, playlistId: string, accessToken: string): Promise<SendResult> {
   const { db } = deps
+  const now = deps.now?.() ?? new Date()
   const mine = and(eq(playlistEdits.userId, userId), eq(playlistEdits.playlistId, playlistId))
+  const [oldest] = await db.select().from(playlistEdits).where(mine).orderBy(asc(playlistEdits.id)).limit(1)
+  if (!oldest) return 'none'
   const [refused] = await db.select({ id: playlistEdits.id }).from(playlistEdits).where(and(mine, isNotNull(playlistEdits.failedAt))).limit(1)
   if (refused) return 'blocked'
-  const [edit] = await db.select().from(playlistEdits).where(mine).orderBy(asc(playlistEdits.id)).limit(1)
-  if (!edit) return 'none'
+  // Claimed in one statement, so two senders never both send it.
+  const [edit] = await db
+    .update(playlistEdits)
+    .set({ sendingUntil: new Date(now.getTime() + SENDING_MS) })
+    .where(and(eq(playlistEdits.id, oldest.id), or(isNull(playlistEdits.sendingUntil), lt(playlistEdits.sendingUntil, now))))
+    .returning()
+  if (!edit) return 'busy'
   const [playlist] = await db.select({ snapshotId: playlists.itemsSnapshotId }).from(playlists).where(eq(playlists.id, playlistId))
 
   const { fromPosition: from, toPosition: to } = edit
-  // Spotify inserts *before* an index of the original list, so moving down targets to + 1.
-  const { snapshot_id } = await deps.spotify.reorderPlaylistItems(accessToken, playlistId, {
-    rangeStart: from,
-    insertBefore: to > from ? to + 1 : to,
-    // The version this move was made on, so Spotify applies it to the list the user saw.
-    snapshotId: playlist?.snapshotId ?? undefined,
-  })
+  let snapshotId: string
+  try {
+    // Spotify inserts *before* an index of the original list, so moving down targets to + 1.
+    ;({ snapshot_id: snapshotId } = await deps.spotify.reorderPlaylistItems(accessToken, playlistId, {
+      rangeStart: from,
+      insertBefore: to > from ? to + 1 : to,
+      // The version this move was made on, so Spotify applies it to the list the user saw.
+      snapshotId: playlist?.snapshotId ?? undefined,
+    }))
+  } catch (error) {
+    await db.update(playlistEdits).set({ sendingUntil: null }).where(eq(playlistEdits.id, edit.id))
+    throw error
+  }
   // The stored items already have the move: they are now that version.
-  await db.update(playlists).set({ itemsSnapshotId: snapshot_id }).where(eq(playlists.id, playlistId))
+  await db.update(playlists).set({ itemsSnapshotId: snapshotId }).where(eq(playlists.id, playlistId))
   await db.delete(playlistEdits).where(eq(playlistEdits.id, edit.id))
   return 'sent'
 }
 
-/** Sends every unsent move now (before another change to the playlist), or throws if one was refused. */
-export async function sendPendingMoves(deps: AppDeps, userId: string, playlistId: string, accessToken: string): Promise<void> {
-  for (;;) {
+/**
+ * Sends every unsent move now, in order: before another change to the playlist (`wait`, which
+ * waits out another sender and throws if a move was refused), or to get a move to Spotify without
+ * waiting for its job (which then finds nothing left; stops at a refused move or another sender).
+ */
+export async function sendPendingMoves(
+  deps: AppDeps,
+  userId: string,
+  playlistId: string,
+  accessToken: string,
+  { wait = true }: { wait?: boolean } = {},
+): Promise<void> {
+  for (let busy = 0; ; ) {
     const result = await sendOldestMove(deps, userId, playlistId, accessToken)
     if (result === 'none') return
-    if (result === 'blocked') throw new UnsavedMovesError(playlistId)
+    if (result === 'blocked') {
+      if (wait) throw new UnsavedMovesError(playlistId)
+      return
+    }
+    if (result === 'busy') {
+      if (!wait || ++busy > 20) return
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
   }
 }
 

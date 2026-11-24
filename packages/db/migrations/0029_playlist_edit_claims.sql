@@ -1,0 +1,1 @@
+ALTER TABLE "playlist_edits" ADD COLUMN "sending_until" timestamp with time zone;

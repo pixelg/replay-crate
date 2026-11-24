@@ -643,6 +643,7 @@ export const queue: PlayerQueue = {
       rating: null,
     },
   ],
+  playlist: null,
 }
 
 // Tracks library: every track played, most played first.

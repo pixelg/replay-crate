@@ -11,7 +11,7 @@ import { NowPlayingPanel } from '@/components/player/now-playing-panel'
 import { QueueList } from '@/components/player/queue-list'
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { api } from '@/lib/api'
-import { useDevices, useForgetDevice, usePlayback, usePlayerControls, useQueue } from '@/lib/use-player'
+import { useDevices, useForgetDevice, useMoveInUpNext, usePlayback, usePlayerControls, useQueue } from '@/lib/use-player'
 
 export const Route = createFileRoute('/_app/player')({
   // Prefetch without blocking: Premium and permission problems belong on the page, not an error route.
@@ -24,6 +24,7 @@ function PlayerPage() {
   const controls = usePlayerControls()
   const item = playback?.item ?? null
   const queue = useQueue(item?.uri ?? null)
+  const move = useMoveInUpNext()
   const devices = useDevices({ enabled: !error })
   const forget = useForgetDevice()
   // A device that won't take playback says so on its own row, not for the whole page.
@@ -84,13 +85,21 @@ function PlayerPage() {
                 </CardHeader>
                 <CardContent>
                   {queue.data ? (
-                    <QueueList
-                      items={upNext(queue.data.queue, playback ?? null)}
-                      // Only while what plays next is changing: a seek or a volume change leaves them be.
-                      disabled={controls.isChangingUpNext}
-                      // The API gets there from the context or by skipping: a bare URI won't start on an iPhone.
-                      onPlayNow={(next, index) => controls.send({ kind: 'playQueued', uri: next.uri, index })}
-                    />
+                    <>
+                      <QueueList
+                        // Each fetch shows what Spotify says now, whatever order was dropped before it.
+                        key={queue.dataUpdatedAt}
+                        items={upNext(queue.data.queue, playback ?? null)}
+                        // Only while what plays next is changing: a seek or a volume change leaves them be.
+                        disabled={controls.isChangingUpNext || move.isPending}
+                        // The API gets there from the context or by skipping: a bare URI won't start on an iPhone.
+                        onPlayNow={(next, index) => controls.send({ kind: 'playQueued', uri: next.uri, index })}
+                        playlist={queue.data.playlist}
+                        onMove={(next, index, toIndex) => move.mutateAsync({ uri: next.uri, index, toIndex })}
+                      />
+                      <UpNextNote playlist={queue.data.playlist} context={playback?.context ?? null} shuffle={playback?.shuffle ?? false} />
+                      {move.error && <InlineError error={move.error} action="Moving in Up next" />}
+                    </>
                   ) : queue.error ? (
                     <InlineError error={queue.error} action="Loading the queue" />
                   ) : null}
@@ -128,4 +137,25 @@ function PlayerPage() {
       )}
     </>
   )
+}
+
+/**
+ * When Up next can be reordered, and when not: Spotify only lets the app reorder a playlist, so
+ * rows move while one of the user's playlists plays in order.
+ */
+function UpNextNote({
+  playlist,
+  context,
+  shuffle,
+}: {
+  playlist: { name: string; positions: (number | null)[] } | null
+  context: { type: string } | null
+  shuffle: boolean
+}) {
+  const text = playlist
+    ? `Drag to reorder (press and hold on a phone): this moves tracks in ${playlist.name}.${playlist.positions.includes(null) ? ' Tracks you queued yourself stay where they are.' : ''}`
+    : context?.type === 'playlist' && shuffle
+      ? 'Turn shuffle off to reorder Up next.'
+      : 'Up next can be reordered while one of your playlists plays.'
+  return <p className="mt-3 text-xs text-muted-foreground">{text}</p>
 }

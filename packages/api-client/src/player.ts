@@ -70,6 +70,16 @@ export const devicesQueryOptions = (api: ApiClient) =>
   })
 
 /** Forgets a device played on before (by its `rememberedId`), until it's seen again. */
+/**
+ * Moves the Up next item at `index` to where the one at `toIndex` is, by moving it in the playing
+ * playlist (the queue's `playlist`). 404 when Up next has changed.
+ */
+export async function moveInUpNext(api: ApiClient, move: { uri: string; index: number; toIndex: number }): Promise<void> {
+  const endpoint = 'POST /api/v1/player/queue/move'
+  const res = await send(endpoint, () => api.player.queue.move.$post({ json: move }))
+  if (!res.ok) throw await ApiError.fromResponse(res, endpoint)
+}
+
 export async function forgetDevice(api: ApiClient, rememberedId: number): Promise<void> {
   const endpoint = `DELETE /api/v1/player/devices/${rememberedId}`
   const res = await send(endpoint, () => api.player.devices[':id'].$delete({ param: { id: String(rememberedId) } }))

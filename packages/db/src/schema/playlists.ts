@@ -67,6 +67,8 @@ export const playlistEdits = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     failedAt: timestamp('failed_at', { withTimezone: true }),
     error: text('error'),
+    /** A sender's claim on the move while it calls Spotify, so it's never sent twice. */
+    sendingUntil: timestamp('sending_until', { withTimezone: true }),
   },
   (t) => [index('playlist_edits_playlist_idx').on(t.playlistId, t.id)],
 )

@@ -36,6 +36,7 @@ export function SortableList<T>({
   className,
   itemClassName,
   isMarked,
+  canMove,
   ...props
 }: {
   items: T[]
@@ -50,6 +51,8 @@ export function SortableList<T>({
   itemClassName?: string
   /** Marks a row with `data-marked` (a row opened from a link, for a moment). */
   isMarked?: (item: T) => boolean
+  /** Rows that stay put: they don't drag, get no grip, and others don't land on them. */
+  canMove?: (item: T) => boolean
   'aria-busy'?: boolean
 }) {
   // The dropped order, until the saved one arrives (`items` with other ids) or saving fails.
@@ -85,7 +88,12 @@ export function SortableList<T>({
       <SortableContext items={ids} strategy={verticalListSortingStrategy} disabled={disabled}>
         <ol className={className} aria-busy={props['aria-busy']}>
           {shown.map((item) => (
-            <SortableItem key={getId(item)} id={getId(item)} label={getLabel(item)} disabled={disabled} className={itemClassName} marked={isMarked?.(item)}>
+            <SortableItem
+              key={getId(item)}
+              id={getId(item)}
+              label={getLabel(item)}
+              disabled={disabled || canMove?.(item) === false}
+              className={itemClassName} marked={isMarked?.(item)}>
               {(grip) => renderItem(item, grip)}
             </SortableItem>
           ))}

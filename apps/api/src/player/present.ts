@@ -92,6 +92,18 @@ export const Queue = z
   .object({
     currentlyPlaying: PlayerItem.nullable(),
     queue: z.array(PlayerItem).openapi({ description: "Up next: the user's queue, then the rest of the context." }),
+    playlist: z
+      .object({
+        id: z.string(),
+        name: z.string(),
+        positions: z.array(z.number().int().nullable()).openapi({
+          description: "Each `queue` item's position in the playlist; null for items that aren't its next ones (queued by the user, or past its end).",
+        }),
+      })
+      .nullable()
+      .openapi({
+        description: 'The playing playlist, when it is one of yours playing in order: its part of Up next moves with `POST /player/queue/move`.',
+      }),
   })
   .openapi('PlayerQueue')
 

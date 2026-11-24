@@ -40,7 +40,8 @@ const handlers: Record<JobKind, Handler> = {
     api: 'spotify',
     run: async (deps, ref, { accessToken }) => {
       const { userId, playlistId } = parseEditJobRef(ref)
-      await sendOldestMove(deps, userId, playlistId, await accessToken())
+      // Another sender has it: look again later, in case that one fails.
+      if ((await sendOldestMove(deps, userId, playlistId, await accessToken())) === 'busy') throw new Error('Another sender has this move')
     },
     gone: refuseMoves,
   },

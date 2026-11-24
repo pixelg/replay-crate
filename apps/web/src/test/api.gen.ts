@@ -1235,6 +1235,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/player/queue/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move an item in Up next
+         * @description Spotify can't reorder its queue, so this moves the item in the playing playlist (the queue's `playlist`), which Spotify's player follows: saved in Replay Crate at once and sent to Spotify straight away, or by a job if Spotify can't take it now (the playlist's `unsentMoves`). not_found when Up next has changed or either item isn't the playlist's.
+         */
+        post: operations["moveInUpNext"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/player/queue/play": {
         parameters: {
             query?: never;
@@ -2240,6 +2260,13 @@ export interface components {
             currentlyPlaying: components["schemas"]["PlayerItem"];
             /** @description Up next: the user's queue, then the rest of the context. */
             queue: components["schemas"]["PlayerItem"][];
+            /** @description The playing playlist, when it is one of yours playing in order: its part of Up next moves with `POST /player/queue/move`. */
+            playlist: {
+                id: string;
+                name: string;
+                /** @description Each `queue` item's position in the playlist; null for items that aren't its next ones (queued by the user, or past its end). */
+                positions: (number | null)[];
+            } | null;
         };
         ListedDevice: components["schemas"]["Device"] & {
             /** @description Listed by Spotify now. Other devices were played on before; playback can be sent to them, but Spotify refuses until they have Spotify open. */
@@ -7092,6 +7119,101 @@ export interface operations {
                     /** @description The device to act on. Defaults to the active one. */
                     deviceId?: string;
                     percent: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Sent to the device. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description forbidden | premium_required | missing_scopes | command_refused */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForbiddenError"] | components["schemas"]["PremiumRequiredError"] | components["schemas"]["MissingScopesError"] | components["schemas"]["CommandRefusedError"];
+                };
+            };
+            /** @description not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundError"];
+                };
+            };
+            /** @description reauth_required | no_active_device */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthRequiredError"] | components["schemas"]["NoActiveDeviceError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+            /** @description rate_limited */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedError"];
+                };
+            };
+        };
+    };
+    moveInUpNext: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description The track or episode.
+                     * @example spotify:track:4uLU6hMCjMI75M1A2tKUQC
+                     */
+                    uri: string;
+                    /** @description Where it is in Up next, counting from 0. */
+                    index: number;
+                    /** @description Where it goes: the place of the item it lands on. */
+                    toIndex: number;
                 };
             };
         };

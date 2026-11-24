@@ -14,6 +14,8 @@ import { recordObservation } from '../podcasts/listens.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
 import { forgetDevice, rememberDevices, rememberedDevices } from './devices.ts'
 import { playFromQueue } from './play-from-queue.ts'
+import { moveInUpNext, upNextInPlaylist } from './queue-moves.ts'
+import { PlaylistNotEditableError } from '../playlists/manage.ts'
 import { ITEM_URI, playItem, type PlayItemResult } from './play-item.ts'
 import { ListedDevice, Playback, Queue, lookupsFor, toItem, toListedDevice, toPlayback, toRememberedDevice } from './present.ts'
 
@@ -166,6 +168,18 @@ const playQueued = command(
   "Gets there without a bare URI (which Spotify's iPhone app ignores): an item of the playing album, or of a playlist whose contents Replay Crate keeps, plays from that context when shuffle is off, keeping the user's queue; anything else is skipped to, keeping Up next as it was. Answers once the device is playing it (not_started when it doesn't show there in time); not_found when it has left Up next.",
   ['not_started'],
 )
+const moveQueued = command(
+  'post',
+  '/player/queue/move',
+  'moveInUpNext',
+  'Move an item in Up next',
+  z.object({
+    uri: z.string().regex(ITEM_URI).openapi({ description: 'The track or episode.', example: 'spotify:track:4uLU6hMCjMI75M1A2tKUQC' }),
+    index: z.number().int().min(0).openapi({ description: 'Where it is in Up next, counting from 0.' }),
+    toIndex: z.number().int().min(0).openapi({ description: 'Where it goes: the place of the item it lands on.' }),
+  }),
+  "Spotify can't reorder its queue, so this moves the item in the playing playlist (the queue's `playlist`), which Spotify's player follows: saved in Replay Crate at once and sent to Spotify straight away, or by a job if Spotify can't take it now (the playlist's `unsentMoves`). not_found when Up next has changed or either item isn't the playlist's.",
+)
 const transfer = command(
   'put',
   '/player/device',
@@ -238,14 +252,20 @@ export function playerRoutes(deps: AppDeps) {
       })
 
       .openapi({ ...getQueue, middleware: auth }, async (c) => {
-        const result = await withSpotify(c, (token) => spotify.getQueue(token))
+        const userId = c.var.user.id
+        // Playback says whether a playlist of the user's plays in order, so its part of Up next can move.
+        const result = await withSpotify(c, async (token) => {
+          const [state, found] = await Promise.all([spotify.getPlaybackState(token), spotify.getQueue(token)])
+          return { ...found, playlist: await upNextInPlaylist(db, userId, state, found.queue) }
+        })
         if (result.response) return result.response
-        const { currently_playing, queue } = result.value
+        const { currently_playing, queue, playlist } = result.value
         const lookups = await lookupsFor(db, c.var.user.id, [...(currently_playing ? [currently_playing] : []), ...queue])
         return c.json(
           {
             currentlyPlaying: currently_playing ? toItem(currently_playing, lookups) : null,
             queue: queue.map((item) => toItem(item, lookups)),
+            playlist,
           },
           200,
         )
@@ -319,6 +339,20 @@ export function playerRoutes(deps: AppDeps) {
         const { uri, ...target } = c.req.valid('json')
         const result = await withSpotify(c, (token) => spotify.addToQueue(token, uri, target))
         return result.response ?? c.body(null, 204)
+      })
+      .openapi({ ...moveQueued, middleware: auth }, async (c) => {
+        const userId = c.var.user.id
+        const result = await withSpotify(c, async (token) => {
+          try {
+            return await moveInUpNext(deps, userId, token, c.req.valid('json'))
+          } catch (error) {
+            if (error instanceof PlaylistNotEditableError) return 'missing' as const
+            throw error
+          }
+        })
+        if (result.response) return result.response
+        if (result.value === 'missing') return c.json({ error: 'not_found' as const }, 404)
+        return c.body(null, 204)
       })
       .openapi({ ...playQueued, middleware: auth }, async (c) => {
         const { deviceId: target, uri, index } = c.req.valid('json')

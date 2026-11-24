@@ -124,7 +124,7 @@ export const PlayerUpNextLeavesOutPadding = meta.story({
     msw.use(
       http.get('/api/v1/player', ({ response }) => response(200).json({ playback: { ...playback, context: null } })),
       http.get('/api/v1/player/queue', ({ response }) =>
-        response(200).json({ currentlyPlaying: playback.item, queue: Array.from({ length: 10 }, () => playback.item!) }),
+        response(200).json({ currentlyPlaying: playback.item, queue: Array.from({ length: 10 }, () => playback.item!), playlist: null }),
       ),
     )
   },
@@ -439,6 +439,57 @@ export const PlayerWithoutPremium = meta.story({
     const main = within(await canvas.findByRole('main'))
     await expect(await main.findByRole('heading', { name: 'Spotify Premium needed' })).toBeVisible()
     await expect(main.queryByRole('heading', { name: 'Devices' })).toBeNull()
+  },
+})
+
+/**
+ * While one of the user's playlists plays, its part of Up next drags into a new order (moving the
+ * tracks in the playlist); a track the user queued stays put.
+ */
+export const PlayerUpNextDrags = meta.story({
+  args: { path: '/player' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  beforeEach({ msw }) {
+    playerRequests.mockClear()
+    msw.use(
+      http.get('/api/v1/player/queue', ({ response }) =>
+        response(200).json({ ...queue, playlist: { id: 'p1', name: 'Late Night Crate', positions: [null, 3, 4] } }),
+      ),
+      http.post('/api/v1/player/queue/move', async ({ request }) => {
+        playerRequests('move', await request.json())
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByText(/this moves tracks in Late Night Crate/)).toBeVisible()
+    // The queued track has no grip.
+    await expect(main.queryByRole('button', { name: 'Move Sunday Morning Static' })).toBeNull()
+    main.getByRole('button', { name: 'Move The History of the Breakbeat' }).focus()
+    await userEvent.keyboard(' ')
+    await userEvent.keyboard('{ArrowUp}')
+    await userEvent.keyboard(' ')
+    await waitFor(() =>
+      expect(playerRequests).toHaveBeenCalledWith('move', { uri: 'spotify:episode:e1', index: 2, toIndex: 1 }),
+    )
+  },
+})
+
+/** Up next can't move on shuffle: the page says how it can. */
+export const PlayerUpNextOnShuffle = meta.story({
+  args: { path: '/player' },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get('/api/v1/player', ({ response }) =>
+        response(200).json({ playback: { ...playback, shuffle: true, context: { type: 'playlist', uri: 'spotify:playlist:p1', name: 'Late Night Crate', imageUrl: null } } }),
+      ),
+    )
+  },
+  play: async ({ canvas }) => {
+    const main = within(await canvas.findByRole('main'))
+    await expect(await main.findByText('Turn shuffle off to reorder Up next.')).toBeVisible()
+    await expect(main.queryByRole('button', { name: /^Move / })).toBeNull()
   },
 })
 

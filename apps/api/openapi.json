@@ -2852,11 +2852,42 @@
               "$ref": "#/components/schemas/PlayerItem"
             },
             "description": "Up next: the user's queue, then the rest of the context."
+          },
+          "playlist": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "positions": {
+                "type": "array",
+                "items": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "description": "Each `queue` item's position in the playlist; null for items that aren't its next ones (queued by the user, or past its end)."
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "positions"
+            ],
+            "description": "The playing playlist, when it is one of yours playing in order: its part of Up next moves with `POST /player/queue/move`."
           }
         },
         "required": [
           "currentlyPlaying",
-          "queue"
+          "queue",
+          "playlist"
         ]
       },
       "ListedDevice": {
@@ -11525,6 +11556,152 @@
                 },
                 "required": [
                   "percent"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Sent to the device."
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden | premium_required | missing_scopes | command_refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForbiddenError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PremiumRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MissingScopesError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommandRefusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | no_active_device",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NoActiveDeviceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/player/queue/move": {
+      "post": {
+        "tags": [
+          "Player"
+        ],
+        "operationId": "moveInUpNext",
+        "summary": "Move an item in Up next",
+        "description": "Spotify can't reorder its queue, so this moves the item in the playing playlist (the queue's `playlist`), which Spotify's player follows: saved in Replay Crate at once and sent to Spotify straight away, or by a job if Spotify can't take it now (the playlist's `unsentMoves`). not_found when Up next has changed or either item isn't the playlist's.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "uri": {
+                    "type": "string",
+                    "pattern": "^spotify:(track|episode):[A-Za-z0-9]+$",
+                    "description": "The track or episode.",
+                    "example": "spotify:track:4uLU6hMCjMI75M1A2tKUQC"
+                  },
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Where it is in Up next, counting from 0."
+                  },
+                  "toIndex": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Where it goes: the place of the item it lands on."
+                  }
+                },
+                "required": [
+                  "uri",
+                  "index",
+                  "toIndex"
                 ]
               }
             }

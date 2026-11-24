@@ -204,6 +204,13 @@
       "when": 1795514267400,
       "tag": "0028_playlist_edits",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1795515505335,
+      "tag": "0029_playlist_edit_claims",
+      "breakpoints": true
     }
   ]
 }
