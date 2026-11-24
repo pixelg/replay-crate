@@ -4,16 +4,20 @@
 #   pnpm os:up       start here: check the disk and data, start Postgres (+ search), report
 #   pnpm os:down     before rebooting: stop the app and Postgres, release leases, unmount (WSL)
 #   pnpm os:status   what's running and what the database holds, changing nothing
-# Runs on Linux and in the WSL2 distro on Windows. Flags: --no-reindex (os:up), --yes (don't ask).
+# Runs on Linux and in the WSL2 distro on Windows. Flags: --no-reindex (os:up); --manual (WSL:
+# don't mount or unmount the Linux disk, only print the administrator PowerShell command).
+# Without --manual, WSL mounts/unmounts it through WSL interop: powershell.exe (a normal Windows
+# process as you) asks Windows to run `wsl.exe --mount …` as administrator, so Windows shows its
+# UAC prompt and nothing is elevated unless you approve it there.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 cmd="${1:-status}"; shift || true
-reindex=1 assume_yes=0
+reindex=1 manual=0
 for arg in "$@"; do
   case "$arg" in
     --no-reindex) reindex=0 ;;
-    --yes|-y) assume_yes=1 ;;
+    --manual) manual=1 ;;
     *) echo "Unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -41,11 +45,6 @@ finish() {
     for t in "${todo[@]}"; do printf '   → %s\n' "$t"; done
   fi
   printf '\n'
-}
-confirm() { # confirm "question": yes with --yes; no when there's nobody to ask
-  [ "$assume_yes" = 1 ] && return 0
-  [ -t 0 ] || return 1
-  read -r -p "   $1 [y/N] " a; [[ "$a" =~ ^[Yy] ]]
 }
 
 # --- where are we -----------------------------------------------------------------------
@@ -87,10 +86,19 @@ app_ports() {
 # A UTC timestamp from Postgres, in this machine's local time.
 local_time() { if [ -z "$1" ]; then echo none; else date -d "$1 UTC" '+%Y-%m-%d %H:%M %Z'; fi; }
 
-# Runs elevated wsl.exe on Windows (a UAC prompt) and waits for it.
-wsl_admin() {
+# Runs `wsl.exe <args>` as administrator on Windows and waits for it. Windows shows its UAC
+# prompt; declined or failed, the caller sees the disk unchanged. With --manual, or without WSL
+# interop (no powershell.exe), it only says what to run.
+elevate() {
+  local how="In an administrator PowerShell:  wsl $1"
+  if [ "$manual" = 1 ]; then info "--manual: $how"; return 0; fi
+  if ! command -v powershell.exe >/dev/null 2>&1; then
+    warn "can't reach Windows from here (WSL interop is off, see /etc/wsl.conf)"; info "$how"; return 0
+  fi
+  info "asking Windows to run it as administrator: approve the UAC prompt"
+  cmd "powershell.exe Start-Process wsl.exe -Verb RunAs -Wait -ArgumentList '$1'"
   powershell.exe -NoProfile -Command \
-    "\$p = Start-Process wsl.exe -Verb RunAs -Wait -PassThru -ArgumentList '$1'; exit \$p.ExitCode" 2>&1 | tr -d '\r' | sed 's/^/     /'
+    "\$p = Start-Process wsl.exe -Verb RunAs -Wait -PassThru -ArgumentList '$1'; exit \$p.ExitCode" 2>&1 | tr -d '\r' | sed 's/^/     /' || true
 }
 
 header() {
@@ -147,11 +155,11 @@ up() {
       ok "mounted at $mnt"
     else
       warn "not mounted at $mnt"
-      info "In an administrator PowerShell:  wsl --mount $disk --partition $part --type ext4"
-      if confirm "Mount it now (Windows asks for admin rights)?"; then
-        wsl_admin "--mount $disk --partition $part --type ext4"
-      fi
-      disk_mounted || die "Still not mounted. Mount it, then run pnpm os:up again."
+      elevate "--mount $disk --partition $part --type ext4"
+      # Mounting by hand: wait for it here rather than making you start over.
+      while ! disk_mounted && [ -t 0 ] && read -r -p "   Press Enter once it's mounted (Ctrl-C to stop) " _; do :; done
+      disk_mounted || die "Not mounted. Mount it (administrator PowerShell), then run pnpm os:up again:" \
+        "wsl --mount $disk --partition $part --type ext4"
       ok "mounted at $mnt"
     fi
   fi
@@ -239,8 +247,7 @@ down() {
     if ! disk_mounted; then
       ok "not mounted"
     else
-      info "In an administrator PowerShell:  wsl --unmount $disk   (or: wsl --shutdown)"
-      if confirm "Unmount it now (Windows asks for admin rights)?"; then wsl_admin "--unmount $disk"; fi
+      elevate "--unmount $disk"
       if disk_mounted; then warn "still mounted"; next "wsl --unmount $disk  (administrator PowerShell), then reboot into Linux"
       else ok "unmounted"; next "reboot into Linux, then: pnpm os:up"; fi
     fi
@@ -280,5 +287,5 @@ case "$cmd" in
   up) up ;;
   down) down ;;
   status) status ;;
-  *) echo "Usage: $0 up|down|status [--no-reindex] [--yes]" >&2; exit 2 ;;
+  *) echo "Usage: $0 up|down|status [--no-reindex] [--manual]" >&2; exit 2 ;;
 esac
