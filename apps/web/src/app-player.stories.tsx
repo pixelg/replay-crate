@@ -471,7 +471,7 @@ export const PlayerUpNextDrags = meta.story({
     await userEvent.keyboard(' ')
     await userEvent.keyboard('{ArrowUp}')
     await userEvent.keyboard(' ')
-    await expect(await main.findByText(/Tracks you queued yourself always play first/)).toBeVisible()
+    await expect(await main.findByText(/It can't go there/)).toBeVisible()
     await expect(playerRequests).not.toHaveBeenCalled()
 
     main.getByRole('button', { name: 'Move The History of the Breakbeat' }).focus()

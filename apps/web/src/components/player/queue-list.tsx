@@ -81,7 +81,8 @@ export function QueueList({
       />
       {blocked && (
         <p role="status" className="mt-2 text-xs text-muted-foreground">
-          Tracks you queued yourself always play first: Spotify can't put a playlist track above them, so it can only move below them.
+          It can't go there: that row is a track you queued yourself (Spotify always plays those first) or one Spotify has in an order
+        Replay Crate hasn't read yet.
         </p>
       )}
     </>
