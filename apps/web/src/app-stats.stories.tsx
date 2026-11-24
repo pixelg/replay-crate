@@ -1,7 +1,7 @@
 import preview from '#storybook/preview'
 import { HttpResponse } from 'msw'
 import { expect, fn, screen, waitFor, within } from 'storybook/test'
-import { calendarYears, statsOverview, statsTop } from './test/fixtures.ts'
+import { calendarYears, statsGenres, statsOverview, statsTop } from './test/fixtures.ts'
 import { defaultHandlers, http } from './test/handlers.ts'
 import { App } from './test/app-story.tsx'
 import { preloadRoutes } from './test/app-story-helpers.ts'
@@ -93,6 +93,46 @@ export const StatsTopGenresOpenHistory = meta.story({
 export const StatsMobile = meta.story({
   args: { path: '/stats' },
   globals: { viewport: { value: 'mobile2', isRotated: false } },
+})
+
+/** Genres get their own chart: the top ones over time, how many there were, and the new ones. */
+export const StatsGenresOverTime = meta.story({
+  args: { path: '/stats' },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  play: async ({ canvas, userEvent }) => {
+    const card = (await canvas.findByText('Genres over time')).closest('[data-slot=card]') as HTMLElement
+    const chart = within(card)
+    await expect(chart.getByText('Your top 3 genres by plays')).toBeVisible()
+    await waitFor(() => expect(card.querySelectorAll('.recharts-area')).toHaveLength(3))
+    await userEvent.click(await chart.findByRole('button', { name: 'boom bap' }))
+    await waitFor(() => expect(card.querySelectorAll('.recharts-area')).toHaveLength(2))
+    // 23 genres, 14 of them new, and 351 of 400 plays with a genre.
+    await expect(chart.getByText('Genres').nextElementSibling).toHaveTextContent('23')
+    await expect(chart.getByText('New to you').nextElementSibling).toHaveTextContent('14')
+    await expect(chart.getByText('Plays with genres').nextElementSibling).toHaveTextContent('87%')
+    const fresh = within(chart.getByRole('list', { name: 'Genres heard for the first time' }))
+    await expect(fresh.getByRole('link', { name: /funk/ })).toHaveAttribute('href', expect.stringMatching(/^\/history\?genre=\d+$/))
+    await expect(fresh.getByText('and 12 more')).toBeVisible()
+    await expect(chart.getByRole('link', { name: 'Last.fm' })).toBeVisible()
+  },
+})
+
+/** All time has no "new" genres to single out, and plays without genres say why the chart is empty. */
+export const StatsGenresAllTimeWithoutGenres = meta.story({
+  args: { path: '/stats?range=all' },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get('/api/v1/stats/genres', ({ response }) =>
+        response(200).json({ ...statsGenres(), range: 'all', totals: { genres: 0, newGenres: 0, plays: 400, taggedPlays: 0 }, genres: [], newGenres: [] }),
+      ),
+    )
+  },
+  play: async ({ canvas }) => {
+    const chart = within((await canvas.findByText('Genres over time')).closest('[data-slot=card]') as HTMLElement)
+    await expect(chart.getByText(/None of these plays have genres yet/)).toBeVisible()
+    await expect(chart.queryByText('New to you')).toBeNull()
+    await expect(chart.getByText('Plays with genres').nextElementSibling).toHaveTextContent('0%')
+  },
 })
 
 export const StatsEmpty = meta.story({

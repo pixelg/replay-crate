@@ -1,5 +1,7 @@
-import type { PodcastStatsOverview, StatsOverview } from '@replay-crate/api-client'
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import type { PodcastStatsOverview, StatsGenres, StatsOverview } from '@replay-crate/api-client'
+import { Link } from '@tanstack/react-router'
+import { GenreCredit } from '@/components/genre-chips'
+import { useId, useState, type CSSProperties, type ReactNode } from 'react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -103,6 +105,90 @@ export function PodcastListeningOverTime({
   )
 }
 
+/**
+ * Genres over time: the span's top genres by plays, in plays or time. Not stacked, since a play
+ * counts for each of its artists' genres and the areas would add up to more than was played.
+ * Under it, how many genres there were, and the ones heard for the first time, each a link to
+ * its plays in History.
+ */
+export function GenresOverTime({
+  stats,
+  showNew = true,
+  emptyText = 'No plays in this range yet.',
+}: {
+  stats: StatsGenres
+  /** List the genres new to the span: pointless for all time, where every genre is. */
+  showNew?: boolean
+  emptyText?: string
+}) {
+  const { genres, totals, newGenres } = stats
+  const untagged = totals.plays - totals.taggedPlays
+  const more = totals.newGenres - newGenres.length
+  return (
+    <OverTimeChart
+      data={{
+        bucket: stats.bucket,
+        groups: genres,
+        series: stats.series.map((point) => ({
+          date: point.date,
+          byGroup: point.byGenre.map((genre) => ({ count: genre.plays, minutes: genre.minutes })),
+        })),
+        empty: totals.taggedPlays === 0,
+      }}
+      title="Genres over time"
+      description={genres.length ? `Your top ${genres.length === 1 ? 'genre' : `${genres.length} genres`} by plays` : 'Your top genres by plays'}
+      note="A play counts for each of its artists' genres."
+      counted={PLAYS}
+      stacked={false}
+      emptyText={totals.plays === 0 ? emptyText : 'None of these plays have genres yet: they fill in as artists are looked up.'}
+      footer={
+        <div className="mt-4 flex flex-col gap-3 px-2 sm:px-0">
+          <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+            <Fact label="Genres" value={totals.genres.toLocaleString()} />
+            {showNew && <Fact label="New to you" value={totals.newGenres.toLocaleString()} />}
+            <Fact
+              label="Plays with genres"
+              value={totals.plays ? `${Math.floor((totals.taggedPlays / totals.plays) * 100)}%` : '—'}
+              title={untagged > 0 ? `${untagged.toLocaleString()} ${untagged === 1 ? 'play has' : 'plays have'} no genre yet` : undefined}
+            />
+          </dl>
+          {showNew && newGenres.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-sm font-medium">Heard for the first time</p>
+              <ul aria-label="Genres heard for the first time" className="flex flex-wrap gap-1">
+                {newGenres.map((genre) => (
+                  <li key={genre.id}>
+                    <Link
+                      to="/history"
+                      search={{ genre: genre.id }}
+                      title={`Your ${genre.name} plays`}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      {genre.name}
+                      <span className="tabular-nums text-foreground">{genre.plays.toLocaleString()}</span>
+                    </Link>
+                  </li>
+                ))}
+                {more > 0 && <li className="self-center text-xs text-muted-foreground">and {more.toLocaleString()} more</li>}
+              </ul>
+            </div>
+          )}
+          <GenreCredit />
+        </div>
+      }
+    />
+  )
+}
+
+function Fact({ label, value, title }: { label: string; value: string; title?: string }) {
+  return (
+    <div className="flex items-baseline gap-1.5" title={title}>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="font-semibold tabular-nums">{value}</dd>
+    </div>
+  )
+}
+
 function OverTimeChart({
   data: { bucket, groups, series, empty },
   title,
@@ -110,6 +196,8 @@ function OverTimeChart({
   note,
   counted,
   initialMeasure = 'count',
+  stacked = true,
+  footer,
   emptyText,
 }: {
   data: OverTime
@@ -119,10 +207,16 @@ function OverTimeChart({
   note?: ReactNode
   counted: Counted
   initialMeasure?: Measure
+  /** Stack the areas (groups that share nothing, like artists by first credit) or overlay them. */
+  stacked?: boolean
+  /** More about the span, under the chart. */
+  footer?: ReactNode
   /** What to say when nothing was played in the span. */
   emptyText: string
 }) {
   const perWeek = bucket === 'week'
+  // Two of these charts share a page: each needs its own gradient ids.
+  const gradients = useId()
   const [measure, setMeasure] = useState<Measure>(initialMeasure)
   // Groups toggled off in the legend, by name: they stay off through a change of measure or span.
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
@@ -174,9 +268,9 @@ function OverTimeChart({
             <AreaChart data={data} accessibilityLayer>
               <defs>
                 {keys.map((key) => (
-                  <linearGradient key={key} id={`fill-${key}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={`var(--color-${key})`} stopOpacity={0.85} />
-                    <stop offset="95%" stopColor={`var(--color-${key})`} stopOpacity={0.08} />
+                  <linearGradient key={key} id={`${gradients}-${key}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={`var(--color-${key})`} stopOpacity={stacked ? 0.85 : 0.35} />
+                    <stop offset="95%" stopColor={`var(--color-${key})`} stopOpacity={stacked ? 0.08 : 0.02} />
                   </linearGradient>
                 ))}
               </defs>
@@ -242,9 +336,9 @@ function OverTimeChart({
                   dataKey={key}
                   // monotone never overshoots: "natural" dips below zero on spiky daily counts.
                   type="monotone"
-                  fill={`url(#fill-${key})`}
+                  fill={`url(#${gradients}-${key})`}
                   stroke={`var(--color-${key})`}
-                  stackId="listening"
+                  stackId={stacked ? 'listening' : undefined}
                   hide={hidden.has(groups[index]!.name)}
                 />
               ))}
@@ -253,6 +347,7 @@ function OverTimeChart({
             </AreaChart>
           </ChartContainer>
         )}
+        {footer}
       </CardContent>
     </Card>
   )

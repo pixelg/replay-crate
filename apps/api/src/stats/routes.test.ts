@@ -209,6 +209,40 @@ describe('stats', () => {
       expect((await get('/api/v1/stats/top?range=all&period=2026')).status).toBe(400)
     })
 
+    it('charts the top genres over time, with the genres new to the span', async () => {
+      const [hipHop, jazz] = await ctx.giveGenres('band', ['hip hop', 'jazz'])
+      await ctx.giveGenres('guest', ['hip hop', 'soul'])
+      const [funk] = await ctx.giveGenres('solo', ['funk'])
+      const body = await json(await get('/api/v1/stats/genres?range=7d'))
+      expect(body).toMatchObject({ range: '7d', bucket: 'day' })
+      // Five plays in the week, all with genres; funk's one play was in June.
+      expect(body.totals).toEqual({ genres: 3, newGenres: 3, plays: 5, taggedPlays: 5 })
+      expect(body.genres).toEqual([
+        { id: hipHop!.id, name: 'hip hop', plays: 5, minutes: 17 },
+        { id: jazz!.id, name: 'jazz', plays: 5, minutes: 17 },
+        { id: expect.any(Number), name: 'soul', plays: 4, minutes: 13 },
+      ])
+      expect(body.series).toHaveLength(7)
+      expect(body.series.at(-1)).toEqual({ date: '2026-09-21', byGenre: [{ plays: 3, minutes: 10 }, { plays: 3, minutes: 10 }, { plays: 2, minutes: 7 }] })
+      expect(body.series[0].byGenre).toEqual([{ plays: 0, minutes: 0 }, { plays: 0, minutes: 0 }, { plays: 0, minutes: 0 }])
+      expect(body.newGenres.map((genre: { name: string; plays: number }) => [genre.name, genre.plays])).toEqual([
+        ['hip hop', 5],
+        ['jazz', 5],
+        ['soul', 4],
+      ])
+      expect(body.newGenres[0].firstPlayedAt).toBe('2026-09-18T12:00:00.000Z')
+
+      // The year: funk was first, and is new to it too; a play without genres isn't tagged.
+      await ctx.db.delete(schema.artistGenres).where(eq(schema.artistGenres.genreId, funk!.id))
+      const year = await json(await get('/api/v1/stats/genres?period=2026'))
+      expect(year.bucket).toBe('week')
+      expect(year.totals).toEqual({ genres: 3, newGenres: 3, plays: 6, taggedPlays: 5 })
+      // A month before any of it: nothing heard, nothing new.
+      const may = await json(await get('/api/v1/stats/genres?period=2026-05'))
+      expect(may.totals).toEqual({ genres: 0, newGenres: 0, plays: 0, taggedPlays: 0 })
+      expect(may.newGenres).toEqual([])
+    })
+
     it('ranks genres, a play once per genre however many of its artists share it', async () => {
       const [hipHop, jazz] = await ctx.giveGenres('band', ['hip hop', 'jazz'])
       const [, soul] = await ctx.giveGenres('guest', ['hip hop', 'soul'])

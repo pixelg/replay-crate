@@ -141,6 +141,8 @@ describe('responses match the spec', () => {
     await call('POST', '/playlists/episode-preview', {}, { rule: { kind: 'sideways' } })
     await call('GET', '/stats/overview?range=all')
     await call('GET', '/stats/top?type=tracks')
+    await call('GET', '/stats/genres?range=all')
+    await call('GET', '/stats/genres?range=7d&period=2026')
     await call('GET', '/stats/top?type=genres&range=all')
     await call('GET', '/stats/top?type=artists&metric=minutes')
     await call('GET', '/stats/top?type=albums')

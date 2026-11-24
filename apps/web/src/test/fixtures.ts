@@ -39,6 +39,7 @@ import type {
   StatsCalendar,
   StatsOverview,
   StatsTop,
+  StatsGenres,
   TrackDetail,
   TrackPlaysOverTime,
 } from '@replay-crate/api-client'
@@ -390,6 +391,32 @@ export function statsOverview(days = 30): StatsOverview {
     })),
     series,
     openGaps: 0,
+  }
+}
+
+/** The same 30 days by genre: hip hop throughout, boom bap with it, funk arriving late. */
+export function statsGenres(days = 30): StatsGenres {
+  const dates = statsOverview(days).series.map((point) => point.date)
+  const top = [genre.hipHop, genre.boomBap, genre.funk]
+  const series = dates.map((date, i) => {
+    const byGenre = [4 + (i % 3), 2 + (i % 2), i > days * 0.6 ? 3 : 0].map((plays) => ({ plays, minutes: plays * 4 }))
+    return { date, byGenre }
+  })
+  return {
+    range: '30d',
+    tz: 'UTC',
+    bucket: 'day',
+    totals: { genres: 23, newGenres: 14, plays: 400, taggedPlays: 351 },
+    genres: top.map((g, n) => ({
+      ...g,
+      plays: series.reduce((sum, p) => sum + p.byGenre[n]!.plays, 0),
+      minutes: series.reduce((sum, p) => sum + p.byGenre[n]!.minutes, 0),
+    })),
+    series,
+    newGenres: [
+      { ...genre.funk, plays: 33, firstPlayedAt: hoursAgo(24 * 10) },
+      { ...genre.indiePop, plays: 9, firstPlayedAt: hoursAgo(24 * 3) },
+    ],
   }
 }
 
