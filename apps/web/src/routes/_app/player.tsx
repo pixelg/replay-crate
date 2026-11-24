@@ -153,7 +153,7 @@ function UpNextNote({
   shuffle: boolean
 }) {
   const text = playlist
-    ? `Drag to reorder (press and hold on a phone): this moves tracks in ${playlist.name}.${playlist.positions.includes(null) ? ' Tracks you queued yourself stay where they are.' : ''}`
+    ? `Drag to reorder (press and hold on a phone): this moves tracks in ${playlist.name}.${playlist.positions.includes(null) ? " Some rows can't move: tracks you queued yourself, or ones Spotify has in an order Replay Crate hasn't read yet." : ''}`
     : context?.type === 'playlist' && shuffle
       ? 'Turn shuffle off to reorder Up next.'
       : 'Up next can be reordered while one of your playlists plays.'

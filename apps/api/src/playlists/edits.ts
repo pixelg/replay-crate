@@ -2,6 +2,7 @@ import { schema, type Db } from '@replay-crate/db'
 import { and, asc, count, eq, isNotNull, isNull, lt, max, or, sql, type SQL } from 'drizzle-orm'
 import type { AppDeps } from '../deps.ts'
 import { enqueue } from '../jobs/enqueue.ts'
+import { syncPlaylistItems } from '../sync/playlists.ts'
 
 // Moves are saved here first and sent to Spotify after (Spotify can be paused for hours, or
 // refuse): the stored items take the new order at once, `playlist_edits` remembers what Spotify
@@ -65,7 +66,8 @@ const SENDING_MS = 30_000
 export type SendResult = 'sent' | 'none' | 'blocked' | 'busy'
 
 /**
- * Sends the playlist's oldest unsent move to Spotify (one call), against the version the stored
+ * Sends the playlist's oldest unsent move to Spotify (one call; after its last, the playlist is
+ * read again), against the version the stored
  * items came from. 'none' when nothing is left, 'blocked' behind a refused one, 'busy' while
  * another sender (a job, or a request sending them at once) has it.
  */
@@ -100,9 +102,19 @@ export async function sendOldestMove(deps: AppDeps, userId: string, playlistId: 
     await db.update(playlistEdits).set({ sendingUntil: null }).where(eq(playlistEdits.id, edit.id))
     throw error
   }
-  // The stored items already have the move: they are now that version.
-  await db.update(playlists).set({ itemsSnapshotId: snapshotId }).where(eq(playlists.id, playlistId))
   await db.delete(playlistEdits).where(eq(playlistEdits.id, edit.id))
+  if (await hasUnsentMoves(db, playlistId)) {
+    // The next move was made on the list as it is after this one: guard it with this version.
+    await db.update(playlists).set({ itemsSnapshotId: snapshotId }).where(eq(playlists.id, playlistId))
+    return 'sent'
+  }
+  // The last one: Spotify has every move now, and maybe changes made in Spotify meanwhile (the
+  // playlist reordered on a phone), which the stored items don't. So they're read again (a page of
+  // calls, as after an add). If that fails, the stored version stays the old one, so the next
+  // sync sees Spotify's is newer and reads them then.
+  await syncPlaylistItems(deps, accessToken, playlistId, snapshotId).catch((error: unknown) =>
+    console.warn(`[playlists] re-reading ${playlistId} after its moves failed; the next sync will:`, error),
+  )
   return 'sent'
 }
 

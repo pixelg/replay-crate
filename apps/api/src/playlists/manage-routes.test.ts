@@ -111,6 +111,19 @@ describe('playlist management', () => {
       expect(await storedOrder('road')).toEqual(['x', 'a', 'b', 'c', 'd'])
     })
 
+    it('reads the playlist again once its moves are sent, picking up changes made in Spotify', async () => {
+      // Reordered in Spotify (on a phone, say) since the last sync: d a b c there, a b c d here.
+      await ctx.spotify.reorderPlaylistItems('access-1', 'road', { rangeStart: 3, insertBefore: 0 })
+      // Spotify applies a move made on an older version to its current list.
+      const reorder = ctx.spotify.reorderPlaylistItems.getMockImplementation()!
+      ctx.spotify.reorderPlaylistItems.mockImplementationOnce((token, id, move) => reorder(token, id, { ...move, snapshotId: undefined }))
+
+      await send('PUT', '/api/v1/playlists/road/items/move', { from: 0, to: 1 })
+      await runSpotifyJobs()
+      expect(ctx.library.trackIds('road')).toEqual(['a', 'd', 'b', 'c'])
+      expect(await storedOrder('road')).toEqual(['a', 'd', 'b', 'c'])
+    })
+
     it('keeps a move Spotify refused marked, until retried or discarded', async () => {
       ctx.spotify.reorderPlaylistItems.mockRejectedValueOnce(new SpotifyApiError(400, 'snapshot mismatch'))
       await send('PUT', '/api/v1/playlists/road/items/move', { from: 0, to: 3 })
