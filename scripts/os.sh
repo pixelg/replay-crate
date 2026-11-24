@@ -77,7 +77,7 @@ search_on() { [ -n "$(cd apps/api && node_modules/.bin/varlock printenv ELASTICS
 app_ports() {
   local p='5173|8787|4173' line port pid
   [ "${1:-}" = no-serve ] && p='5173|8787'
-  ss -Hltnp 2>/dev/null | grep -E ":($p)\b" | while IFS= read -r line; do
+  ss -Hltnp 2>/dev/null | { grep -E ":($p)\b" || true; } | while IFS= read -r line; do
     port="$(grep -oE ":($p)\b" <<<"$line" | head -n 1)"; pid="$(grep -oE 'pid=[0-9]+' <<<"$line" | head -n 1)"; pid="${pid#pid=}"
     case "${port#:}" in 5173) what='web (pnpm dev)' ;; 8787) what='api (pnpm dev)' ;; *) what='pnpm serve or the service' ;; esac
     printf '%s %s, pid %s\n' "${port#:}" "$what" "${pid:-?}"
