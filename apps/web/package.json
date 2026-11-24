@@ -39,7 +39,7 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@storybook/addon-a11y": "^10.6.0",
-    "@storybook/addon-vitest": "^10.6.0",
+    "@storybook/addon-vitest": "^10.6.2",
     "@storybook/react-vite": "^10.6.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/router-plugin": "^1.168.40",
