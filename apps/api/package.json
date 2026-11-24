@@ -28,7 +28,7 @@
     "hono": "^4.13.8",
     "pg": "^8.23.0",
     "varlock": "^1.20.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
