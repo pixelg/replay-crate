@@ -132,6 +132,9 @@ describe('responses match the spec', () => {
     const { id: created } = await call('POST', '/playlists', {}, { name: 'New', trackIds: ['4uLU6hMCjMI75M1A2tKUQC'] })
     await call('POST', '/playlists/{id}/items', { id: created }, { trackIds: ['b'] })
     await call('PUT', '/playlists/{id}/items/move', { id: created }, { from: 1, to: 0 })
+    await call('GET', '/playlists/{id}', { id: created }) // with a move not on Spotify yet
+    await call('POST', '/playlists/{id}/moves/retry', { id: created })
+    await call('DELETE', '/playlists/{id}/moves', { id: created })
     await call('DELETE', '/playlists/{id}/items', { id: created }, { trackIds: ['b'] })
     ctx.library.addEpisodes(episode('5Xt5DXGzch68nYYamXrNxZ', { show: ['pod', 'The Pod'] }))
     await call('POST', '/playlists/{id}/episodes', { id: created }, { episodeIds: ['5Xt5DXGzch68nYYamXrNxZ'] })

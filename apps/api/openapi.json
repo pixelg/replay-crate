@@ -1602,6 +1602,21 @@
           }
         ]
       },
+      "UnsavedMovesError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "unsaved_moves"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "description": "Spotify refused a move made here; retry it or go back to Spotify's order before changing the playlist."
+      },
       "PlaylistSummary": {
         "type": "object",
         "properties": {
@@ -6940,11 +6955,18 @@
             }
           },
           "409": {
-            "description": "reauth_required",
+            "description": "reauth_required | unsaved_moves",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReauthRequiredError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UnsavedMovesError"
+                    }
+                  ]
                 }
               }
             }
@@ -7188,11 +7210,18 @@
             }
           },
           "409": {
-            "description": "reauth_required",
+            "description": "reauth_required | unsaved_moves",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReauthRequiredError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UnsavedMovesError"
+                    }
+                  ]
                 }
               }
             }
@@ -7336,11 +7365,18 @@
             }
           },
           "409": {
-            "description": "reauth_required",
+            "description": "reauth_required | unsaved_moves",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReauthRequiredError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UnsavedMovesError"
+                    }
+                  ]
                 }
               }
             }
@@ -7490,11 +7526,18 @@
             }
           },
           "409": {
-            "description": "reauth_required",
+            "description": "reauth_required | unsaved_moves",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReauthRequiredError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UnsavedMovesError"
+                    }
+                  ]
                 }
               }
             }
@@ -7638,11 +7681,18 @@
             }
           },
           "409": {
-            "description": "reauth_required",
+            "description": "reauth_required | unsaved_moves",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReauthRequiredError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UnsavedMovesError"
+                    }
+                  ]
                 }
               }
             }
@@ -7677,7 +7727,7 @@
         ],
         "operationId": "movePlaylistItem",
         "summary": "Move a track or episode",
-        "description": "Moves the item at `from` so it ends up at `to` (0-based Spotify positions, counting tracks and episodes).",
+        "description": "Moves the item at `from` so it ends up at `to` (0-based Spotify positions, counting tracks and episodes). Saved at once and sent to Spotify in the background, in order; `unsentMoves` on the playlist says what Spotify is still missing.",
         "security": [
           {
             "session": []
@@ -7786,11 +7836,280 @@
             }
           },
           "409": {
-            "description": "reauth_required",
+            "description": "reauth_required | unsaved_moves",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReauthRequiredError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UnsavedMovesError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/playlists/{id}/moves/retry": {
+      "post": {
+        "tags": [
+          "Playlists"
+        ],
+        "operationId": "retryPlaylistMoves",
+        "summary": "Send refused moves again",
+        "description": "Queues the moves Spotify refused to be sent again, in order.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify playlist id."
+            },
+            "required": true,
+            "description": "Spotify playlist id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | unsaved_moves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UnsavedMovesError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitedError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/playlists/{id}/moves": {
+      "delete": {
+        "tags": [
+          "Playlists"
+        ],
+        "operationId": "discardPlaylistMoves",
+        "summary": "Go back to Spotify's order",
+        "description": "Forgets the moves Spotify does not have yet and re-reads the playlist from Spotify.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Spotify playlist id."
+            },
+            "required": true,
+            "description": "Spotify playlist id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Re-read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "reauth_required | unsaved_moves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ReauthRequiredError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/UnsavedMovesError"
+                    }
+                  ]
                 }
               }
             }
@@ -8012,6 +8331,34 @@
                         "itemsSynced": {
                           "type": "boolean",
                           "description": "False until the tracks have been fetched once."
+                        },
+                        "unsentMoves": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "moves": {
+                              "type": "integer",
+                              "description": "Moves made here that Spotify does not have yet."
+                            },
+                            "failed": {
+                              "type": "boolean",
+                              "description": "Spotify refused one: they wait until retried or discarded."
+                            },
+                            "error": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "moves",
+                            "failed",
+                            "error"
+                          ],
+                          "description": "Null when Spotify has the order shown."
                         }
                       },
                       "required": [
@@ -8025,7 +8372,8 @@
                         "isPublic",
                         "itemCount",
                         "playsFrom",
-                        "itemsSynced"
+                        "itemsSynced",
+                        "unsentMoves"
                       ]
                     },
                     "items": {

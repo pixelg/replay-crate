@@ -57,6 +57,12 @@ const ERRORS = {
       description: 'The import was already finished; start a new one.',
     }),
   },
+  unsaved_moves: {
+    status: 409,
+    schema: errorBody('unsaved_moves').openapi('UnsavedMovesError', {
+      description: "Spotify refused a move made here; retry it or go back to Spotify's order before changing the playlist.",
+    }),
+  },
   rate_limited: {
     status: 503,
     schema: errorBody('rate_limited')

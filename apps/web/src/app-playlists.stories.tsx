@@ -273,6 +273,48 @@ export const PlaylistDragsTrack = meta.story({
   },
 })
 
+/** A move saved here but not yet on Spotify marks the playlist until Spotify has it. */
+export const PlaylistMovesOnTheirWay = meta.story({
+  args: { path: '/playlists/p1' },
+  beforeEach({ msw }) {
+    msw.use(
+      http.get('/api/v1/playlists/{id}', ({ response }) =>
+        response(200).json({ ...playlistDetail, playlist: { ...playlistDetail.playlist, unsentMoves: { moves: 2, failed: false, error: null } } }),
+      ),
+    )
+  },
+  play: async ({ canvas }) => {
+    await expect(await canvas.findByText(/2 moves not on Spotify yet/)).toHaveAttribute('role', 'status')
+  },
+})
+
+/** Spotify refused a move: the playlist says so and offers Retry or Spotify's own order. */
+export const PlaylistMovesRefused = meta.story({
+  args: { path: '/playlists/p1' },
+  beforeEach({ msw }) {
+    requests.mockClear()
+    let unsent: { moves: number; failed: boolean; error: string | null } | null = { moves: 1, failed: true, error: 'Spotify refused the move.' }
+    msw.use(
+      http.get('/api/v1/playlists/{id}', ({ response }) =>
+        response(200).json({ ...playlistDetail, playlist: { ...playlistDetail.playlist, unsentMoves: unsent } }),
+      ),
+      http.post('/api/v1/playlists/{id}/moves/retry', ({ response }) => {
+        requests('retry')
+        unsent = null
+        return response(200).json({ ok: true })
+      }),
+    )
+  },
+  play: async ({ canvas, userEvent }) => {
+    const alert = await canvas.findByRole('alert')
+    await expect(alert).toHaveTextContent("Spotify doesn't have this order")
+    await expect(within(alert).getByRole('button', { name: "Use Spotify's order" })).toBeEnabled()
+    await userEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(requests).toHaveBeenCalledWith('retry'))
+    await waitFor(() => expect(canvas.queryByRole('alert')).toBeNull())
+  },
+})
+
 /**
  * A playlist chip on a History row opens the playlist where that track is: on its page, scrolled
  * to it and marked. The playlist holds another copy of the recording, which counts.

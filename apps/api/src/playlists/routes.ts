@@ -7,6 +7,7 @@ import { loadTrackGenres } from '../genres/queries.ts'
 import { loadTrackArtists } from '../history/queries.ts'
 import { recordingId } from '../tracks/recordings.ts'
 import { latestAddedFirst } from './queries.ts'
+import { unsentMoves } from './edits.ts'
 import { EpisodeSummary, loadEpisodeSummaries } from '../podcasts/present.ts'
 import { createRouter, errorResponses, signedIn } from '../lib/openapi.ts'
 import { ArtistRef, GenreRef, IsoDateTime, jsonResponse, Rating } from '../lib/schemas.ts'
@@ -123,6 +124,14 @@ const get = createRoute({
           itemCount: z.number().int(),
           playsFrom: z.number().int(),
           itemsSynced: z.boolean().openapi({ description: 'False until the tracks have been fetched once.' }),
+          unsentMoves: z
+            .object({
+              moves: z.number().int().openapi({ description: 'Moves made here that Spotify does not have yet.' }),
+              failed: z.boolean().openapi({ description: 'Spotify refused one: they wait until retried or discarded.' }),
+              error: z.string().nullable(),
+            })
+            .nullable()
+            .openapi({ description: 'Null when Spotify has the order shown.' }),
         }),
         items: z.array(
           z
@@ -393,6 +402,7 @@ export function playlistRoutes(deps: AppDeps) {
               itemCount: meta.itemCount,
               playsFrom: playsFrom?.total ?? 0,
               itemsSynced: meta.itemsSnapshotId != null,
+              unsentMoves: await unsentMoves(db, user.id, playlistId),
             },
             items: items.map((item) => {
               const trackStats = statsByTrack.get(item.recording)

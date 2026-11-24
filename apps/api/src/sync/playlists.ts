@@ -5,6 +5,7 @@ import type { AppDeps } from '../deps.ts'
 import { getAccessToken } from '../spotify/access-token.ts'
 import { upsertEpisodes } from '../podcasts/catalog.ts'
 import { upsertCatalog } from './catalog.ts'
+import { hasUnsentMoves } from '../playlists/edits.ts'
 
 const { playlistEpisodes, playlistItems, playlists, userPlaylists, users } = schema
 
@@ -132,15 +133,17 @@ export async function syncPlaylists(
  * Re-reads a playlist's items from Spotify and records which version they came from.
  * Pass the snapshot a write just returned; otherwise the current one is looked up first.
  * (`GET /me/playlists` can report a version a minute old, so it's never used for this.)
- * Returns how many entries Spotify has (including skipped local files).
+ * Returns how many entries Spotify has (including skipped local files), or null when it was left
+ * alone: moves made here are still on their way to Spotify, and its order would undo them.
  */
 export async function syncPlaylistItems(
   deps: AppDeps,
   accessToken: string,
   playlistId: string,
   knownSnapshotId?: string,
-): Promise<number> {
+): Promise<number | null> {
   const { db, spotify } = deps
+  if (await hasUnsentMoves(db, playlistId)) return null
   // Read the version before the items: if it changes in between, the items are newer than
   // the recorded version and the next sync simply fetches them again.
   const snapshotId = knownSnapshotId ?? (await spotify.getPlaylistMeta(accessToken, playlistId)).snapshot_id

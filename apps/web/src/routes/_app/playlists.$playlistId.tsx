@@ -16,6 +16,7 @@ import { EpisodeRating, TrackRating } from '../../components/star-rating.tsx'
 import { Button } from '../../components/ui/button.tsx'
 import { Segmented } from '../../components/ui/segmented.tsx'
 import { SortableList } from '../../components/sortable-list.tsx'
+import { UNSENT_POLL_MS, UnsentMoves } from '../../components/unsent-moves.tsx'
 import { api } from '../../lib/api.ts'
 import { useMode } from '../../lib/mode.ts'
 import { moveTargets } from '../../lib/playlist-moves.ts'
@@ -65,7 +66,14 @@ const isSort = (value: unknown): value is Sort => sortOptions.some((option) => o
 
 function PlaylistPage() {
   const { playlistId } = Route.useParams()
-  const { data } = useSuspenseQuery(playlistQueryOptions(api, playlistId))
+  const { data } = useSuspenseQuery({
+    ...playlistQueryOptions(api, playlistId),
+    // While moves are on their way to Spotify, look again until they've arrived (or were refused).
+    refetchInterval: (query) => {
+      const unsent = query.state.data?.playlist.unsentMoves
+      return unsent && !unsent.failed ? UNSENT_POLL_MS : false
+    },
+  })
   const { playlist, items } = data
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
@@ -120,6 +128,8 @@ function PlaylistPage() {
         </div>
       </header>
 
+      {playlist.unsentMoves && <UnsentMoves playlistId={playlist.id} unsent={playlist.unsentMoves} />}
+
       {!playlist.itemsSynced ? (
         <EmptyState icon={ListMusic} title="Tracks not synced yet">
           Run Sync playlists on the Playlists page to fetch them.
@@ -130,7 +140,7 @@ function PlaylistPage() {
         <section aria-label="Tracks">
           <div className="mb-3 flex flex-wrap items-center gap-3 overflow-x-auto">
             <Segmented label="Sort tracks" value={sort} onChange={setSort} options={sortOptions} />
-            {edit.isPending && <p className="text-xs text-muted-foreground">Saving to Spotify…</p>}
+            {edit.isPending && <p className="text-xs text-muted-foreground">Saving…</p>}
             {edit.error && !edit.isPending && <InlineError error={edit.error} action="Updating the playlist" />}
           </div>
           {/* In the playlist's own order, rows drag to a new place (press and hold on a phone). */}
@@ -194,7 +204,7 @@ function PlaylistEpisodes({ data }: { data: PlaylistDetail }) {
   return (
     <section aria-label="Episodes">
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        {edit.isPending && <p className="text-xs text-muted-foreground">Saving to Spotify…</p>}
+        {edit.isPending && <p className="text-xs text-muted-foreground">Saving…</p>}
         {edit.error && !edit.isPending && <InlineError error={edit.error} action="Updating the playlist" />}
       </div>
       <SortableList

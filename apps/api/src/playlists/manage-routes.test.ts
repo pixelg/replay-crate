@@ -2,6 +2,7 @@ import { schema } from '@replay-crate/db'
 import { SpotifyApiError } from '@replay-crate/spotify'
 import { asc, eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { runJobs } from '../jobs/queue.ts'
 import { createTestContext, play, track } from '../testing.ts'
 
 const ORIGIN = 'http://127.0.0.1:5173'
@@ -27,6 +28,8 @@ describe('playlist management', () => {
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   const syncLibrary = () => send('POST', '/api/v1/playlists/sync')
+  const runSpotifyJobs = () => runJobs(ctx.deps, { intervalMs: 0 })
+  const unsent = async (id: string) => (await json(await send('GET', `/api/v1/playlists/${id}`))).playlist.unsentMoves
   const storedOrder = async (playlistId: string) =>
     (
       await ctx.db
@@ -65,11 +68,31 @@ describe('playlist management', () => {
       { from: 3, to: 0, expected: ['d', 'a', 'b', 'c'] }, // to the top
       { from: 1, to: 3, expected: ['a', 'c', 'd', 'b'] }, // to the bottom
       { from: 2, to: 1, expected: ['a', 'c', 'b', 'd'] }, // up one
-    ])('moves $from → $to', async ({ from, to, expected }) => {
+    ])('moves $from → $to: stored at once, Spotify after', async ({ from, to, expected }) => {
       const res = await send('PUT', '/api/v1/playlists/road/items/move', { from, to })
       expect(res.status).toBe(200)
-      expect(ctx.library.trackIds('road')).toEqual(expected)
       expect(await storedOrder('road')).toEqual(expected)
+      expect(ctx.library.trackIds('road')).toEqual(['a', 'b', 'c', 'd'])
+      expect(await unsent('road')).toEqual({ moves: 1, failed: false, error: null })
+
+      expect(await runSpotifyJobs()).toMatchObject({ done: 1 })
+      expect(ctx.library.trackIds('road')).toEqual(expected)
+      expect(await unsent('road')).toBeNull()
+    })
+
+    it('sends several moves in the order they were made, each on the version before it', async () => {
+      await send('PUT', '/api/v1/playlists/road/items/move', { from: 3, to: 0 }) // d a b c
+      await send('PUT', '/api/v1/playlists/road/items/move', { from: 1, to: 3 }) // d b c a
+      expect(await storedOrder('road')).toEqual(['d', 'b', 'c', 'a'])
+      // A library sync meanwhile must not put Spotify's old order back.
+      await syncLibrary()
+      expect(await storedOrder('road')).toEqual(['d', 'b', 'c', 'a'])
+
+      await runSpotifyJobs()
+      expect(ctx.library.trackIds('road')).toEqual(['d', 'b', 'c', 'a'])
+      expect(await unsent('road')).toBeNull()
+      await syncLibrary()
+      expect(await storedOrder('road')).toEqual(['d', 'b', 'c', 'a'])
     })
 
     it('guards moves with the version its positions came from, even while the listing lags', async () => {
@@ -79,12 +102,55 @@ describe('playlist management', () => {
 
       const res = await send('PUT', '/api/v1/playlists/road/items/move', { from: 4, to: 0 })
       expect(res.status).toBe(200)
+      await runSpotifyJobs()
       expect(ctx.spotify.reorderPlaylistItems).toHaveBeenLastCalledWith('access-1', 'road', {
         rangeStart: 4,
         insertBefore: 0,
         snapshotId: 'road-v2',
       })
       expect(await storedOrder('road')).toEqual(['x', 'a', 'b', 'c', 'd'])
+    })
+
+    it('keeps a move Spotify refused marked, until retried or discarded', async () => {
+      ctx.spotify.reorderPlaylistItems.mockRejectedValueOnce(new SpotifyApiError(400, 'snapshot mismatch'))
+      await send('PUT', '/api/v1/playlists/road/items/move', { from: 0, to: 3 })
+      expect(await runSpotifyJobs()).toMatchObject({ dropped: 1 })
+      expect(await unsent('road')).toMatchObject({ moves: 1, failed: true })
+      expect(await storedOrder('road')).toEqual(['b', 'c', 'd', 'a'])
+
+      // Other changes wait on the user's choice.
+      const add = await send('POST', '/api/v1/playlists/road/items', { trackIds: ['x'] })
+      expect(add.status).toBe(409)
+      expect(await json(add)).toEqual({ error: 'unsaved_moves' })
+
+      expect((await send('POST', '/api/v1/playlists/road/moves/retry')).status).toBe(200)
+      expect(await unsent('road')).toMatchObject({ moves: 1, failed: false })
+      await runSpotifyJobs()
+      expect(ctx.library.trackIds('road')).toEqual(['b', 'c', 'd', 'a'])
+      expect(await unsent('road')).toBeNull()
+    })
+
+    it("goes back to Spotify's order", async () => {
+      ctx.spotify.reorderPlaylistItems.mockRejectedValueOnce(new SpotifyApiError(400, 'snapshot mismatch'))
+      await send('PUT', '/api/v1/playlists/road/items/move', { from: 0, to: 3 })
+      await runSpotifyJobs()
+      expect((await send('DELETE', '/api/v1/playlists/road/moves')).status).toBe(200)
+      expect(await storedOrder('road')).toEqual(['a', 'b', 'c', 'd'])
+      expect(await unsent('road')).toBeNull()
+    })
+
+    it('sends unsent moves before adding, so positions line up', async () => {
+      await send('PUT', '/api/v1/playlists/road/items/move', { from: 3, to: 0 })
+      await send('POST', '/api/v1/playlists/road/items', { trackIds: ['x'], position: 1 })
+      expect(ctx.library.trackIds('road')).toEqual(['d', 'x', 'a', 'b', 'c'])
+      expect(await storedOrder('road')).toEqual(['d', 'x', 'a', 'b', 'c'])
+      expect(await unsent('road')).toBeNull()
+    })
+
+    it('refuses a move past the end', async () => {
+      const res = await send('PUT', '/api/v1/playlists/road/items/move', { from: 0, to: 9 })
+      expect(res.status).toBe(400)
+      expect(await storedOrder('road')).toEqual(['a', 'b', 'c', 'd'])
     })
 
     it('refuses playlists outside the library', async () => {

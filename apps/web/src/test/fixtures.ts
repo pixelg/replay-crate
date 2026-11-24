@@ -308,6 +308,7 @@ export const playlistDetail: PlaylistDetail = {
     itemCount: 4,
     playsFrom: 318,
     itemsSynced: true,
+    unsentMoves: null,
   },
   items: [
     playlistTrack(0, plays[0]!.track, 12, 9, [
@@ -1081,6 +1082,7 @@ export const podcastPlaylistDetail: PlaylistDetail = {
     itemCount: 3,
     playsFrom: 0,
     itemsSynced: true,
+    unsentMoves: null,
   },
   items: [],
   episodes: [episodes.digging, episodes.breakbeat, episodes.amen].map((episode, position) => {

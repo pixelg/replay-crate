@@ -10,6 +10,7 @@ import { upsertEpisodes } from '../podcasts/catalog.ts'
 import { saveResumePoint } from '../podcasts/estimates.ts'
 import { parseEpisodeJobRef } from '../podcasts/listens.ts'
 import { refreshShowEpisodes } from '../podcasts/shows.ts'
+import { parseEditJobRef, refuseMoves, sendOldestMove } from '../playlists/edits.ts'
 import { upsertCatalog } from '../sync/catalog.ts'
 import { DEFAULT_BUDGET, pauseApi, pausedUntil, takeCall, type Api, type CallBudget } from './budget.ts'
 import type { JobKind } from './enqueue.ts'
@@ -33,6 +34,15 @@ const handlers: Record<JobKind, Handler> = {
       await promote(deps.db, [id])
     },
     gone: (deps, id) => discardTrack(deps.db, id),
+  },
+  /** Send a playlist's oldest move made in Replay Crate to Spotify; a refusal waits on the user. */
+  'playlist-edit': {
+    api: 'spotify',
+    run: async (deps, ref, { accessToken }) => {
+      const { userId, playlistId } = parseEditJobRef(ref)
+      await sendOldestMove(deps, userId, playlistId, await accessToken())
+    },
+    gone: refuseMoves,
   },
   /** Fetch an artist for its image (artists in plays come without one). */
   artist: {
