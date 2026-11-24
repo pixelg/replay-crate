@@ -16,6 +16,7 @@ services=(postgres)
 if [ -n "$(cd apps/api && node_modules/.bin/varlock printenv ELASTICSEARCH_URL)" ]; then
   services+=(elasticsearch kibana)
 fi
+./scripts/check-pgdata.sh
 docker compose up --detach --wait "${services[@]}"
 
 export API_PORT=4173
