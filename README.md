@@ -63,7 +63,7 @@ For everyday use, run the built app and the API as one server on http://127.0.0.
    ./scripts/install-service.sh
    ```
 
-   Logs: `journalctl --user -u replay-crate -f`. Stop: `systemctl --user stop replay-crate`.
+   Logs: `journalctl --user -u replay-crate -f`. Stop: `systemctl --user stop replay-crate`. To keep it installed but start it only by hand (`systemctl --user start replay-crate`), turn off the start at login with `systemctl --user disable replay-crate`. Or skip the service and run `pnpm serve` in a terminal when you want it: same app, and Ctrl-C stops it.
 
 4. After pulling changes, restart it with `systemctl --user restart replay-crate`, which rebuilds the app. A release's **Upgrading** notes say when more is needed first: `pnpm install` for new dependencies, `pnpm db:migrate` for new migrations, and after the restart `pnpm search:reindex` when the Elasticsearch index layout changed.
 
@@ -132,7 +132,18 @@ If you dual boot Linux and Windows (WSL2 + Docker Desktop with WSL integration),
 
    `net stop winnat` waits for Docker and WSL to let go, which can take a while.
 
-4. **Switching OS:** stop Postgres first (`pnpm db:down`). Leaving Linux, stop the `replay-crate` service before that if you installed it (`systemctl --user stop replay-crate`): it starts at login and keeps recording plays while it runs. Leaving Windows, also detach the disk in an administrator PowerShell (`wsl --unmount \\.\PHYSICALDRIVE2`, or `wsl --shutdown`). Each OS has its own search index, while plays recorded on the other OS only reach that OS's index, so with Elasticsearch run `pnpm search:reindex` after switching. (`pnpm serve` starts Elasticsearch and fills a brand-new index by itself; `pnpm dev` needs `pnpm search:up` first.)
+4. **Switching OS:** `pnpm os:down` before you reboot, `pnpm os:up` after, on either OS. Each prints its steps as it goes and ends with what's left for you to do (`pnpm os:status` shows the same state without changing anything):
+
+   ```bash
+   pnpm os:down   # refuses while pnpm dev / pnpm serve runs (Ctrl-C them first); stops the replay-crate
+                  # service if it runs, releases this OS's leases, stops Postgres and Elasticsearch;
+                  # on Windows offers to unmount the Linux disk (a UAC prompt), or prints the command
+   pnpm os:up     # on Windows checks the disk is mounted (offers to mount it); checks the data
+                  # directory, starts Postgres (and Elasticsearch), reports plays and pending
+                  # migrations, frees leases the other OS left, and rebuilds the search index
+   ```
+
+   `os:up` starts only the databases, never the app: run `pnpm dev` or `pnpm serve` in a terminal afterwards. The search index is rebuilt because each OS has its own, and plays recorded on the other OS only reached that one; it takes a few minutes, and `--no-reindex` skips it. `--yes` answers the mount and unmount questions. By hand, the steps are: stop the app (and the `replay-crate` service, if you installed it: `systemctl --user stop replay-crate`), `pnpm db:down`, and leaving Windows `wsl --unmount \\.\PHYSICALDRIVE2` (or `wsl --shutdown`) in an administrator PowerShell; afterwards `pnpm db:up` and `pnpm search:reindex`.
 
 **Forgot to mount the disk?** `pnpm db:up`, `search:up`, `dev` and `serve` check `PGDATA_DIR` first (`scripts/check-pgdata.sh`) and stop when it holds no database or is in memory, which is what `/mnt/wsl/...` is while the disk isn't mounted. Without that check, Docker would create the directory and Postgres would start a brand-new, empty database: sign-in fails with `relation "users" does not exist`, and Docker Desktop keeps pointing at that empty directory even after the disk is mounted. If that ever happens: mount the disk, `docker compose down`, then remove Docker Desktop's stale bind (from Windows, so it runs as root: `wsl -d <distro> -u root -- umount /mnt/wsl/docker-desktop-bind-mounts/<distro>/<id>`, the line `findmnt | grep pgdata` shows on `tmpfs`) and `pnpm db:up` again. Your data on the disk is untouched.
 
@@ -227,6 +238,7 @@ With Elasticsearch, the API also keeps two indices of events for Kibana: `rc-pla
 |---|---|
 | `pnpm dev` | Web app + API with hot reload |
 | `pnpm db:up` / `db:down` / `db:psql` | Local Postgres in Docker: start, stop, SQL prompt |
+| `pnpm os:up` / `os:down` / `os:status` | Dual boot: start here, shut down before switching OS, show state (see [Use it from Windows](#use-it-from-windows-dual-boot)) |
 | `pnpm db:migrate` | Apply database migrations |
 | `pnpm test` | Unit tests and Storybook story tests (headless Chromium) |
 | `pnpm test:e2e` | Playwright smoke tests against the built app + API (fake Spotify, in-memory DB) |

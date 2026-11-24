@@ -21,6 +21,7 @@ pnpm workspace, tasks run by Turborepo (`turbo.json`). Packages export TypeScrip
 ```bash
 pnpm dev                # starts the DB, then web on http://127.0.0.1:5173 + api on :8787 (Vite proxies /api)
 pnpm db:up / db:down    # local Postgres 18 in Docker (compose.yaml) on 127.0.0.1:54320
+pnpm os:up / os:down    # dual boot (Linux ⇄ Windows/WSL2): start here / shut down before switching OS (os:status shows state)
 pnpm db:psql            # SQL prompt on the local database
 pnpm search:up          # optional Elasticsearch 9 + Kibana (compose profile `search`)
 pnpm lint               # oxlint
