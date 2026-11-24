@@ -1886,6 +1886,139 @@
           "rating"
         ]
       },
+      "StatsGenres": {
+        "type": "object",
+        "properties": {
+          "range": {
+            "$ref": "#/components/schemas/StatsRange"
+          },
+          "period": {
+            "$ref": "#/components/schemas/StatsPeriod"
+          },
+          "tz": {
+            "type": "string"
+          },
+          "bucket": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week"
+            ]
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "genres": {
+                "type": "integer",
+                "description": "Genres heard in the span."
+              },
+              "newGenres": {
+                "type": "integer",
+                "description": "Of those, heard for the first time."
+              },
+              "plays": {
+                "type": "integer",
+                "description": "Every play in the span."
+              },
+              "taggedPlays": {
+                "type": "integer",
+                "description": "Plays of a track with at least one genre."
+              }
+            },
+            "required": [
+              "genres",
+              "newGenres",
+              "plays",
+              "taggedPlays"
+            ]
+          },
+          "genres": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/GenreRef"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "plays": {
+                      "type": "integer"
+                    },
+                    "minutes": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "plays",
+                    "minutes"
+                  ]
+                }
+              ]
+            },
+            "description": "The span's top genres by plays, most first."
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "description": "Bucket start, YYYY-MM-DD."
+                },
+                "byGenre": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Listening"
+                  },
+                  "description": "Per genre in `genres`, same order."
+                }
+              },
+              "required": [
+                "date",
+                "byGenre"
+              ]
+            }
+          },
+          "newGenres": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/GenreRef"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "plays": {
+                      "type": "integer"
+                    },
+                    "firstPlayedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "example": "2026-09-21T12:00:00.000Z"
+                    }
+                  },
+                  "required": [
+                    "plays",
+                    "firstPlayedAt"
+                  ]
+                }
+              ]
+            },
+            "description": "Genres first heard in the span, most played first; at most 12."
+          }
+        },
+        "required": [
+          "tz",
+          "bucket",
+          "totals",
+          "genres",
+          "series",
+          "newGenres"
+        ]
+      },
       "PodcastStatsOverview": {
         "type": "object",
         "properties": {
@@ -8161,6 +8294,98 @@
                   "required": [
                     "items"
                   ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stats/genres": {
+      "get": {
+        "tags": [
+          "Stats"
+        ],
+        "operationId": "getStatsGenres",
+        "summary": "Genres over time, and genres new to you",
+        "description": "The span's top 5 genres by plays with their plays and minutes per bucket (bucketed like `/stats/overview`), how many genres were heard and how many of the plays have a genre at all, and the genres heard for the first time in the span (for `all`, every genre). A play counts for every genre its track's artists have, once each, so genres overlap and their plays add up to more than the span's.",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/StatsRange"
+            },
+            "required": false,
+            "description": "A rolling window ending now. `30d` unless `period` is given.",
+            "name": "range",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/StatsPeriod"
+            },
+            "required": false,
+            "description": "A calendar year (`2019`) or month (`2019-03`), in local days of `tz`. Not with `range`.",
+            "name": "period",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "default": "UTC",
+              "description": "IANA time zone for day boundaries.",
+              "example": "America/Los_Angeles"
+            },
+            "required": false,
+            "description": "IANA time zone for day boundaries.",
+            "name": "tz",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Genre stats.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsGenres"
                 }
               }
             }

@@ -422,6 +422,18 @@ export const statsOverviewQueryOptions = (api: ApiClient, scope: StatsScope, tz:
     },
   })
 
+export type StatsGenres = InferResponseType<ApiClient['stats']['genres']['$get'], 200>
+
+/** Genres over time and genres new to the span, bucketed in the viewer's time zone. */
+export const statsGenresQueryOptions = (api: ApiClient, scope: StatsScope, tz: string) =>
+  queryOptions({
+    queryKey: ['stats', 'genres', scope, tz],
+    queryFn: async (): Promise<StatsGenres> => {
+      const endpoint = 'GET /api/v1/stats/genres'
+      return expectOk(await send(endpoint, () => api.stats.genres.$get({ query: { ...scope, tz } })), endpoint)
+    },
+  })
+
 export const statsTopQueryOptions = (
   api: ApiClient,
   query: StatsScope & { type: StatsTop['type']; metric: StatsTop['metric']; tz: string },

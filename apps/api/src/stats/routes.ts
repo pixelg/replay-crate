@@ -2,9 +2,10 @@ import { createRoute, z } from '@hono/zod-openapi'
 import { requireUser } from '../auth/middleware.ts'
 import type { AppDeps } from '../deps.ts'
 import { createRouter, errorResponses, invalidRequest, signedIn } from '../lib/openapi.ts'
-import { jsonResponse, Rating } from '../lib/schemas.ts'
+import { GenreRef, IsoDateTime, jsonResponse, Rating } from '../lib/schemas.ts'
 import { spotifyErrorResponse } from '../spotify/errors.ts'
 import { calendarDays, yearsWithPlays } from './calendar.ts'
+import { genreStats } from './genres.ts'
 import { overview } from './overview.ts'
 import { podcastCalendarDays, podcastOverview, podcastTop, yearsWithListens } from './podcasts.ts'
 import { localDay, period, range, timeZone, type Range, type Span } from './ranges.ts'
@@ -113,6 +114,50 @@ const getTop = createRoute({
         ),
       }),
       'The ranking, echoing the query.',
+    ),
+    ...errorResponses('invalid_request', 'unauthorized'),
+  },
+})
+
+const getGenres = createRoute({
+  method: 'get',
+  path: '/stats/genres',
+  tags: ['Stats'],
+  operationId: 'getStatsGenres',
+  summary: 'Genres over time, and genres new to you',
+  description:
+    "The span's top 5 genres by plays with their plays and minutes per bucket (bucketed like `/stats/overview`), how " +
+    'many genres were heard and how many of the plays have a genre at all, and the genres heard for the first time ' +
+    "in the span (for `all`, every genre). A play counts for every genre its track's artists have, once each, so " +
+    "genres overlap and their plays add up to more than the span's.",
+  security: signedIn,
+  request: { query: z.object({ ...Scope, tz: Tz }) },
+  responses: {
+    200: jsonResponse(
+      z
+        .object({
+          ...Scope,
+          tz: z.string(),
+          bucket: z.enum(['day', 'week']),
+          totals: z.object({
+            genres: z.number().int().openapi({ description: 'Genres heard in the span.' }),
+            newGenres: z.number().int().openapi({ description: 'Of those, heard for the first time.' }),
+            plays: z.number().int().openapi({ description: 'Every play in the span.' }),
+            taggedPlays: z.number().int().openapi({ description: 'Plays of a track with at least one genre.' }),
+          }),
+          genres: z.array(GenreRef.extend(Listening.shape)).openapi({ description: "The span's top genres by plays, most first." }),
+          series: z.array(
+            z.object({
+              date: z.string().openapi({ description: 'Bucket start, YYYY-MM-DD.' }),
+              byGenre: z.array(Listening).openapi({ description: 'Per genre in `genres`, same order.' }),
+            }),
+          ),
+          newGenres: z
+            .array(GenreRef.extend({ plays: z.number().int(), firstPlayedAt: IsoDateTime }))
+            .openapi({ description: 'Genres first heard in the span, most played first; at most 12.' }),
+        })
+        .openapi('StatsGenres'),
+      'Genre stats.',
     ),
     ...errorResponses('invalid_request', 'unauthorized'),
   },
@@ -331,6 +376,13 @@ export function statsRoutes(deps: AppDeps) {
       if (!span) return c.json(bothGiven(), 400)
       const items = await top(deps.db, c.var.user.id, { type, span, tz, metric, limit, now: now() })
       return c.json({ type, ...span, tz, metric, limit, items }, 200)
+    })
+
+    .openapi({ ...getGenres, middleware: auth }, async (c) => {
+      const query = c.req.valid('query')
+      const span = spanOf(query)
+      if (!span) return c.json(bothGiven(), 400)
+      return c.json(await genreStats(deps.db, c.var.user.id, { span, tz: query.tz, now: now() }), 200)
     })
 
     .openapi({ ...getCalendar, middleware: auth }, async (c) => {

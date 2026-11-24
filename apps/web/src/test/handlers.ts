@@ -33,6 +33,7 @@ import {
   spotifyTracks,
   spotifyTop,
   statsCalendar,
+  statsGenres,
   statsOverview,
   statsTop,
   timeline,
@@ -192,6 +193,11 @@ export const handlers = {
       const { range, ...overview } = statsOverview()
       const period = query.get('period')
       return response(200).json(period ? { period, ...overview } : { range, ...overview })
+    }),
+    http.get('/api/v1/stats/genres', ({ query, response }) => {
+      const { range, ...stats } = statsGenres()
+      const period = query.get('period')
+      return response(200).json(period ? { period, ...stats } : { range, ...stats })
     }),
     http.get('/api/v1/stats/top', ({ query, response }) => {
       const { range, ...top } = statsTop

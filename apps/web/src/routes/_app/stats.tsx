@@ -3,6 +3,7 @@ import {
   podcastStatsOverviewQueryOptions,
   podcastStatsTopQueryOptions,
   spotifyTopQueryOptions,
+  statsGenresQueryOptions,
   statsOverviewQueryOptions,
   statsTopQueryOptions,
   timelineQueryOptions,
@@ -14,7 +15,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { InlineError } from '@/components/inline-error'
 import { PageHeader } from '@/components/page-header'
-import { ListeningOverTime, PodcastListeningOverTime } from '@/components/stats/listening-over-time'
+import { GenresOverTime, ListeningOverTime, PodcastListeningOverTime } from '@/components/stats/listening-over-time'
 import { PlayCalendarCard, PodcastCalendarCard } from '@/components/stats/play-calendar'
 import { SpotifyView, type SpotifyTimeRange } from '@/components/stats/spotify-view'
 import { StatsScope } from '@/components/stats/stats-scope'
@@ -85,6 +86,7 @@ function StatsPage() {
     ...statsTopQueryOptions(api, { ...scope, type: topType, metric, tz: timeZone }),
     placeholderData: keepPreviousData,
   })
+  const genres = useQuery({ ...statsGenresQueryOptions(api, scope, timeZone), placeholderData: keepPreviousData })
   const spotify = useQuery({
     ...spotifyTopQueryOptions(api, { type: spotifyType, timeRange: spotifyRange }),
     placeholderData: keepPreviousData,
@@ -156,6 +158,18 @@ function StatsPage() {
           <ChartSkeleton />
         )}
       </div>
+
+      {genres.data ? (
+        <GenresOverTime
+          stats={genres.data}
+          showNew={period !== undefined || range !== 'all'}
+          emptyText={periodLabel ? `No plays in ${periodLabel}.` : undefined}
+        />
+      ) : genres.error ? (
+        <InlineError error={genres.error} action="Loading genre stats" />
+      ) : (
+        <ChartSkeleton />
+      )}
 
       {/* Picking a year for the page turns the calendar to it too. */}
       <PlayCalendarCard key={search.year} initialYear={search.year} />

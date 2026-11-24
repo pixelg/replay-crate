@@ -755,6 +755,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stats/genres": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Genres over time, and genres new to you
+         * @description The span's top 5 genres by plays with their plays and minutes per bucket (bucketed like `/stats/overview`), how many genres were heard and how many of the plays have a genre at all, and the genres heard for the first time in the span (for `all`, every genre). A play counts for every genre its track's artists have, once each, so genres overlap and their plays add up to more than the span's.
+         */
+        get: operations["getStatsGenres"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stats/calendar": {
         parameters: {
             query?: never;
@@ -1870,6 +1890,43 @@ export interface components {
             plays: number;
             minutes: number;
             rating: components["schemas"]["Rating"] & unknown;
+        };
+        StatsGenres: {
+            range?: components["schemas"]["StatsRange"];
+            period?: components["schemas"]["StatsPeriod"];
+            tz: string;
+            /** @enum {string} */
+            bucket: "day" | "week";
+            totals: {
+                /** @description Genres heard in the span. */
+                genres: number;
+                /** @description Of those, heard for the first time. */
+                newGenres: number;
+                /** @description Every play in the span. */
+                plays: number;
+                /** @description Plays of a track with at least one genre. */
+                taggedPlays: number;
+            };
+            /** @description The span's top genres by plays, most first. */
+            genres: (components["schemas"]["GenreRef"] & {
+                plays: number;
+                minutes: number;
+            })[];
+            series: {
+                /** @description Bucket start, YYYY-MM-DD. */
+                date: string;
+                /** @description Per genre in `genres`, same order. */
+                byGenre: components["schemas"]["Listening"][];
+            }[];
+            /** @description Genres first heard in the span, most played first; at most 12. */
+            newGenres: (components["schemas"]["GenreRef"] & {
+                plays: number;
+                /**
+                 * Format: date-time
+                 * @example 2026-09-21T12:00:00.000Z
+                 */
+                firstPlayedAt: string;
+            })[];
         };
         PodcastStatsOverview: {
             range?: components["schemas"]["StatsRange"];
@@ -5017,6 +5074,60 @@ export interface operations {
                         limit: number;
                         items: components["schemas"]["TopItem"][];
                     };
+                };
+            };
+            /** @description invalid_request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvalidRequestError"];
+                };
+            };
+            /** @description unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnauthorizedError"];
+                };
+            };
+            /** @description internal_error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InternalError"];
+                };
+            };
+        };
+    };
+    getStatsGenres: {
+        parameters: {
+            query?: {
+                /** @description A rolling window ending now. `30d` unless `period` is given. */
+                range?: components["schemas"]["StatsRange"];
+                /** @description A calendar year (`2019`) or month (`2019-03`), in local days of `tz`. Not with `range`. */
+                period?: components["schemas"]["StatsPeriod"];
+                /** @description IANA time zone for day boundaries. */
+                tz?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Genre stats. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatsGenres"];
                 };
             };
             /** @description invalid_request */
