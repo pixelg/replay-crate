@@ -12,7 +12,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities'
 import { cn } from 'cn'
 import { GripVertical } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { memo, useMemo, useState, type ReactNode } from 'react'
 
 /** How long a finger rests on a row before it lifts: shorter is a swipe or a scroll. */
 export const TOUCH_HOLD_MS = 300
@@ -101,9 +101,11 @@ export function SortableList<T>({
               label={getLabel(item)}
               disabled={disabled}
               locked={canMove?.(item) === false}
-              className={itemClassName} marked={isMarked?.(item)}>
-              {(grip) => renderItem(item, grip)}
-            </SortableItem>
+              className={itemClassName}
+              marked={isMarked?.(item)}
+              item={item}
+              render={renderItem}
+            />
           ))}
         </ol>
       </SortableContext>
@@ -111,14 +113,32 @@ export function SortableList<T>({
   )
 }
 
-function SortableItem({
+/**
+ * A row's content, drawn again only when its item, its grip or the list's `renderItem` changes. A
+ * drag updates every row on each pointer move (their places shift), and playlist rows are heavy:
+ * without this, lifting a row there took seconds.
+ */
+const RowContent = memo(function RowContent({
+  item,
+  grip,
+  render,
+}: {
+  item: unknown
+  grip: ReactNode
+  render: (item: unknown, grip: ReactNode) => ReactNode
+}) {
+  return render(item, grip)
+})
+
+function SortableItem<T>({
   id,
   label,
   disabled,
   locked,
   className,
   marked,
-  children,
+  item,
+  render,
 }: {
   id: string
   label: string
@@ -127,7 +147,8 @@ function SortableItem({
   locked: boolean
   className?: string
   marked?: boolean
-  children: (grip: ReactNode) => ReactNode
+  item: T
+  render: (item: T, grip: ReactNode) => ReactNode
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id,
@@ -137,18 +158,23 @@ function SortableItem({
   // The pointer starts a drag anywhere on the row; the keyboard only from the grip, so Enter and
   // Space still work on the row's own links and buttons.
   const { onKeyDown, ...pointer } = (listeners ?? {}) as Record<string, (event: unknown) => void>
-  const grip = still ? null : (
-    <button
-      type="button"
-      ref={setActivatorNodeRef}
-      {...attributes}
-      onKeyDown={onKeyDown}
-      aria-label={`Move ${label}`}
-      title="Drag to move (press and hold on a touch screen)"
-      className="-ml-1 flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"
-    >
-      <GripVertical aria-hidden className="size-4" />
-    </button>
+  // Kept the same while nothing about it changes, so the row's content isn't drawn again.
+  const grip = useMemo(
+    () =>
+      still ? null : (
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          {...attributes}
+          onKeyDown={onKeyDown}
+          aria-label={`Move ${label}`}
+          title="Drag to move (press and hold on a touch screen)"
+          className="-ml-1 flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"
+        >
+          <GripVertical aria-hidden className="size-4" />
+        </button>
+      ),
+    [still, setActivatorNodeRef, attributes, onKeyDown, label],
   )
   return (
     <li
@@ -165,7 +191,7 @@ function SortableItem({
         isDragging && 'relative z-10 rounded-lg bg-card shadow-lg ring-1 ring-border',
       )}
     >
-      {children(grip)}
+      <RowContent item={item} grip={grip} render={render as (item: unknown, grip: ReactNode) => ReactNode} />
     </li>
   )
 }
