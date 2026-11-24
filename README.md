@@ -120,9 +120,21 @@ If you dual boot Linux and Windows (WSL2 + Docker Desktop with WSL integration),
    pnpm dev   # or pnpm serve
    ```
 
-   Adjust the paths to where things sit on that disk: a `/home` partition's root is `/mnt/wsl/PHYSICALDRIVE2p1`, so `/home/blee/...` becomes `/mnt/wsl/PHYSICALDRIVE2p1/blee/...`. Don't run Windows from the Linux checkout on the mounted disk: its `.env` must keep the Linux path. Pointed at `/mnt/wsl/...`, it makes Linux's Postgres (and the `replay-crate` service) start on an empty directory, which Docker creates, and so on a fresh, empty database without any error. Postgres must be the same major version (18) on both sides.
+   Adjust the paths to where things sit on that disk: a `/home` partition's root is `/mnt/wsl/PHYSICALDRIVE2p1`, so `/home/blee/...` becomes `/mnt/wsl/PHYSICALDRIVE2p1/blee/...`. Don't run Windows from the Linux checkout on the mounted disk: its `.env` must keep the Linux path. Pointed at `/mnt/wsl/...`, Linux finds no database there and won't start Postgres (see below). Postgres must be the same major version (18) on both sides.
+
+   If `http://127.0.0.1:5173` doesn't open in a Windows browser while `pnpm dev` runs (4173 and 8787 do), Windows has reserved the port: `netsh interface ipv4 show excludedportrange protocol=tcp` lists blocks such as 5141–5240. Windows reserves them out of its dynamic port range, so move that range back to Windows' default, above the dev ports, from an administrator PowerShell:
+
+   ```powershell
+   netsh int ipv4 set dynamic tcp start=49152 num=16384
+   netsh int ipv6 set dynamic tcp start=49152 num=16384
+   net stop winnat; net start winnat   # or reboot
+   ```
+
+   `net stop winnat` waits for Docker and WSL to let go, which can take a while.
 
 4. **Switching OS:** stop Postgres first (`pnpm db:down`). Leaving Windows, also detach the disk in an administrator PowerShell (`wsl --unmount \\.\PHYSICALDRIVE2`, or `wsl --shutdown`). Each OS has its own search index, while plays recorded on the other OS only reach that OS's index, so with Elasticsearch run `pnpm search:reindex` after switching. (`pnpm serve` starts Elasticsearch and fills a brand-new index by itself; `pnpm dev` needs `pnpm search:up` first.)
+
+**Forgot to mount the disk?** `pnpm db:up`, `search:up`, `dev` and `serve` check `PGDATA_DIR` first (`scripts/check-pgdata.sh`) and stop when it holds no database or is in memory, which is what `/mnt/wsl/...` is while the disk isn't mounted. Without that check, Docker would create the directory and Postgres would start a brand-new, empty database: sign-in fails with `relation "users" does not exist`, and Docker Desktop keeps pointing at that empty directory even after the disk is mounted. If that ever happens: mount the disk, `docker compose down`, then remove Docker Desktop's stale bind (from Windows, so it runs as root: `wsl -d <distro> -u root -- umount /mnt/wsl/docker-desktop-bind-mounts/<distro>/<id>`, the line `findmnt | grep pgdata` shows on `tmpfs`) and `pnpm db:up` again. Your data on the disk is untouched.
 
 ## Import your full history
 
